@@ -18,10 +18,12 @@ _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
+import shiboken6  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402
 
 APP = QApplication.instance() or QApplication([])
 
+from asistan import choices  # noqa: E402
 from asistan.config import Settings  # noqa: E402
 from asistan.gui import tour  # noqa: E402
 from asistan.gui.window import MainWindow  # noqa: E402
@@ -32,6 +34,13 @@ class SagPanelTesti(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.w = MainWindow()
+
+    @classmethod
+    def tearDownClass(cls):
+        # pencere (ve dosya ağacının iş parçacığı) Python kapanmadan silinsin: yoksa Qt süreci durdurur
+        cls.w.close()
+        shiboken6.delete(cls.w)
+        APP.processEvents()
 
     def test_sekmeler_adimlar_kayit_klasorler(self):
         tabs = self.w.right.tabs
@@ -107,6 +116,62 @@ class SagPanelTesti(unittest.TestCase):
             self.assertEqual(len(tour.pending(s)), len(tour.NEWS["2.3"]) + len(tour.NEWS["2.2"]))
             s.extra = {"tanitim_surumu": "2.3"}
             self.assertEqual(tour.pending(s), [])
+
+    def test_onizleme_ortadan_ikiye_acilir(self):
+        r = self.w.right
+        self.w.resize(1400, 900)
+        self.w.show()
+        try:
+            r.hide_media()
+            r.show_media("Resim hazırlanıyor…")
+            APP.processEvents()
+            ust, alt = r.split.sizes()
+            self.assertLessEqual(abs(ust - alt), 2)
+        finally:
+            r.hide_media()
+            self.w.hide()
+
+    def test_hata_var_dugmesi_kendini_kontrol_ettirir(self):
+        self.w.chat.last_request = "lamba tasarla ve STL ver"
+        self.w.chat.start_turn("model")
+        bubble = self.w.chat.last_bubble
+        self.assertTrue(any("hata var" in b.toolTip() for b in bubble.footer_actions))
+        with mock.patch.object(self.w, "_retry_message") as gonder:
+            self.w._self_check("lamba tasarla ve STL ver")
+        mesaj = gonder.call_args[0][0]
+        self.assertTrue(mesaj.startswith("⚠"))
+        self.assertIn("lamba tasarla ve STL ver", mesaj)
+        self.assertIn("list_files", mesaj)
+
+    def test_soru_secenekleri_baloncuk_olur(self):
+        self.w.chat.start_turn("model")
+        secilen = []
+        self.w.chat.choice_picked.connect(secilen.append)
+        self.w.chat.offer_choices(["E27", "E14"], lambda: None)
+        dugmeler = self.w.chat.last_bubble.choice_buttons
+        self.assertEqual([b.text() for b in dugmeler], ["E27", "E14"])
+        with mock.patch.object(self.w, "_submit") as gonder:  # gerçek model çalıştırılmasın
+            dugmeler[1].click()
+        self.assertEqual(secilen, ["E14"])
+        gonder.assert_called_once()
+        self.assertEqual(self.w.input.toPlainText(), "E14")
+        self.w.input.clear()
+        self.assertFalse(dugmeler[0].isEnabled())  # biri seçilince hepsi kapanır
+
+
+class SecenekTesti(unittest.TestCase):
+    def test_madde_listesi(self):
+        self.assertEqual(choices.parse("Duy lazım.\n\nHangi duy?\n- **E27** (standart)\n- E14"),
+                         ["E27 (standart)", "E14"])
+        self.assertEqual(choices.parse("Hangisi?\n1. Küre\n2. Silindir"), ["Küre", "Silindir"])
+
+    def test_evet_hayir(self):
+        self.assertEqual(choices.parse("Model hazır. Yazdırmak ister misin?"), ["Evet", "Hayır"])
+
+    def test_soru_degilse_ya_da_liste_degilse_bos(self):
+        self.assertEqual(choices.parse("Yaptıklarım:\n- a\n- b\nBitti."), [])
+        self.assertEqual(choices.parse("Ne kadar büyük olsun?\nÖrneğin 15 cm çap uygun."), [])
+        self.assertEqual(choices.parse("Hangisi?\n- " + "x" * 200 + "\n- y"), [])
 
 
 if __name__ == "__main__":

@@ -740,8 +740,8 @@ class RightPanel(QWidget):
         self.tabs.setCornerWidget(close, Qt.TopRightCorner)
         self.split = QSplitter(Qt.Vertical)
         self.split.setChildrenCollapsible(False)
-        for w, stretch in ((self.tabs, 2), (self.media, 3)):  # açıkken canlı önizlemeye daha çok yer
-            w.setMinimumHeight(160)
+        for w, stretch in ((self.tabs, 1), (self.media, 1)):
+            w.setMinimumHeight(220)  # küçük pencerede de adımlar okunur kalsın
             self.split.addWidget(w)
             self.split.setStretchFactor(self.split.count() - 1, stretch)
         self.media.hide()
@@ -755,7 +755,7 @@ class RightPanel(QWidget):
         if not self.media.isVisible():
             self.media.show()
             h = max(self.split.height(), 400)
-            self.split.setSizes([h * 2 // 5, h * 3 // 5])
+            self.split.setSizes([h // 2, h - h // 2])  # her açılışta tam ortadan; kullanıcı çizgiyle değiştirir
 
     def hide_media(self):
         self.media.hide()

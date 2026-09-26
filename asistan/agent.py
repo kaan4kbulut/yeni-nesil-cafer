@@ -267,7 +267,9 @@ def method_prompt(tools: set[str]) -> str:
                              ("a new tool built for you (request_tool)", "request_tool")) if name in tools]
     steps = ["If a detail that decides the result is missing and cannot be looked up (a size, which device, which "
              "file, which account), ask one short question before starting; for everything else assume sensibly "
-             "and say what you assumed."
+             "and say what you assumed. When you ask, end your message with the question on its own line and, "
+             "under it, 2-5 short answers as a bulleted list (- E27 standart duy), no text after the list: the "
+             "user clicks one instead of typing."
              + (" Save lasting answers with remember (kind ekipman for the user's devices, tercih for preferences) "
                 "so you never ask again." if "remember" in tools else "")]
     if "use_skill" in tools:
@@ -1319,6 +1321,18 @@ class Agent:
             self.cb.on_text("\n\n*Şimdi gerçekten yapıyorum.*\n\n")
             return ("Nothing was executed yet: you only wrote text. Now actually do the work by calling the tools "
                     "(run_python, write_file, run_command…) step by step, then summarize the real results.")
+        if not content.strip() and has_tools and not state.get("empty_act") and not self.gate_actions \
+                and is_task_request(self.user_text) and not self.actions_done:
+            # iş istendi ama hiçbir şey üretilmeden sessizce durdu (sık: tarif / resim okunduktan sonra): açıklama
+            # isteme — küçük model o zaman konuşup bırakıyor; bir sonraki adımı gerçekten yaptır
+            state["empty_act"] = True
+            self.cb.on_text("\n\n*Devam ediyorum.*\n\n")
+            last = next((m.get("tool_name") or m.get("name") for m in reversed(messages) if m.get("role") == "tool"), "")
+            how = ("Apply the recipe you just read: write the complete script and run it with run_python now."
+                   if last == "use_skill" else "Call the next tool now (e.g. run_python with the complete script).")
+            return ("You stopped without writing anything, but the task is not done and nothing has been produced "
+                    f"yet. {how} Do not explain or apologize first; act. If a size that decides the result is "
+                    "really missing, ask exactly one short question instead.")
         if not content.strip() and not state.get("empty"):
             state["empty"] = True
             return ("You stopped without writing anything. Tell me briefly in my language what happened, what you "

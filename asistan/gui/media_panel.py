@@ -260,7 +260,7 @@ class ModelView(QWidget):
 class MediaPanel(QWidget):
     """canlı görüntü bölümü (ayrıntı modül açıklamasında)."""
 
-    new_media = Signal()  # yeni medya geldi
+    new_media = Signal(str)  # yeni medya geldi (en yeni dosyanın yolu)
     closed = Signal()  # ✕: canlı önizlemeyi gizle
 
     def __init__(self):
@@ -407,7 +407,7 @@ class MediaPanel(QWidget):
             newest = max(fresh, key=lambda p: self.known[p][0])
             if self.follow.isChecked() and not self.live_active:
                 self.show_file(newest)
-            self.new_media.emit()
+            self.new_media.emit(newest)
 
     # ---- gösterme
     def show_file(self, path: str):

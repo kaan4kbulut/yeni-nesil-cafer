@@ -366,6 +366,7 @@ class BarMixin:
         on = self.settings.approval_mode == "guvenlik"
         self._switch_style(self.guard_btn, on, C["success"])
         self.guard_btn.setText("🛡 güvenlik: açık" if on else "🛡 güvenlik: kapalı")
+        self._center_model_tabs()  # dar pencerede kısa yazı
         self.guard_btn.setToolTip(
             "Açık (varsayılan): işlemlere güvenlik ajanı karar verir; engellediğinde sohbette nedenini ve kapatma "
             "düğmesini görürsün.\n"

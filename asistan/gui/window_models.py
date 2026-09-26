@@ -641,12 +641,33 @@ class ModelsMixin:
             self._notify("öncelik: yerel — araç kullanabilen yerel model bulunamadı; program işe göre seçer", 8000)
 
     def _center_model_tabs(self):
-        bar, tabs = self.menuBar(), self.model_tabs
-        tabs.adjustSize()
+        bar, tabs = self.menuBar(), getattr(self, "model_tabs", None)
+        if tabs is None:
+            return
         # ortada; pencere darsa soldaki menülerin (Sohbet · Görünüm · Yardım) üstüne binmesin
         left = max((bar.actionGeometry(a).right() for a in bar.actions()), default=0) + 16
+        self._fit_model_tabs(bar.width() - left - 8)
         tabs.move(max((bar.width() - tabs.width()) // 2, left), (bar.height() - tabs.height()) // 2)
         tabs.raise_()
+
+    def _fit_model_tabs(self, room: int):
+        """Pencere daralınca üst düğmeler taşmasın: önce anahtarlar yalnızca simge (🛡 🔓 🔋, ayrıntı ipucunda),
+        yetmezse model düğmeleri yalnızca "Online ⌄" / "Offline ⌄" olur. Genişleyince tam yazıya döner."""
+        switches = [b for b in (getattr(self, n, None) for n in ("guard_btn", "free_btn", "light_btn")) if b]
+        kinds = list(getattr(self, "kind_tabs", {}).values())
+        for b in switches + kinds:
+            if b.text() != b.property("short"):  # metni güncelleme fonksiyonu değiştirdi: tam metin bu
+                b.setProperty("full", b.text())
+            b.setText(b.property("full") or b.text())
+        steps = [(switches, lambda t: (t.split() or [t])[0]), (kinds, lambda t: t.split(" · ")[0].replace("  ⌄", "") + "  ⌄")]
+        self.model_tabs.adjustSize()
+        for group, short in steps:
+            if self.model_tabs.width() <= room:
+                break
+            for b in group:
+                b.setProperty("short", short(b.property("full") or b.text()))
+                b.setText(b.property("short"))
+            self.model_tabs.adjustSize()
 
     def eventFilter(self, obj, event):  # noqa: N802
         if obj is self.menuBar() and event.type() in (QEvent.Resize, QEvent.Show):

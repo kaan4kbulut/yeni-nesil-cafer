@@ -300,7 +300,7 @@ def original_request(text: str) -> str:
     """"▶ Onaylıyorum…: «istek»…" / "↻ … «istek»" mesajlarından asıl isteği çıkarır."""
     text = (text or "").split("\n\n[Ek")[0]
     m = re.search(r"«(.*)»", text, re.S)
-    return (m.group(1) if m and text.startswith(("▶", "↻")) else text).strip()
+    return (m.group(1) if m and text.startswith(("▶", "↻", "⚠")) else text).strip()
 
 
 # ---------------------------------------------------------------- gelişim

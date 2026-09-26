@@ -299,6 +299,25 @@ class ChatsMixin:
             f"↻ Önceki cevabını beğenmedim. Şu isteğim için öncekinden belirgin şekilde farklı bir yaklaşımla "
             f"yeni bir çözüm bul; aynı fikri tekrarlama: «{quote}»")
 
+    def _self_check(self, request: str):
+        """Yanıttaki "hata var": yarım kalan, hiçbir şey yapmayan ya da yanlış cevap. Asistan isteği, gerçekten
+        yaptıklarını ve ürettiği dosyaları karşılaştırıp eksik kalanı şimdi yapar (açıklamayla oyalanmadan)."""
+        bubble = self.chat.last_bubble
+        learning.log_issue("hata_bildirildi", learning.original_request(request), getattr(self, "last_run_model", ""),
+                           "önceki cevap: " + (bubble.text()[:600] if bubble is not None else ""))
+        full = " ".join(learning.original_request(request).split())
+        quote = full[:1500] + ("…" if len(full) > 1500 else "")
+        self._retry_message(
+            f"⚠ Önceki cevabında sorun var: yarım kaldı, istediğimi yapmadın ya da hatalı. Kendini kontrol et:\n"
+            f"1. İsteğimi yeniden oku: «{quote}»\n"
+            "2. Bu sohbette gerçekten çalıştırdığın adımlara ve iş klasöründeki dosyalara bak (list_files); yalnızca "
+            "yazdığın ama yapmadığın şeyleri yapılmış sayma.\n"
+            "3. İsteğin hangi kısmı eksik ya da yanlış, bul.\n"
+            "4. Eksik kısmı şimdi araçlarla gerçekten yap, hatayı düzelt ve sonucu kontrol et (görsel/3D ise "
+            "inspect_output ile).\n"
+            "Özür dileyip açıklamayla vakit kaybetme. Sonucu belirleyen bir bilgi gerçekten eksikse tek bir kısa soru "
+            "sor. Bitince neyi düzelttiğini kısaca yaz.")
+
     def _apply_suggestions(self, request: str):
         """Öneri cevabındaki "uygula": asistan önerdiklerini şimdi yapar (onay pencereleri yine sorar)."""
         # isteğin tamamı: kesilirse model görevin bir kısmını hiç görmez (ör. "sonunda en yüksek ayı söyle")
@@ -314,8 +333,9 @@ class ChatsMixin:
         self.search.setFocus()
 
     def _pick_suggestion(self, text: str):
+        """Öneri ya da soru baloncuğu: mesaj olarak gönderilir (iş sürüyorsa durdurmaz, sıraya girer)."""
         self.input.setPlainText(text)
-        self._send_or_stop()
+        self._submit()
 
     def _start_agent_chat(self, agent_id: str):
         if self.worker:

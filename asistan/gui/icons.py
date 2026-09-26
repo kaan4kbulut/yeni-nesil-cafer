@@ -48,6 +48,8 @@ _PATHS = {
     "brain": '<circle cx="12" cy="12" r="9"/><path d="M12 7v10"/><path d="M8 10c1.5 0 2.5 1 4 1s2.5-1 4-1"/>'
              '<path d="M8 14c1.5 0 2.5 1 4 1s2.5-1 4-1"/>',
     "x": '<path d="M18 6 6 18"/><path d="m6 6 12 12"/>',
+    "alert": '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/>'
+             '<path d="M12 17h.01"/>',
     "retry": '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
     "copy": '<rect x="8" y="8" width="14" height="14" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
     "share": '<circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/>'

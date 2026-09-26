@@ -205,6 +205,13 @@ QLabel {{ selection-background-color: {C['selection']}; selection-color: #FFFFFF
 #vsep {{ background: {C['frame']}; min-width: 1px; max-width: 1px; min-height: 14px; max-height: 14px; }}
 #keyHint {{ color: {C['muted']}; font-family: "{MONO}"; font-size: 11px; background: transparent; }}
 #decisionPill {{ background: {C['field']}; border: 1px solid {C['frame']}; border-radius: 19px; }}
+#choiceButton {{ background: transparent; color: {C['text']}; border: 1px solid {C['accent']}; border-radius: 14px;
+                 padding: 5px 14px; text-align: left; }}
+#choiceButton:hover {{ background: {C['accent']}; color: {C['on_accent']}; }}
+#choiceButton:disabled {{ color: {C['muted']}; border-color: {C['frame']}; }}
+#choiceOther {{ background: transparent; color: {C['muted']}; border: 1px dashed {C['frame']}; border-radius: 14px;
+                padding: 5px 14px; }}
+#choiceOther:hover {{ color: {C['text']}; border-color: {C['text2']}; }}
 #decisionYes {{ background: {C['accent']}; border: none; border-radius: 15px; }}
 #decisionYes:hover {{ background: {C['accent_hover']}; }}
 #decisionNo {{ background: transparent; border: none; border-radius: 15px; }}

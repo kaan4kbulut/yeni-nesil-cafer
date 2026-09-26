@@ -414,6 +414,8 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         self.chat.retry_requested.connect(self._retry_message)
         self.chat.can_regenerate = True
         self.chat.regenerate_requested.connect(self._regenerate)
+        self.chat.problem_requested.connect(self._self_check)
+        self.chat.choice_picked.connect(self._pick_suggestion)
         self.chat.apply_requested.connect(self._apply_suggestions)
         self.work_room.feed.retry_requested.connect(self._task_note)
         self.chat.title_fn = lambda: self.conv.title if self.conv else ""

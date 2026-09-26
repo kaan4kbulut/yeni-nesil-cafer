@@ -50,6 +50,7 @@ class ModesMixin:
         model = self._free_model() or self.settings.extra.get("uncensored_model", "")  # pilde küçük olan
         self._switch_style(self.free_btn, on, C["error"])
         self.free_btn.setText(f"🔓 sansürsüz: {model.split('/')[-1]}" if on and model else "🔓 sansürsüz: kapalı")
+        self._center_model_tabs()  # dar pencerede kısa yazı
         self.free_btn.setToolTip("Açık: sohbetleri seçtiğin sansürsüz (filtresiz) model yürütür; araçlar ve "
                                  "hafıza aynı kalır; güvenlik ajanı kapanır, işlemleri sen onaylarsın.\nKapalı: normal modeller.")
         if self.free_btn.isChecked() != on:
@@ -174,6 +175,7 @@ class ModesMixin:
         pct = power.state().percent if power.state().on_battery else None
         where = "pilde" if power.state().on_battery else "fişte"
         btn.setText(f"🔋 hafif mod: {'açık' if on else 'kapalı'}" + (f" · %{pct}" if pct is not None else ""))
+        self._center_model_tabs()  # dar pencerede kısa yazı
         mode = self.settings.power_mode
         how = {"otomatik": "otomatik (pilde açılır, fişte kapanır)", "performans": "her zaman kapalı",
                "tasarruf": "her zaman açık"}.get(mode, mode)

@@ -808,7 +808,7 @@ def format_stats(seconds: float, stats: list[dict]) -> str:
 class AssistantBubble(QFrame):
     """Asistanın (ya da bir ajanın) bir yanıtı: başlık, içerik, altta süre · yeniden dene · kopyala · paylaş."""
 
-    def __init__(self, header: str, title_fn, on_regenerate=None):
+    def __init__(self, header: str, title_fn, on_regenerate=None, on_problem=None):
         super().__init__(objectName="assistantBox")
         self.title_fn = title_fn
         lay = QVBoxLayout(self)
@@ -831,6 +831,13 @@ class AssistantBubble(QFrame):
             regen.setIcon(icon("retry", C["muted"], 15, active=C["text"]))
             regen.setCursor(Qt.PointingHandCursor)
             regen.clicked.connect(on_regenerate)
+        problem = None
+        if on_problem:
+            problem = QToolButton(objectName="iconButton",
+                                  toolTip="hata var — yarım kaldı, yapmadı ya da yanlış: kendini kontrol edip tamamlasın")
+            problem.setIcon(icon("alert", C["muted"], 15, active=C["error"]))
+            problem.setCursor(Qt.PointingHandCursor)
+            problem.clicked.connect(on_problem)
         copy = QToolButton(objectName="iconButton", toolTip="kopyala")
         copy.setIcon(icon("copy", C["muted"], 15, active=C["text"]))
         copy.setCursor(Qt.PointingHandCursor)
@@ -845,9 +852,11 @@ class AssistantBubble(QFrame):
         fl.addWidget(self.stats, 1)
         if regen:
             fl.addWidget(regen)
+        if problem:
+            fl.addWidget(problem)
         fl.addWidget(copy)
         fl.addWidget(share)
-        self.footer_actions = [x for x in (regen, copy, share) if x]  # karar düğmeleri çıkınca gizlenir
+        self.footer_actions = [x for x in (regen, problem, copy, share) if x]  # karar düğmeleri çıkınca gizlenir
         self.footer.setVisible(False)
         lay.addWidget(self.footer)
 
@@ -898,6 +907,32 @@ class AssistantBubble(QFrame):
         self._place_apply()
         pill.show()
 
+    def offer_choices(self, options: list[str], on_pick, on_other):
+        """Asistanın sorusunun cevapları: tıklanabilir baloncuklar (biri seçilince hepsi kapanır)."""
+        box = QWidget(objectName="choiceBox")
+        col = QVBoxLayout(box)
+        col.setContentsMargins(0, 2, 0, 0)
+        col.setSpacing(6)
+        buttons = []
+
+        def pick(fn):
+            for b in buttons:
+                b.setEnabled(False)
+            fn()
+
+        for option in options:
+            b = QPushButton(option, objectName="choiceButton")
+            b.setCursor(Qt.PointingHandCursor)
+            b.clicked.connect(lambda _=False, o=option: pick(lambda: on_pick(o)))
+            buttons.append(b)
+            col.addWidget(b, 0, Qt.AlignLeft)
+        other = QPushButton("✎ başka bir şey yazayım", objectName="choiceOther")
+        other.setCursor(Qt.PointingHandCursor)
+        other.clicked.connect(on_other)
+        col.addWidget(other, 0, Qt.AlignLeft)
+        self.body.addWidget(box)
+        self.choice_buttons = buttons
+
     def _close_decision(self):
         pill = getattr(self, "apply_btn", None)
         if pill is not None:
@@ -931,6 +966,8 @@ class ChatView(QScrollArea):
     file_opened = Signal(str)  # dosya kartına tıklandı
     retry_requested = Signal(str)  # kullanıcı mesajında "tekrar et"
     regenerate_requested = Signal(str)  # yanıtta "yeniden dene": yanıtlanan istek metni
+    choice_picked = Signal(str)  # asistanın sorusuna baloncukla verilen cevap
+    problem_requested = Signal(str)  # yanıtta "hata var": yanıtlanan istek metni (kendini kontrol etsin)
     apply_requested = Signal(str)  # yanıt kenarındaki ✓: onaylanan isteğin metni
 
     def __init__(self):
@@ -1102,15 +1139,21 @@ class ChatView(QScrollArea):
     def start_turn(self, model: str, show_time: bool = True, who: str = "asistan"):
         text = f"{who}  ·  {model}" if model else who
         self._close_bubble()
-        regen = None
+        regen = problem = None
         if self.can_regenerate and self.last_request:
             regen = lambda _=False, q=self.last_request: self.regenerate_requested.emit(q)
-        self.bubble = self.last_bubble = AssistantBubble(text, self.title_fn, regen)
+            problem = lambda _=False, q=self.last_request: self.problem_requested.emit(q)
+        self.bubble = self.last_bubble = AssistantBubble(text, self.title_fn, regen, problem)
         self.plan_card = None
         self.layout_.addWidget(self.bubble)
         self.end_segment()
         self.turn_live = show_time  # geçmişten çizilen yanıtlar canlı değil
         self.turn_clock.start()
+
+    def offer_choices(self, options: list[str], on_other):
+        """Son yanıt bir soruyla bittiyse cevap seçenekleri baloncuk olarak sunulur."""
+        if self.last_bubble is not None and options:
+            self.last_bubble.offer_choices(options, self.choice_picked.emit, on_other)
 
     def offer_apply(self):
         """Son yanıtın alt köşesine ✓ ✗ ↻ koyar: onayla (adım adım sorarak yapar) · iptal · başka çözüm."""

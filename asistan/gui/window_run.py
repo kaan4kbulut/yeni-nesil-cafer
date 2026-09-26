@@ -7,7 +7,7 @@ from pathlib import Path
 
 from PySide6.QtCore import QTimer
 
-from .. import ctxprobe, learning, power, roster, suggest
+from .. import choices, ctxprobe, learning, power, roster, suggest
 from ..agent import Agent, describe_error, describe_pending, is_advice_request, is_install_request, is_task_request
 from ..work import chat_folder, guess_category
 
@@ -74,9 +74,10 @@ class RunMixin:
         for w in (self.model_pill, self.workspace_btn, self.api_panel, self.agent_panel):
             w.setEnabled(not running)
 
-    def _new_media(self):
-        """İş sürerken klasöre resim / video / 3D model yazıldı: canlı önizleme açılır (iş yokken açılmaz)."""
-        if self.worker:
+    def _new_media(self, path: str = ""):
+        """İş sürerken klasöre resim / video / 3D model yazıldı: canlı önizleme açılır (iş yokken açılmaz).
+        Kullanıcının eklediği dosyalar (ekler/) üretilen bir görsel değildir: önizlemeyi açmaz."""
+        if self.worker and "ekler" not in Path(path).parts:
             self.right.show_media()
 
     def _submit(self):
@@ -303,6 +304,9 @@ class RunMixin:
         if self.cloud_job is not None:
             self._cloud_job_finished(w)
         self.chat.end_turn(summary)
+        if not w.is_cancelled() and not w.agent.pending_actions and bubble is not None:
+            # soru sorduysa cevaplar tıklanabilir baloncuk: kullanıcı yazmak zorunda kalmasın
+            self.chat.offer_choices(choices.parse(bubble.text()), self.input.setFocus)
         request = self.chat.last_request or ""
         if (self.settings.approval_mode != "guvenlik" and not w.is_cancelled() and not request.startswith("📈")
                 and not w.agent.no_tools):  # araçsız model: düğmeye basınca yapılabilecek bir şey yok
