@@ -2,6 +2,8 @@
 # Yeni sürümü GitHub'da yayımlar (asistan/__init__.py'deki __version__ ve GITHUB_REPO):
 #   testler → git etiketi ve gönderme → kurulum paketleri (2 GB'lık parçalara bölünür) → kod güncelleme paketi
 #   → GitHub sürümü (notlar BENIOKU'nun "SÜRÜM x'DE YENİ" bölümünden).
+# Bağlantı koparsa her dosya kendiliğinden yeniden denenir; betik yarıda kalırsa yeniden çalıştır: yüklenmiş
+# dosyaları atlayıp kaldığı yerden devam eder. Sürüm, her şey yüklenene kadar taslaktır (kimse yarım sürümü görmez).
 # Kullanım: paketleme/yayinla.sh [--paketsiz]   (--paketsiz: yalnızca kod güncellemesi; büyük paketler yüklenmez)
 # Gerekenler: gh (pkexec pacman -S github-cli) ve bir kez `gh auth login`.
 set -euo pipefail
@@ -12,12 +14,35 @@ yaz() { printf '\n  \033[33m%s\033[0m\n' "$*"; }
 hata() { printf '\n  \033[31m%s\033[0m\n' "$*"; exit 1; }
 
 SURUM=$("$PY" -c "import asistan; print(asistan.__version__)")
+PAKET=$("$PY" -c "import asistan; print(asistan.SURUM_ADI)")
 REPO=$("$PY" -c "import asistan; print(asistan.GITHUB_REPO)")
 [ -n "$REPO" ] || hata "asistan/__init__.py içinde GITHUB_REPO boş (ör. kullanici/yeni-nesil-cafer)."
 command -v gh >/dev/null || hata "gh yok: pkexec pacman -S github-cli, sonra gh auth login"
 gh auth status >/dev/null 2>&1 || hata "GitHub'a giriş yapılmamış: gh auth login"
 git diff --quiet && git diff --cached --quiet || hata "Commit edilmemiş değişiklik var; önce commit et."
-gh release view "v$SURUM" --repo "$REPO" >/dev/null 2>&1 && hata "v$SURUM zaten yayımlanmış; önce sürümü artır."
+DEVAM=0
+if gh release view "v$SURUM" --repo "$REPO" >/dev/null 2>&1; then
+    [ "$(gh release view "v$SURUM" --repo "$REPO" --json isDraft -q .isDraft)" = "true" ] \
+        || hata "v$SURUM zaten yayımlanmış; önce sürümü artır."
+    DEVAM=1
+fi
+CIKTI="$("$PY" -c "import sys; sys.path.insert(0, 'paketleme'); import paketle; print(paketle.masaustu())")/$PAKET"
+YAYIN="$CIKTI/github"
+
+# Bağlantı koparsa bekleyip yeniden dener (en çok ~1 saat)
+yukle() {
+    local f="$1" i
+    for i in $(seq 1 60); do
+        gh release upload "v$SURUM" --repo "$REPO" "$f" --clobber && return 0
+        yaz "Yüklenemedi (bağlantı?); 60 sn sonra yeniden denenecek ($i/60): $(basename "$f")"
+        sleep 60
+    done
+    hata "$(basename "$f") yüklenemedi. İnternet gelince betiği yeniden çalıştır; kaldığı yerden devam eder."
+}
+
+if [ "$DEVAM" = 1 ] && [ -d "$YAYIN" ]; then
+    yaz "v$SURUM taslağı var: eksik dosyaların yüklenmesine devam ediliyor"
+else
 
 yaz "1/5 Testler"
 QT_QPA_PLATFORM=offscreen "$PY" -m unittest discover -s testler 2>&1 | tail -3
@@ -27,14 +52,18 @@ yaz "2/5 Git: v$SURUM etiketi ve gönderme"
 git tag -f "v$SURUM"
 git push origin HEAD --tags
 
-CIKTI="$("$PY" -c "import sys; sys.path.insert(0, 'paketleme'); import paketle; print(paketle.masaustu())")/asistan.v$SURUM"
-YAYIN="$CIKTI/github"
 rm -rf "$YAYIN"; mkdir -p "$YAYIN"
-DOSYALAR=()
 if [ "${1:-}" != "--paketsiz" ]; then
-    yaz "3/5 Kurulum paketleri (20-30 dk)"
-    "$PY" paketleme/paketle.py
-    for f in "$CIKTI"/asistan.v"$SURUM"-Windows.zip "$CIKTI"/asistan.v"$SURUM"-Linux.tar.gz; do
+    # Paketler son program değişikliğinden sonra üretildiyse yeniden üretilmez (testler, CI ve bu betik sayılmaz)
+    SON=$(git log -1 --format=%ct -- . ':!testler' ':!.github' ':!paketleme/yayinla.sh')
+    if [ -f "$CIKTI/$PAKET-Linux.tar.gz" ] && [ -f "$CIKTI/$PAKET-Windows.zip" ] \
+        && [ "$(stat -c %Y "$CIKTI/$PAKET-Linux.tar.gz")" -gt "$SON" ] && [ "$(stat -c %Y "$CIKTI/$PAKET-Windows.zip")" -gt "$SON" ]; then
+        yaz "3/5 Kurulum paketleri güncel; yeniden üretilmiyor"
+    else
+        yaz "3/5 Kurulum paketleri (20-30 dk)"
+        "$PY" paketleme/paketle.py
+    fi
+    for f in "$CIKTI/$PAKET-Windows.zip" "$CIKTI/$PAKET-Linux.tar.gz"; do
         split -b 1900M --numeric-suffixes=1 -a 3 "$f" "$YAYIN/$(basename "$f")."   # GitHub: dosya başına en çok 2 GB
     done
     cat > "$YAYIN/birlestir.bat" <<'BAT'
@@ -82,19 +111,28 @@ print(f"""
 1. Sistemine uygun parçaların **hepsini** ve birleştirme betiğini indir (Windows: `…Windows.zip.00*` +
    `birlestir.bat`; Linux: `…Linux.tar.gz.00*` + `birlestir.sh`), aynı klasöre koy.
 2. Birleştir: Windows'ta `birlestir.bat`'a çift tıkla; Linux'ta `./birlestir.sh`.
-3. Windows: zip'i çıkar → `Kur.bat`. Linux: `tar xzf asistan.v{surum}-Linux.tar.gz && ./asistan.v{surum}/kur.sh`.
+3. Windows: zip'i çıkar → `Kur.bat`. Linux: `tar xzf YENI-NESIL-CAFER.v{surum}-Linux.tar.gz && ./YENI-NESIL-CAFER.v{surum}/kur.sh`.
 Ayrıntılar: `BENIOKU.txt`.
 
 ### Güncelleme (zaten kuruluysa)
 Program yeni sürümü kendisi haber verir: **Yardım → Güncelleme var → Güncelle** (yalnızca birkaç MB indirir;
 sorun çıkarsa eski sürüme kendiliğinden döner).""")
 PYNOT
-gh release create "v$SURUM" --repo "$REPO" --title "YENİ NESİL CAFER $SURUM" --notes-file "$YAYIN/notlar.md" \
-    "$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip "$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip.sha256
-if [ "${1:-}" != "--paketsiz" ]; then
-    for f in "$YAYIN"/*.00* "$YAYIN"/birlestir.bat "$YAYIN"/birlestir.sh "$YAYIN"/BENIOKU.txt; do
-        yaz "yükleniyor: $(basename "$f")"
-        gh release upload "v$SURUM" --repo "$REPO" "$f" --clobber
-    done
+[ "$DEVAM" = 1 ] || gh release create "v$SURUM" --repo "$REPO" --draft --title "YENİ NESİL CAFER $SURUM" --notes-file "$YAYIN/notlar.md"
 fi
+
+# Yüklenmiş ve boyutu tutan dosyalar atlanır (yarıda kalan yükleme yeniden çalıştırınca devam eder)
+declare -A VAR
+while IFS=$'\t' read -r ad boyut; do VAR["$ad"]=$boyut; done \
+    < <(gh release view "v$SURUM" --repo "$REPO" --json assets -q '.assets[] | [.name, (.size|tostring)] | @tsv')
+DOSYALAR=("$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip "$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip.sha256)
+[ "${1:-}" != "--paketsiz" ] && DOSYALAR+=("$YAYIN"/*.00* "$YAYIN"/birlestir.bat "$YAYIN"/birlestir.sh "$YAYIN"/BENIOKU.txt)
+SAYI=${#DOSYALAR[@]}; SIRA=0
+for f in "${DOSYALAR[@]}"; do
+    SIRA=$((SIRA + 1)); ad=$(basename "$f")
+    if [ "${VAR[$ad]:-}" = "$(stat -c %s "$f")" ]; then yaz "[$SIRA/$SAYI] zaten yüklü: $ad"; continue; fi
+    yaz "[$SIRA/$SAYI] yükleniyor: $ad ($(( $(stat -c %s "$f") / 1048576 )) MB)"
+    yukle "$f"
+done
+gh release edit "v$SURUM" --repo "$REPO" --draft=false --latest
 yaz "Yayımlandı: https://github.com/$REPO/releases/tag/v$SURUM"
