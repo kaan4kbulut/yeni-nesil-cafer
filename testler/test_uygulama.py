@@ -5,6 +5,7 @@
 """
 
 import sys
+import os
 import tempfile
 import unittest
 from contextlib import contextmanager
@@ -67,7 +68,8 @@ class UygulamaTesti(unittest.TestCase):
         with mock.patch.object(apps.httpx, "stream", side_effect=indir):
             out = apps.install("OrcaSlicer", "https://orca.example.org/Orca.AppImage")
         app = self.d / "Applications" / "orcaslicer.AppImage"
-        self.assertTrue(app.stat().st_mode & 0o100)  # çalıştırılabilir
+        if os.name != "nt":  # Windows'ta çalıştırma izni biti yok
+            self.assertTrue(app.stat().st_mode & 0o100)  # çalıştırılabilir
         desktop = (self.d / "applications" / "orcaslicer.desktop").read_text()
         self.assertIn("--appimage-extract-and-run", desktop)  # FUSE yok: çıkarıp çalıştır
         self.assertIn("Installed OrcaSlicer", out)
