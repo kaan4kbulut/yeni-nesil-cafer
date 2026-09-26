@@ -492,10 +492,11 @@ class ModelsPanel(QWidget):
         w.setContentsMargins(12, 10, 12, 10)
         self.warn_text = QLabel()
         self.warn_text.setWordWrap(True)
-        copy = QPushButton("Komutu kopyala", objectName="smallButton")
-        copy.clicked.connect(lambda: QApplication.clipboard().setText(FIX_COMMAND))
+        self.fix_text = FIX_COMMAND
+        self.copy_btn = QPushButton("Düzeltmeyi kopyala", objectName="smallButton")
+        self.copy_btn.clicked.connect(lambda: QApplication.clipboard().setText(self.fix_text))
         w.addWidget(self.warn_text)
-        w.addWidget(copy, alignment=Qt.AlignLeft)
+        w.addWidget(self.copy_btn, alignment=Qt.AlignLeft)
         self.warn.setVisible(False)
         lay.addWidget(self.warn)
 
@@ -510,6 +511,7 @@ class ModelsPanel(QWidget):
         self.claude_label.setWordWrap(True)
         lay.addWidget(self.claude_label)
         self.gpu_share: float | None = None
+        self.gpu_report = None  # gpu.Report: model en güçlü ekran kartında mı?
 
     def refresh(self) -> float | None:
         """Durumu yeniler; bellekteki modelin GPU payını (0-1) ya da None döndürür."""
@@ -524,6 +526,7 @@ class ModelsPanel(QWidget):
             self.running_label.setText("`ollama serve` çalışıyor mu? Adres: " + url)
             self.warn.setVisible(False)
             self.gpu_share = None
+            self.gpu_report = None
             return None
         self.ollama_state.setText(f"● Ollama bağlı  ·  {len(models)} model")
         self.ollama_state.setStyleSheet(f"color: {C['success']};")
@@ -549,13 +552,15 @@ class ModelsPanel(QWidget):
             self.running_label.setText("\n".join(lines))
         else:
             self.running_label.setText("Şu an bellekte model yok (ilk mesajda yüklenir).")
-        slow = self.gpu_share is not None and self.gpu_share < 0.9
-        self.warn.setVisible(slow)
-        if slow:
-            self.warn_text.setText(
-                f"⚠ Model büyük ölçüde işlemcide çalışıyor (%{self.gpu_share * 100:.0f} GPU), bu yüzden "
-                f"yanıtlar çok yavaş. Ekran kartını tekrar algılaması için terminalde çalıştır:\n\n"
-                f"{FIX_COMMAND}")
+        from .. import gpu, sysinfo
+
+        report = self.gpu_report = gpu.check(running, self.settings, sysinfo.program_owned())
+        self.warn.setVisible(not report.ok)
+        if not report.ok:
+            self.fix_text = report.fix
+            self.copy_btn.setVisible(bool(report.fix))
+            self.warn_text.setText(f"⚠ {report.text}" + (f"\n\nDüzeltmek için:\n{report.fix}" if report.fix else
+                                                           "\n\nProgram Ollama'yı en güçlü kartla yeniden başlatıyor."))
 
         import os
 

@@ -40,6 +40,16 @@ SÜRÜM 2.3'TE YENİ
   - Adımlar iş sürerken kendiliğinden aşağı kayar; takibi kaçırmazsın.
   - İş sürerken Enter artık işi durdurmaz: yazdığın mesaj sıraya girer, iş bitince gönderilir.
     Durdurmak için ■ durdur düğmesi ya da Esc.
+  - Asistan sana soru sorduğunda cevap seçenekleri sohbette tıklanabilir baloncuk olarak gelir; yazman
+    gerekmez ("✎ başka bir şey yazayım" ile kendi cevabını da yazabilirsin).
+  - Cevabın altında yeni "hata var" düğmesi: iş yarım kaldıysa ya da hiçbir şey yapılmadıysa bas; asistan
+    isteği ve yaptıklarını kendisi kontrol edip eksik kalanı tamamlar.
+  - Önizleme açılınca sağ panel ortadan ikiye bölünür; aradaki çizgiyle boyutu istediğin gibi değiştirebilirsin.
+  - Küçük pencerede üst düğmeler taşmaz.
+  - Ekran kartı denetimi: program modelleri ekran kartında, birden çok kart varsa en güçlüsünde çalıştırır
+    ve bunu sürekli kontrol eder (durum çubuğunda kartın adı görünür). Model işlemciye ya da zayıf karta
+    düşerse uyarır ve düzeltir ya da nasıl düzeltileceğini söyler. Hafif modda güç tasarrufu için bu
+    zorlama yapılmaz.
 
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar

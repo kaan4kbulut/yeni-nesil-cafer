@@ -245,6 +245,10 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
             if not line:
                 continue
             tail = (tail + [line])[-15:]
+            if line.startswith("ggml_vulkan: 0 = "):  # motorun seçtiği kart: en güçlüsü mü? (gpu.image_report)
+                from . import gpu
+
+                gpu.note_device(line.split("=", 1)[1].split("(")[0])
             m = step_re.search(line)
             if m and progress:
                 done, total = int(m.group(1)), int(m.group(2))

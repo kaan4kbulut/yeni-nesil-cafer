@@ -124,8 +124,9 @@ class BarMixin:
     def _update_context_label(self):
         used = f"{self.last_context / 1000:.1f}K" if self.last_context else "0"
         if self.provider == "ollama":
-            share = getattr(self, "gpu_share", None)
-            where = "" if share is None else (" · tam GPU" if share > 0.99 else f" · %{share * 100:.0f} GPU")
+            report = getattr(getattr(self, "right", None), "models", None) and self.right.models.gpu_report
+            where = "" if report is None else f" · {'' if report.ok else '⚠ '}{report.card or report.text}"
+            self.context_label.setToolTip("" if report is None or report.ok else f"{report.text}\n{report.fix}")
             self.context_label.setText(f"bağlam {used} / {power.num_ctx(self.settings) // 1024}K{where}")
         else:
             self.context_label.setText(f"bağlam {used}")

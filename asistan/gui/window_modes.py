@@ -125,6 +125,19 @@ class ModesMixin:
             self._check_context()
             self.agent_panel.refresh()
 
+    def _fix_gpu(self):
+        """Model en güçlü kartta değilse ve Ollama'yı program başlattıysa: bir kez o karta sabitleyip yeniden başlat.
+        (Sistem servisine dokunulmaz; düzeltme model panelinde ve durum çubuğunda kullanıcıya gösterilir.)"""
+        from .. import sysinfo
+
+        report = self.right.models.gpu_report
+        if report is None or report.ok or report.fix or getattr(self, "_gpu_fixed", False) or self.worker:
+            return
+        self._gpu_fixed = True
+        self.right.log.add(f"⚠ Ekran kartı: {report.text} Ollama en güçlü kartla yeniden başlatılıyor.")
+        url = self.settings.ollama_url
+        run_in_background(lambda: sysinfo.restart_ollama(url), lambda ok, err: self._refresh_models_status(), self)
+
     def _set_conn(self, ok: bool | None, text: str):
         color = C["muted"] if ok is None else (C["success"] if ok else C["error"])
         self.conn_label.setText(f'<span style="color:{color}">●</span>&nbsp; {text}')
@@ -132,6 +145,7 @@ class ModesMixin:
     def _refresh_models_status(self):
         share = self.right.models.refresh()
         self.gpu_share = share
+        self._fix_gpu()
         self._update_context_label()
         if self.provider == "claude":
             self._set_conn(None, "claude")

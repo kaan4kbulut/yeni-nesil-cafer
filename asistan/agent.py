@@ -1068,8 +1068,12 @@ class Agent:
             self._media(str(f), -1, "bitti")
         root = Path(self.toolbox.root)
         rel = [str(f.relative_to(root)) for f in files]
+        from . import gpu
+
+        card = gpu.image_report(self.settings)
+        slow = f"\nWARNING (tell the user): {card.text} {card.fix}" if card and not card.ok else ""
         return "SAVED: " + ", ".join(rel) + ("\nThe images are already shown to the user. Describe briefly "
-                                              "what was made; offer variations.")
+                                              "what was made; offer variations.") + slow
 
     def _media(self, path: str, pct: int, text: str) -> None:
         """canlı görüntü bölümüne üretim ilerlemesi: pct 0-99 ara görüntü, pct < 0 bitti (path: sonuç ya da boş)."""

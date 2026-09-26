@@ -190,6 +190,18 @@ Resim (GIF oynar), video (QtMultimedia, sessiz başlar, döngü), 3D (`assets/mo
 `RuntimeLoader`: GLB/GLTF, OBJ, STL, PLY; ölçüler `bounds`'tan). 3D ekransız (offscreen) kipte ÇİZİLMEZ ve ölçü
 hesaplanmaz: 3D'yi gerçek ekranda doğrula. Bölümler sıra numarasıyla değil widget'la gösterilir (`_show_tab(widget)` → `RightPanel.show_part`).
 
+## Ekran kartı (2026-09-26)
+
+Kullanıcının isteği: program her zaman ekran kartında, birden çok kart varsa en güçlüsünde çalışmalı ve bunu kendisi
+denetlemeli; hafif modda (`power.saving`) tasarruf için başka seçenek kullanabilir. `gpu.py`: `cards` (NVIDIA
+nvidia-smi + uuid; Linux sysfs AMD/Intel; Windows Win32_VideoController), `strongest` (ayrı > tümleşik, NVIDIA,
+VRAM), `ollama_env` (programın başlattığı Ollama'ya `CUDA_VISIBLE_DEVICES=<uuid>`; hafif modda ya da kullanıcı
+kendisi verdiyse yok), `check` (/api/ps GPU payı + nvidia-smi compute-apps ile Ollama süreçlerinin kartı; işlemcide /
+yanlış kart / sığmadı ayrımı). Sorun varsa model panelinde uyarı; Ollama'yı program başlattıysa `window_modes._fix_gpu`
+bir kez `sysinfo.restart_ollama` ile düzeltir, sistem servisine dokunmaz (düzeltme komutu önerilir). Resim motoru:
+sd-cli çıktısındaki `ggml_vulkan: 0 = <kart>` → `gpu.note_device`/`image_report`, yanlış kartta ajana uyarı.
+Durum çubuğunda kartın kısa adı (`window_bar._update_context_label`).
+
 ## Dikte (2026-09-26)
 
 Mesaj kutusunda 🎤 (`window_bar._toggle_dictation`, Ctrl+Shift+Space; Esc iptal). `dictation.py`: kayıt QtMultimedia

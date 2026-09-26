@@ -136,10 +136,39 @@ def _ollama_up(ollama_url: str) -> bool:
         return False
 
 
+def _gpu_env() -> dict[str, str]:
+    """Başlatılan Ollama en güçlü ekran kartını kullansın (hafif modda sabitlenmez; bkz. gpu.py)."""
+    try:
+        from . import gpu
+        from .config import Settings
+
+        return gpu.ollama_env(Settings.load())
+    except Exception:
+        return {}
+
+
+def program_owned() -> bool:
+    """Çalışan Ollama'yı program mı başlattı? (Öyleyse kartı değiştirmek için yeniden başlatabilir.)"""
+    return _serve_proc is not None and _serve_proc.poll() is None
+
+
+def restart_ollama(ollama_url: str) -> bool:
+    """Programın başlattığı Ollama'yı güncel kart seçimiyle yeniden başlatır (sistem servisine dokunmaz)."""
+    if not program_owned():
+        return False
+    _stop_ollama()
+    try:
+        _serve_proc.wait(10)  # adres boşalsın
+    except subprocess.TimeoutExpired:
+        _serve_proc.kill()
+    return ensure_ollama(ollama_url)
+
+
 def ensure_ollama(ollama_url: str = "http://localhost:11434", wait: float = 15) -> bool:
     """Ollama sunucusu çalışmıyorsa arka planda başlatır (kullanıcı elle açmak zorunda kalmasın).
 
-    Yalnızca yerel adreste ve Ollama bulunabiliyorsa; programın başlattığı sunucu program kapanınca kapanır."""
+    Yalnızca yerel adreste ve Ollama bulunabiliyorsa; programın başlattığı sunucu program kapanınca kapanır.
+    Birden çok ekran kartı varsa en güçlüsüne sabitlenir."""
     global _serve_proc
     with _serve_lock:
         if _ollama_up(ollama_url):
@@ -152,7 +181,7 @@ def ensure_ollama(ollama_url: str = "http://localhost:11434", wait: float = 15) 
         if _serve_proc is None or _serve_proc.poll() is not None:
             flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
             host = ollama_url.split("://", 1)[-1].rstrip("/")
-            env = {**os.environ, "OLLAMA_HOST": host}  # ayarlardaki adreste dinlesin
+            env = {**os.environ, "OLLAMA_HOST": host, **_gpu_env()}  # ayarlardaki adreste, en güçlü kartta
             try:
                 _serve_proc = subprocess.Popen([exe, "serve"], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                                                stderr=subprocess.DEVNULL, creationflags=flags, env=env,
