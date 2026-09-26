@@ -202,6 +202,25 @@ bir kez `sysinfo.restart_ollama` ile düzeltir, sistem servisine dokunmaz (düze
 sd-cli çıktısındaki `ggml_vulkan: 0 = <kart>` → `gpu.note_device`/`image_report`, yanlış kartta ajana uyarı.
 Durum çubuğunda kartın kısa adı (`window_bar._update_context_label`).
 
+## Hesapla kullanma (2026-09-26)
+
+Kullanıcının isteği: bulut modelleri yalnızca API anahtarıyla değil, abonelik/hesapla da kullanılabilsin. Firmalar
+hesap oturumlarının başka programların API çağrılarında kullanılmasına izin vermez; bu yüzden iki yol var:
+1. Resmi program, kullanıcının kendi girişiyle (`cli_agents.py`): Claude Code (`claude -p`, Claude aboneliği), Codex
+   (`codex exec --json`, ChatGPT hesabı; `codex login`), Gemini CLI (`node gemini.js -p … --output-format stream-json`,
+   Google hesabı; giriş: `~/.gemini/settings.json` → `security.auth.selectedType=oauth-personal` + başsız ilk çalıştırmada
+   "Y"). Sağlayıcı adları `cli:claude|cli:codex|cli:gemini` (`cli_agents.is_cli`), `agent._run_cli` tek yol; adımları
+   `cli_step` kartı olarak sağ panelde. Onay beklenen tur salt okunur (Codex `--sandbox read-only`, Gemini
+   `--approval-mode plan`), onaylıda iş klasöründe düzenler (Codex `workspace-write`, Gemini `auto_edit`). Codex/Node/
+   Gemini program içinden kurulur (`DATA_DIR/ajan-programlari`, GitHub sürümü + SHA-256; Node nodejs.org SHASUMS256;
+   sistemde Node ≥ 20 varsa o). Yalnızca kullanıcının sohbette gönderdiği istekte çalışır (ChatGPT girişi resmi
+   belgeye göre etkileşimli kullanım içindir): bulut kuyruğuna ya da zamanlanmış işe bağlama.
+2. Resmi olarak başka programa hesap girişi veren servisler (`accounts.py`): OpenRouter OAuth PKCE (yerel adres,
+   herhangi bir port), Hugging Face cihaz kodu (`HF_CLIENT_ID`, gizli anahtarsız uygulama; süreli anahtar
+   `oturum:<bağlantı>` ile `Connection.key` → `accounts.fresh_key` yeniler). Arayüz: `gui/window_accounts.py`
+   (firma alt menüsünde 🔑), API penceresinde "Hesabınla giriş yap". Claude/Gemini API'sine hesapla giriş yok;
+   GitHub Models 30.07.2026'da kapatıldı.
+
 ## Dikte (2026-09-26)
 
 Mesaj kutusunda 🎤 (`window_bar._toggle_dictation`, Ctrl+Shift+Space; Esc iptal). `dictation.py`: kayıt QtMultimedia

@@ -6,7 +6,7 @@ from PySide6.QtWidgets import (
     QApplication, QGridLayout, QLabel, QMenu, QMessageBox, QPushButton, QWidget, QWidgetAction,
 )
 
-from .. import cards, catalog, roster, specialists, sysinfo
+from .. import cards, catalog, cli_agents, roster, specialists, sysinfo
 from ..config import CLAUDE_MODELS
 
 from .sidebar import run_in_background
@@ -118,9 +118,9 @@ class ModelsMixin:
                 label = ("🔓 " if free else "") + c.model + "\n" + model_updates.hashtags(tags)
                 items.append((label, tip, f"ollama|{c.model}", "offline", color))
         else:
-            if specialists.claude_code_available():
-                items.append(("Claude Code", "Claude aboneliğin · kod ve genel işler",
-                              "|".join(specialists.CLAUDE_CODE), "code", C["frame"]))
+            for cli in cli_agents.available_agents():
+                items.append((cli.title, f"{cli.account} · kod ve genel işler", f"{cli.provider}|{cli.default}",
+                              "code", C["frame"]))
             for c in roster.candidates(self.settings):
                 if not c.local:
                     items.append((c.model, f"{self._company(c.provider)} · bağlı", f"{c.provider}|{c.model}", "online",
@@ -189,13 +189,11 @@ class ModelsMixin:
         from .. import model_updates
 
         items = []
-        if target == "code" and specialists.claude_code_available():  # Claude aboneliği: kod listesinde hep hazır
-            cli = "|".join(specialists.CLAUDE_CODE)
+        for agent in cli_agents.available_agents() if target == "code" else []:  # abonelik: kod listesinde hep hazır
             chosen = self.settings.defaults.get("code", "")
-            cli = chosen if chosen.startswith(specialists.CLAUDE_CODE[0] + "|") else cli
-            items.append(("Claude Code\n#kod #araç #abonelik", "Claude aboneliğin, anahtar gerekmez", C["frame"],
-                          self.settings.defaults.get("code", "") == cli,
-                          lambda v=cli: self._set_default_model("code", v)))
+            cli = chosen if chosen.startswith(agent.provider + "|") else f"{agent.provider}|{agent.default}"
+            items.append((f"{agent.title}\n#kod #araç #abonelik", f"{agent.account}, anahtar gerekmez", C["frame"],
+                          chosen == cli, lambda v=cli: self._set_default_model("code", v)))
         for r in rows:
             value = self._cloud_value(r)
             if not value:
@@ -230,13 +228,15 @@ class ModelsMixin:
                 continue
             sub = menu.addMenu(f"{title}  ·  {note}")
             target = {"webdev": "code", "vision": "vision"}.get(cat, "online")
-            if cat == "webdev" and specialists.claude_code_available():
+            agents = cli_agents.available_agents() if cat == "webdev" else []
+            for agent in agents:
                 chosen = self.settings.defaults.get("code", "")
-                cli = chosen if chosen.startswith(specialists.CLAUDE_CODE[0] + "|") else "|".join(specialists.CLAUDE_CODE)
-                a = sub.addAction("Claude Code — Claude aboneliğin, anahtar gerekmez")
+                cli = chosen if chosen.startswith(agent.provider + "|") else f"{agent.provider}|{agent.default}"
+                a = sub.addAction(f"{agent.title} — {agent.account}, anahtar gerekmez")
                 a.setCheckable(True)
                 a.setChecked(chosen == cli)
                 a.triggered.connect(lambda _=False, v=cli: self._set_default_model("code", v))
+            if agents:
                 sub.addSeparator()
             rows = model_updates.arena_ranked(live, cat, 10)
             if rows:
@@ -481,9 +481,11 @@ class ModelsMixin:
         if connected:
             if not inline:
                 sub.addSeparator()
+            self._account_actions(sub, prov, kind)  # ör. OpenAI anahtarla bağlıyken ChatGPT aboneliğiyle Codex
             sub.addAction("   bağlantıyı düzenle…", lambda: self._connect_provider(prov, kind, "", edit=True))
             return
         sub.addSeparator()
+        self._account_actions(sub, prov, kind)
         sub.addAction("bağlan — API anahtarını gir…", lambda: self._connect_provider(prov, kind, ""))
         sub.addAction("anahtar al — web sayfasını aç", lambda: QDesktopServices.openUrl(QUrl(prov.key_url)))
 
@@ -571,7 +573,7 @@ class ModelsMixin:
         found = roster.pick_for(s, self.profile)
         if found and self.conv and self.conv.messages:
             same = found.provider == self.conv.provider or (
-                self.conv.provider == "ollama" and found.provider == specialists.CLAUDE_CODE[0])
+                self.conv.provider == "ollama" and cli_agents.is_cli(found.provider))
             if not same:
                 profile = self.profile
                 self.new_conversation(profile.id if profile and not profile.provider else "")
@@ -595,8 +597,8 @@ class ModelsMixin:
                 return "online", value, value.split("|", 1)[1]
         if specialists._claude_available():
             return "online", f"claude|{CLAUDE_MODELS[0]}", CLAUDE_MODELS[0]
-        if specialists.claude_code_available():
-            return "code", "|".join(specialists.CLAUDE_CODE), "claude code"
+        for agent in cli_agents.available_agents():
+            return "code", f"{agent.provider}|{agent.default}", agent.title.lower()
         return "", "", ""
 
     def _best_local(self) -> tuple[str, str]:
@@ -690,10 +692,10 @@ class ModelsMixin:
         providers = None
         if self.conv and self.conv.messages:
             providers = {self.conv.provider}
-            if self.conv.provider == "ollama":  # Claude Code düz metin geçmişle çalışır: Ollama sohbetine uyar
-                providers.add(specialists.CLAUDE_CODE[0])
+            if self.conv.provider == "ollama":  # Claude Code / Codex / Gemini CLI düz metin geçmişle çalışır
+                providers.update(cli_agents.AGENTS)
         found = roster.pick_for(self.settings, self.profile, providers)
-        if found is not None and found.provider == specialists.CLAUDE_CODE[0]:
+        if found is not None and cli_agents.is_cli(found.provider):
             self.route = found.key  # sohbet sağlayıcısı değişmez; bu mesaj Claude Code'a gider
             self._update_header()
             return

@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
-from . import learning, roster, specialists
+from . import cli_agents, learning, roster, specialists
 from .agent import Agent, is_action, is_task_request, _TASK
 
 MAX_PLAN_STEPS = 5
@@ -189,8 +189,8 @@ class Manager:
         a = self.agent
         if a.profile is not None or a.gate_actions or a.no_tools or not a.tool_specs:
             return False  # uzman ajan sohbeti · onay bekleyen plan turu (✓) · araçsız model: planın anlamı yok
-        if provider == specialists.CLAUDE_CODE[0]:
-            return False  # Claude Code kendi planını yapar
+        if cli_agents.is_cli(provider):
+            return False  # Claude Code / Codex / Gemini CLI kendi planını yapar
         if provider == "ollama" and self.worker is None:
             return False  # hiçbir kurulu model araç kullanamıyor
         return needs_plan(text)
@@ -200,7 +200,7 @@ class Manager:
         a = self.agent
         a._provider = provider
         self.chat = self.worker = self.boss = (provider, a._model())
-        if provider == specialists.CLAUDE_CODE[0]:
+        if cli_agents.is_cli(provider):
             return
         try:
             self.worker = roster.worker_for(a.settings, self.chat)

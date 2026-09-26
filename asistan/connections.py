@@ -23,6 +23,7 @@ LLM_PRESETS = {
     "Google Gemini": ("https://generativelanguage.googleapis.com/v1beta/openai", True),
     "Groq": ("https://api.groq.com/openai/v1", True),
     "OpenRouter": ("https://openrouter.ai/api/v1", True),
+    "Hugging Face": ("https://router.huggingface.co/v1", True),
     "DeepSeek": ("https://api.deepseek.com/v1", True),
     "xAI (Grok)": ("https://api.x.ai/v1", True),
     "Mistral": ("https://api.mistral.ai/v1", True),
@@ -54,7 +55,9 @@ class Connection:
 
     @property
     def key(self) -> str:
-        return get_secret(f"conn:{self.id}")
+        from .accounts import fresh_key  # hesapla girişte süreli anahtar: gerekirse yenilenir
+
+        return fresh_key(self.id, get_secret(f"conn:{self.id}"))
 
     @key.setter
     def key(self, value: str) -> None:
@@ -101,6 +104,7 @@ def save_connections(conns: list[Connection]) -> None:
 def remove_connection(conns: list[Connection], conn: Connection) -> None:
     conns.remove(conn)
     delete_secret(f"conn:{conn.id}")
+    delete_secret(f"oturum:{conn.id}")  # hesapla girişin yenileme bilgisi (accounts.py)
     save_connections(conns)
 
 

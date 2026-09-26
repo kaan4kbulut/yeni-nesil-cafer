@@ -21,7 +21,7 @@ from .config import Settings
 from .connections import ANTHROPIC_KEY, Connection
 from .keystore import get_secret
 from .profiles import AgentProfile
-from . import api_catalog, hooks, learning, power, security, specialists, sysinfo
+from . import api_catalog, cli_agents, hooks, learning, power, security, specialists, sysinfo
 from .tools import (
     program_roots,
     CALL_API_SPEC, DELEGATE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
@@ -424,7 +424,7 @@ def describe_pending(actions: list[tuple[str, dict]]) -> str:
         "install_python_package": lambda a: f"Python kütüphanesi kur: `{a.get('packages', '')}`",
         "start_team_task": lambda a: f"gruba ver: {a.get('title', '')}",
         "call_api": lambda a: f"API isteği: {a.get('api', '')} {a.get('method', '')} {a.get('path', '')}",
-        "claude_code": lambda a: "Claude Code ile kodda değişiklik yap",
+        "claude_code": lambda a: f"{cli_agents.label(a.get('provider') or 'cli:claude')} ile değişiklik yap",
     }
     lines = [f"{n}. {labels.get(name, lambda a: name)(args if isinstance(args, dict) else {})}"
              for n, (name, args) in enumerate(actions, 1)]
@@ -577,7 +577,7 @@ def settings_for(settings: Settings, provider: str, model: str, workspace: str |
             s.ollama_model = model
         elif provider.startswith("api:"):
             s.api_models[provider[4:]] = model
-        elif provider == specialists.CLAUDE_CODE[0]:
+        elif cli_agents.is_cli(provider):
             s.extra = {**s.extra, "cli_model": model}
     return s
 
@@ -1222,8 +1222,8 @@ class Agent:
         try:
             if provider == "claude":
                 self._run_claude(messages)
-            elif provider == specialists.CLAUDE_CODE[0]:
-                self._run_claude_code(messages)
+            elif cli_agents.is_cli(provider):
+                self._run_cli(messages, provider)
             elif provider.startswith("api:"):
                 conn = next((c for c in self.connections if c.id == provider[4:]), None)
                 if conn is None:
@@ -1238,10 +1238,11 @@ class Agent:
             last = messages[-1].get("content") if messages and messages[-1].get("role") == "assistant" else ""
             self._hook("Stop", answer=last if isinstance(last, str) else "")
 
-    # ---- Claude Code (komut satırı; kendi araçlarıyla çalışan kod ajanı) ----
+    # ---- Aboneliğinle çalışan resmi programlar (Claude Code, Codex, Gemini CLI; cli_agents.py) ----
 
-    def _run_claude_code(self, messages: list) -> None:
-        # önceki konuşma (varsa) kısaca bağlam olarak verilir; Claude Code her çağrıda yeni oturum açar
+    def _run_cli(self, messages: list, provider: str) -> None:
+        # önceki konuşma (varsa) kısaca bağlam olarak verilir; program her çağrıda yeni oturum açar
+        agent = cli_agents.AGENTS[provider]
         history = [m for m in messages[:-1] if isinstance(m.get("content"), str) and m["content"].strip()][-6:]
         prompt = messages[-1]["content"]
         if history:
@@ -1249,18 +1250,24 @@ class Agent:
             prompt = f"Earlier conversation:\n{context}\n\nCurrent request:\n{prompt}"
         system = "\n\n".join(x for x in ((self.profile.prompt if self.profile else ""), self.extra_system,
                                           "Reply in the user's language (usually Turkish).") if x)
-        if self.gate_actions:  # onay yok: Claude Code yalnızca okur ve plan çıkarır; ✓ ile düzenleyebilir
+        if self.gate_actions:  # onay yok: program yalnızca okur ve plan çıkarır; ✓ ile düzenleyebilir
             system += ("\n\nDo not modify any files now. Read what you need, then describe exactly which "
                        "changes you will make; the user approves with a button before you edit.")
-            self.pending_actions.append(("claude_code", {"task": messages[-1]["content"]}))
+            self.pending_actions.append(("claude_code", {"task": messages[-1]["content"], "provider": provider}))
         call_id = uuid.uuid4().hex
         self.cb.on_model_start(1)
-        self.cb.on_tool_start(call_id, "claude_code", {"task": messages[-1]["content"]})
+        self.cb.on_tool_start(call_id, agent.tool, {"task": messages[-1]["content"]})
         started = time.time()
+
+        def step(title: str, result: str, error: bool):  # programın kendi adımları sağ panelde görünsün
+            sid = uuid.uuid4().hex
+            self.cb.on_tool_start(sid, "cli_step", {"task": title})
+            self.cb.on_tool_end(sid, result or "bitti", error)
+
         try:
-            text = specialists.claude_code(prompt, str(self.toolbox.root), system, edits=not self.gate_actions,
-                                           cancelled=self.cb.is_cancelled,
-                                           model=self.cli_model or self.settings.extra.get("cli_model", ""))
+            text = cli_agents.run(provider, prompt, str(self.toolbox.root), system, edits=not self.gate_actions,
+                                  cancelled=self.cb.is_cancelled, on_step=step,
+                                  model=self.cli_model or self.settings.extra.get("cli_model", ""))
         except InterruptedError:
             self.cb.on_tool_end(call_id, "durduruldu", True)
             raise Cancelled()
@@ -1269,7 +1276,7 @@ class Agent:
             raise
         self.cb.on_tool_end(call_id, text[:3000], False)
         self.cb.on_text(text)
-        self.cb.on_model_end({"model": "claude code", "input_tokens": 0, "output_tokens": 0,
+        self.cb.on_model_end({"model": agent.title.lower(), "input_tokens": 0, "output_tokens": 0,
                               "seconds": time.time() - started, "load_seconds": 0, "tokens_per_sec": 0})
         messages.append({"role": "assistant", "content": text})
 

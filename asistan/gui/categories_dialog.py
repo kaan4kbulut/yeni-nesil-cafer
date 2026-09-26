@@ -10,7 +10,7 @@ from PySide6.QtWidgets import (
     QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QScrollArea, QVBoxLayout, QWidget,
 )
 
-from .. import categories, libraries, roster, specialists
+from .. import categories, cli_agents, libraries, roster, specialists
 from ..profiles import load_profiles
 from .theme import C
 
@@ -80,8 +80,8 @@ class CategoriesDialog(QDialog):
         if agents:
             p = agents[0]
             provider, model = roster.assign(self.settings, p, ("", "—"))
-            if provider == specialists.CLAUDE_CODE[0]:
-                model = "Claude Code" + ("" if model == specialists.CLAUDE_CODE[1] else f" · {model}")
+            if cli_agents.is_cli(provider):
+                model = cli_agents.label(provider, model)
             elif provider and provider != "ollama":
                 model += " (bulut)"
             names = ", ".join(a.name for a in agents)

@@ -14,7 +14,7 @@ from dataclasses import dataclass, field
 
 import httpx
 
-from . import cards, model_updates, catalog, power, specialists
+from . import cards, cli_agents, model_updates, catalog, power, specialists
 from .config import CLAUDE_MODELS, Settings
 from .profiles import AgentProfile
 
@@ -135,8 +135,8 @@ def default(settings: Settings, kind: str) -> Candidate | None:
     if "|" not in value:
         return None
     provider, model = value.split("|", 1)
-    if provider == specialists.CLAUDE_CODE[0]:
-        if not specialists.claude_code_available():
+    if cli_agents.is_cli(provider):  # aboneliğinle çalışan resmi program (Claude Code, Codex, Gemini CLI)
+        if not cli_agents.available(provider):
             return None
         return Candidate(provider, model, {"tools", "code", "thinking", "vision"}, 95)
     found = next((c for c in candidates(settings) if c.key == (provider, model)), None)

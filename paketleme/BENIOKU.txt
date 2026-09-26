@@ -50,6 +50,13 @@ SÜRÜM 2.3'TE YENİ
     ve bunu sürekli kontrol eder (durum çubuğunda kartın adı görünür). Model işlemciye ya da zayıf karta
     düşerse uyarır ve düzeltir ya da nasıl düzeltileceğini söyler. Hafif modda güç tasarrufu için bu
     zorlama yapılmaz.
+  - Bulut modellerini API anahtarı olmadan, hesabınla kullan (model menüsü → firma → 🔑):
+      · ChatGPT hesabınla: OpenAI'nin resmi Codex programı (program içinden kurulur, tarayıcıda giriş)
+      · Google hesabınla: Google'ın resmi Gemini CLI programı (program içinden kurulur, tarayıcıda giriş)
+      · Claude aboneliğinle: Claude Code (bilgisayarında kuruluysa)
+      · OpenRouter: tarayıcıda giriş yap, anahtar kendiliğinden alınır (ücretsiz modeller dahil)
+    Hesap bilgilerini program görmez; resmi programlar kendisi saklar. Bu programlar yalnızca senin
+    sohbette gönderdiğin isteklerde, o işin klasöründe çalışır.
 
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar

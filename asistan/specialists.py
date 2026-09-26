@@ -53,10 +53,11 @@ def vision_models(settings: Settings) -> list[str]:
     return [m for m in ollama_models(settings) if "vision" in _capabilities(settings.ollama_url, m)]
 
 
-CLAUDE_CODE = ("cli:claude", "claude-code")  # (sağlayıcı, model): kullanıcının Claude aboneliğiyle Claude Code
+from .cli_agents import CLAUDE as _CLAUDE, is_cli, run as run_cli  # noqa: E402  (Codex, Gemini CLI de orada)
+
+CLAUDE_CODE = (_CLAUDE.provider, _CLAUDE.default)  # (sağlayıcı, model): kullanıcının Claude aboneliğiyle Claude Code
 # Claude Code'un çalışabildiği modeller (--model takma adları); "claude-code": Claude Code'un kendi varsayılanı
-CLAUDE_CODE_MODELS = [("claude-code", "varsayılan"), ("opus", "en yetenekli"), ("fable", "en güçlü"),
-                      ("sonnet", "dengeli, hızlı"), ("haiku", "en hızlı, en az kullanım")]
+CLAUDE_CODE_MODELS = _CLAUDE.models
 
 
 def claude_code_available() -> bool:
@@ -216,8 +217,8 @@ def ask(settings: Settings, connections: list[Connection], provider: str, model:
         resp = client.messages.create(model=model, max_tokens=4000, system=system,
                                       messages=[{"role": "user", "content": content}])
         return "".join(b.text for b in resp.content if b.type == "text").strip()
-    if provider == CLAUDE_CODE[0]:
-        return claude_code(prompt, settings.workspace, system, model=model)
+    if is_cli(provider):
+        return run_cli(provider, prompt, settings.workspace, system, model=model)
     if provider.startswith("api:"):
         conn = next((c for c in connections if c.id == provider[4:]), None)
         if conn is None:

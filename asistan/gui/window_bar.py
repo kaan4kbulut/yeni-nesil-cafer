@@ -5,7 +5,7 @@ from pathlib import Path
 from PySide6.QtCore import Qt, QTimer
 from PySide6.QtWidgets import QFileDialog, QPushButton
 
-from .. import power, roster, specialists
+from .. import cli_agents, power, roster, specialists
 from ..agent import list_ollama_models
 from ..config import CLAUDE_MODELS
 
@@ -215,8 +215,7 @@ class BarMixin:
             self.model_pill.setText(f"🔓 sansürsüz · {free.split('/')[-1]}{'' if tools else '  · sadece sohbet'}  ⌄")
         elif getattr(self, "route", None):
             auto = "" if self.settings.active_kind else "otomatik · "
-            variant = "" if self.route[1] == specialists.CLAUDE_CODE[1] else f" · {self.route[1]}"
-            self.model_pill.setText(f"{auto}claude code{variant}  ⌄")
+            self.model_pill.setText(f"{auto}{cli_agents.label(*self.route).lower()}  ⌄")
         elif self.settings.auto_model and self.settings.active_kind:  # üstten seçilen: firma · model
             self.model_pill.setText(f"{self._company(self.provider)} · {model or '—'}{chat_only}  ⌄")
         elif self.settings.auto_model:  # yerel modelde sağlayıcı adı gereksiz; etiket kısa kalsın
@@ -248,8 +247,9 @@ class BarMixin:
         if pool:
             best = max(pool, key=lambda c: c.score).model.split("/")[-1]
             return f"otomatik · {best}"
-        if kind == "online" and specialists.claude_code_available():
-            return "claude code"
+        agents = cli_agents.available_agents() if kind == "online" else []
+        if agents:
+            return agents[0].title.lower()
         return "bağlı değil" if kind == "online" else "model yok"
 
     def _update_kind_tabs(self, model: str):
@@ -270,7 +270,7 @@ class BarMixin:
             active = "offline" if provider == "ollama" else "online"
         route = getattr(self, "route", None)
         if route:  # alttaki gibi: "claude code · fable"
-            shown = "claude code" + ("" if route[1] == specialists.CLAUDE_CODE[1] else f" · {route[1]}")
+            shown = cli_agents.label(*route).lower()
         else:
             shown = (model or "").split("/")[-1]
         if not s.active_kind and not getattr(self, "route", None):

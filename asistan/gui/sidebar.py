@@ -2,10 +2,10 @@
 
 import threading
 
-from PySide6.QtCore import QObject, QSize, Qt, QUrl, Signal
+from PySide6.QtCore import QObject, QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QAction, QColor, QDesktopServices, QIcon, QPainter, QPixmap
 from PySide6.QtWidgets import (
-    QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout, QHBoxLayout, QLabel,
+    QApplication, QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGridLayout, QHBoxLayout, QLabel,
     QFrame, QLineEdit, QListWidget, QListWidgetItem, QMenu, QMessageBox, QPlainTextEdit, QPushButton,
     QScrollArea, QSizePolicy, QToolButton, QVBoxLayout, QWidget,
 )
@@ -14,7 +14,7 @@ from ..connections import (
     ANTHROPIC_KEY, AUTH_MODES, LLM_PRESETS, Connection, describe_http_error, fetch_llm_models,
     remove_connection, save_connections, test_anthropic, test_tool_api,
 )
-from ..keystore import backend_name, get_secret, set_secret
+from ..keystore import backend_name, delete_secret, get_secret, set_secret
 from .. import api_catalog
 from ..profiles import AgentProfile, save_profiles
 from .chat import TOOL_LABELS
@@ -25,7 +25,7 @@ from .theme import C
 # "ekibe ver" ve "ajana görev ver" yalnızca ana asistanda; resme bakma ve uzmana danışma her ajanda hep açık
 AGENT_TOOLS = [t for t in TOOL_LABELS
                if t not in ("start_team_task", "delegate_to_agent", "look_at_image", "ask_specialist", "find_api", "check_installed", "open_app",
-                             "install_python_package", "claude_code")]
+                             "install_python_package", "claude_code", "codex", "gemini_cli", "cli_step")]
 
 
 # ---------------------------------------------------------------- yardımcılar
@@ -131,6 +131,10 @@ class ApiDialog(QDialog):
         self.auth_param = QLineEdit()
         self.auth_param.setPlaceholderText("ör. X-Api-Key ya da appid")
 
+        self.login_session = None  # hesapla girişte (yöntem, süreli anahtar bilgisi): kaydederken saklanır
+        self.login_btn = QPushButton("🔑  Hesabınla giriş yap — anahtar kopyalamadan", objectName="smallButton")
+        self.login_btn.clicked.connect(self._login)
+
         test_row = QHBoxLayout()
         self.test_btn = QPushButton("Test et")
         self.test_btn.clicked.connect(self._test)
@@ -151,6 +155,7 @@ class ApiDialog(QDialog):
             form.addRow("Ad:", self.name)
             form.addRow("Adres:", self.url)
             form.addRow("API anahtarı:", self.key)
+            form.addRow("", self.login_btn)
             form.addRow("Modeller:", self.models)
             form.addRow("Ne işe yarar:", self.description)
             form.addRow("Anahtar gönderimi:", self.auth)
@@ -160,6 +165,7 @@ class ApiDialog(QDialog):
 
         self.kind.currentIndexChanged.connect(self._kind_changed)
         self.preset.currentTextChanged.connect(self._apply_preset)
+        self.preset.currentTextChanged.connect(self._update_fields)
         self.auth.currentIndexChanged.connect(self._update_fields)
         if conn:
             self.kind.setCurrentIndex(0 if conn.kind == "llm" else 1)
@@ -194,7 +200,11 @@ class ApiDialog(QDialog):
     def _update_fields(self):
         if self.anthropic:
             return
+        from .. import accounts
+
         llm = self.kind.currentData() == "llm"
+        method = accounts.LOGINS.get(self.preset.currentText(), "")
+        self._set_row_visible(self.login_btn, llm and accounts.available(method))
         self._set_row_visible(self.preset, llm and not self.conn)
         self._set_row_visible(self.models, llm)
         self._set_row_visible(self.description, not llm)
@@ -210,6 +220,27 @@ class ApiDialog(QDialog):
             self.name.clear()
             self.url.clear()
         self._update_fields()
+
+    def _login(self):
+        """Tarayıcıda hesapla giriş; alınan anahtar alana yazılır ve bağlantı denenir (accounts.py)."""
+        from .. import accounts
+
+        method = accounts.LOGINS.get(self.preset.currentText(), "")
+        self.login_btn.setEnabled(False)
+        self.test_result.setStyleSheet(f"color: {C['muted']}")
+        self.test_result.setText("Tarayıcıda giriş yapıp onayla…")
+        run_in_background(lambda: login_account(method, self), self._login_done, self)
+
+    def _login_done(self, result, error):
+        self.login_btn.setEnabled(True)
+        if error:
+            self.test_result.setStyleSheet(f"color: {C['error']}")
+            self.test_result.setText("✗ Giriş yapılamadı: " + str(error)[:200])
+            return
+        key, session = result
+        self.key.setText(key)
+        self.login_session = session
+        self._test()
 
     def _apply_preset(self, preset: str):
         url, _needs_key = LLM_PRESETS.get(preset, ("", True))
@@ -277,6 +308,30 @@ class ApiDialog(QDialog):
         self.result_conn = draft
         self.result_key = self.key.text().strip()
         super().accept()
+
+
+def login_account(method: str, parent) -> tuple[str, tuple | None]:
+    """Hesapla giriş (arka plan iş parçacığında): (anahtar, oturum). Tarayıcı ve cihaz kodu GUI'de gösterilir."""
+    from .. import accounts
+
+    def open_url(url: str):
+        QTimer.singleShot(0, parent, lambda: QDesktopServices.openUrl(QUrl(url)))
+
+    if method == "openrouter":
+        return accounts.openrouter(open_url), None
+    if method == "huggingface":
+        def show_code(code: str, url: str):
+            def show():
+                QApplication.clipboard().setText(code)
+                QDesktopServices.openUrl(QUrl(url))
+                QMessageBox.information(parent, "Hugging Face girişi",
+                                        f"Tarayıcıda açılan sayfada bu kodu gir (panoya kopyalandı):\n\n{code}\n\n"
+                                        "Onayladıktan sonra bu pencereyi kapatabilirsin; program girişi kendisi alır.")
+            QTimer.singleShot(0, parent, show)
+
+        tokens = accounts.huggingface(show_code)
+        return tokens["access_token"], ("huggingface", tokens)
+    raise RuntimeError("Bu sağlayıcıda hesapla giriş yok.")
 
 
 # ---------------------------------------------------------------- API'ler sekmesi
@@ -377,13 +432,21 @@ class ApiPanel(QWidget):
     def _add(self, preset: str = ""):
         dlg = ApiDialog(parent=self, preset=preset if isinstance(preset, str) else "")
         if dlg.exec():
-            conn = dlg.result_conn
-            self.connections.append(conn)
-            conn.key = dlg.result_key
-            save_connections(self.connections)
-            self.refresh()
-            self.changed.emit()
-            self.test(conn.id)
+            self.add_ready(dlg.result_conn, dlg.result_key, dlg.login_session)
+
+    def add_ready(self, conn: Connection, key: str, session: tuple | None = None) -> Connection:
+        """Hazır bağlantıyı ekler (pencereden ya da hesapla girişten); session: (yöntem, süreli anahtar bilgisi)."""
+        from .. import accounts
+
+        self.connections.append(conn)
+        conn.key = key
+        if session:
+            accounts.save_session(conn.id, *session)
+        save_connections(self.connections)
+        self.refresh()
+        self.changed.emit()
+        self.test(conn.id)
+        return conn
 
     def _edit_item(self, item: QListWidgetItem):
         conn_id = item.data(Qt.UserRole)
@@ -404,7 +467,14 @@ class ApiPanel(QWidget):
             new = dlg.result_conn
             for attr in ("name", "base_url", "preset", "models", "description", "auth", "auth_param"):
                 setattr(conn, attr, getattr(new, attr))
+            old = get_secret(f"conn:{conn.id}")
             conn.key = dlg.result_key
+            if dlg.login_session:
+                from .. import accounts
+
+                accounts.save_session(conn.id, *dlg.login_session)
+            elif dlg.result_key != old:  # anahtar elle değişti: eski girişin yenilemesi onu ezmesin
+                delete_secret(f"oturum:{conn.id}")
             save_connections(self.connections)
             self.refresh()
             self.changed.emit()

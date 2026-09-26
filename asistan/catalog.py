@@ -18,6 +18,9 @@ class Provider:
     note: str = ""  # menüde firma adının yanında kısa bilgi
     chat: list = field(default_factory=list)  # [(model id, kısa açıklama)] — ilk sıradaki önerilen
     code: list = field(default_factory=list)
+    # hesapla kullanma yolu: "openrouter"/"huggingface" (tarayıcıda giriş, accounts.py) ya da resmi programın
+    # sağlayıcısı "cli:codex"/"cli:gemini"/"cli:claude" (aboneliğinle; cli_agents.py). Boş: yalnızca API anahtarı.
+    login: str = ""
 
 
 PROVIDERS = [
@@ -26,11 +29,13 @@ PROVIDERS = [
         chat=[("claude-opus-5-5", "önerilen"), ("claude-fable-5-1", "en güçlü"), ("claude-sonnet-5", "dengeli"),
               ("claude-haiku-4-5", "hızlı, ucuz")],
         code=[("claude-opus-5-5", "önerilen"), ("claude-fable-5-1", "en zor işler"), ("claude-sonnet-5", "dengeli")],
+        login="cli:claude",
     ),
     Provider(
         "openai", "OpenAI · GPT", "OpenAI", "openai.com", "https://platform.openai.com/api-keys",
         chat=[("gpt-6-astra", "en güçlü"), ("gpt-6-sol", "dengeli"), ("gpt-6-luna", "hızlı, ucuz")],
         code=[("gpt-6-sol", "kod ve ajan işleri"), ("gpt-6-astra", "en zor işler"), ("gpt-6-luna", "hızlı, ucuz")],
+        login="cli:codex",
     ),
     Provider(
         "google", "Google · Gemini", "Google Gemini", "googleapis.com", "https://aistudio.google.com/apikey",
@@ -38,6 +43,7 @@ PROVIDERS = [
         chat=[("gemini-3.8-flash", "önerilen"), ("gemini-3.1-pro-preview", "en güçlü, önizleme"),
               ("gemini-3.5-flash-lite", "hızlı, ucuz")],
         code=[("gemini-3.8-flash", "yazılım ve ajan işleri"), ("gemini-3.1-pro-preview", "en güçlü, önizleme")],
+        login="cli:gemini",
     ),
     Provider(
         "xai", "xAI · Grok", "xAI (Grok)", "x.ai", "https://console.x.ai",
@@ -62,6 +68,14 @@ PROVIDERS = [
         note="tek anahtarla yüzlerce model, ücretsizler dahil",
         chat=[("openrouter/auto", "işe göre en uygun modeli seçer")],
         code=[("openrouter/auto", "işe göre en uygun modeli seçer")],
+        login="openrouter",
+    ),
+    Provider(
+        "huggingface", "Hugging Face", "Hugging Face", "huggingface.co", "https://huggingface.co/settings/tokens",
+        note="aylık ücretsiz kredi, açık modeller",
+        chat=[("openai/gpt-oss-120b", "güçlü, düşünür"), ("meta-llama/Llama-3.3-70B-Instruct", "dengeli")],
+        code=[("Qwen/Qwen3-Coder-480B-A35B-Instruct", "kod ve ajan işleri"), ("openai/gpt-oss-120b", "genel")],
+        login="huggingface",
     ),
     Provider(
         "mistral", "Mistral", "Mistral", "mistral.ai", "https://console.mistral.ai/api-keys",

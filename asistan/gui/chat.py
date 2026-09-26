@@ -19,6 +19,9 @@ from .theme import C
 # araç adı -> (kısa ad, bittiğinde yazan açıklama): yerleşik araçlar kayıttan (registry.py), sıralı
 TOOL_LABELS = {n: t.label for n, t in REGISTRY.tools.items() if t.source == "yerlesik"}
 TOOL_LABELS["claude_code"] = ("claude code", "bitti")  # araç değil: Claude Code'a giden turun kartı
+TOOL_LABELS["codex"] = ("codex", "bitti")  # aynı şekilde: ChatGPT hesabıyla Codex (cli_agents.py)
+TOOL_LABELS["gemini_cli"] = ("gemini cli", "bitti")  # Google hesabıyla Gemini CLI
+TOOL_LABELS["cli_step"] = ("adım", "bitti")  # bu programların kendi adımları (komut, dosya…)
 TOOL_LABELS["mcp"] = ("MCP araçları", "")
 TOOL_LABELS["add_tool"] = ("araç ekle", "eklendi")  # araç değil: araç fabrikasının onay adımı
 TOOL_LABELS["fabrika"] = ("fabrika araçları", "")  # ajan izni: araç fabrikasının eklediği araçlar  # ajan izni: takılan MCP sunucularının bütün araçları
@@ -57,7 +60,7 @@ def summarize_args(name: str, args: dict) -> str:
         text = str(args.get("name", ""))
     elif name == "find_api":
         text = str(args.get("topic", ""))
-    elif name == "claude_code":
+    elif name in ("claude_code", "codex", "gemini_cli", "cli_step"):
         text = str(args.get("task", "")).strip().splitlines()[0] if str(args.get("task", "")).strip() else ""
     elif name == "delegate_to_agent":
         text = f"{args.get('agent', '')}: {args.get('task', '')}"

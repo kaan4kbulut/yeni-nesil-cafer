@@ -8,7 +8,7 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from PySide6.QtWidgets import QInputDialog, QMenu, QMessageBox, QTreeWidgetItem
 
-from .. import learning, roster, specialists, suggest
+from .. import cli_agents, learning, roster, suggest
 from ..storage import Conversation
 
 from .chat import tool_label
@@ -362,8 +362,8 @@ class ChatsMixin:
             # işi yapan kodla aynı karar (kategorili ajanda kategorinin modeli): panel başka model göstermesin
             provider_, model_ = roster.assign(self.settings, p, ("", ""))
             if provider_:
-                if provider_ == specialists.CLAUDE_CODE[0]:
-                    return "otomatik · Claude Code" + ("" if model_ == specialists.CLAUDE_CODE[1] else f" · {model_}"), False
+                if cli_agents.is_cli(provider_):
+                    return "otomatik · " + cli_agents.label(provider_, model_), False
                 return "otomatik · " + label(provider_, model_), False
         if model is None:
             model = {"claude": self.settings.claude_model, "ollama": self.settings.ollama_model}.get(

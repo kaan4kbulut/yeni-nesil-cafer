@@ -9,7 +9,7 @@ from PySide6.QtWidgets import (
     QPushButton, QSplitter, QStackedWidget, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget,
 )
 
-from .. import __version__, catalog, factory, mcp, power, roster, specialists
+from .. import __version__, catalog, cli_agents, factory, mcp, power, roster
 from ..config import CONFIG_DIR, DATA_DIR, Settings
 from ..connections import ANTHROPIC_KEY, load_connections
 from ..keystore import set_secret
@@ -25,6 +25,7 @@ from .sidebar import AgentPanel, ApiPanel, LibraryPanel
 from .sysmon import SystemMonitorLabel
 from .theme import C, mono
 from .widgets import RowButton, SearchBox
+from .window_accounts import AccountsMixin
 from .window_bar import BarMixin
 from .window_chats import ChatsMixin
 from .window_group import GroupMixin
@@ -44,7 +45,8 @@ from .worker import AgentWorker
 
 # ---------------------------------------------------------------- ana pencere
 
-class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMixin, GroupMixin, QMainWindow):
+class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, ChatsMixin, RunMixin, GroupMixin,
+                 QMainWindow):
     """Ana pencere. Konular karışım sınıflarında (window_*.py); burada kurulum, menü ve ortak yardımcılar."""
     pull_progress = Signal(str)  # menüden model indirirken alt çubuğa ilerleme
     problem = Signal(str, str)  # (tür, ayrıntı): yakalanmamış hata vb. başka iş parçacığından → rapor önerisi
@@ -682,11 +684,10 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
 
         self._menu_title(menu, "ONLINE · BULUT")
         linked_any = False
-        if specialists.claude_code_available():
+        for cli in cli_agents.available_agents():  # aboneliğinle: Claude Code, Codex, Gemini CLI
             linked_any = True
-            for m, note in specialists.CLAUDE_CODE_MODELS:
-                label = "Claude Code" if m == specialists.CLAUDE_CODE[1] else f"Claude Code · {m}"
-                add(menu, f"{label}    {note}", "code", f"{specialists.CLAUDE_CODE[0]}|{m}")
+            for m, note in cli.models:
+                add(menu, f"{cli_agents.label(cli.provider, m)}    {note}", "code", f"{cli.provider}|{m}")
         known_hosts = []
         for prov in catalog.PROVIDERS:
             known_hosts.append(prov.host)
@@ -714,8 +715,8 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
             return "yerel"
         if provider == "claude":
             return "claude"
-        if provider == specialists.CLAUDE_CODE[0]:
-            return "claude code"
+        if cli_agents.is_cli(provider):
+            return cli_agents.AGENTS[provider].title.lower()
         conn = self._connection(provider)
         return conn.name.lower() if conn else provider
 

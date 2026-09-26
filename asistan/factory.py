@@ -344,8 +344,12 @@ def _writers(settings, chat: tuple[str, str]) -> list[tuple[str, str]]:
     cloud = []
     if specialists._claude_available():
         cloud.append(("claude", settings.claude_model))
-    elif specialists.claude_code_available():
-        cloud.append((specialists.CLAUDE_CODE[0], settings.extra.get("cli_model") or specialists.CLAUDE_CODE[1]))
+    else:  # aboneliğinle çalışan resmi programlardan ilki (Claude Code, Codex, Gemini CLI)
+        from . import cli_agents
+
+        cli = next(iter(cli_agents.available_agents()), None)
+        if cli:
+            cloud.append((cli.provider, cli.default))
     order = (cloud + [local]) if settings.model_policy == "guclu" else ([local] + cloud)
     return [m for m in dict.fromkeys(order) if m and m[1]]
 
