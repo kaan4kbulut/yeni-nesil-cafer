@@ -13,6 +13,7 @@ import os
 import platform
 import subprocess
 import threading
+import time
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -120,6 +121,38 @@ def saving(settings) -> bool:
     return power.saving(settings)
 
 
+_fault: tuple[float, str] = (0.0, "")
+FAULT_SECONDS = 30
+_FAULT_SIGNS = ("requires reset", "err!", "unable to determine", "fallen off", "unknown error", "no devices were found")
+
+
+def fault() -> str:
+    """NVIDIA kartının sürücüsü hata durumunda mı? Sebep metni; sorun yoksa (ya da NVIDIA yoksa) boş.
+
+    Görülen durum (2026-09-26): Xid 62 → "GPU requires reset"; CUDA kartı görmez, Ollama sessizce işlemciye düşer.
+    Ollama'yı yeniden başlatmak yetmez, bilgisayar yeniden başlatılmalı. 30 sn önbellek."""
+    global _fault
+    now = time.time()
+    if now - _fault[0] < FAULT_SECONDS:
+        return _fault[1]
+    reason = ""
+    if any(c.vendor == "nvidia" for c in cards()):
+        try:
+            flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
+            r = subprocess.run(["nvidia-smi", "--query-gpu=temperature.gpu", "--format=csv,noheader"],
+                               capture_output=True, text=True, timeout=5, creationflags=flags,
+                               encoding="utf-8", errors="replace")
+            text = (r.stdout + r.stderr).lower()
+            if any(sign in text for sign in _FAULT_SIGNS) or (r.returncode != 0 and text.strip()):
+                reason = "sürücü sıfırlama istiyor" if "reset" in text else "sürücü kartı göremiyor"
+        except subprocess.TimeoutExpired:
+            reason = "sürücü yanıt vermiyor"
+        except OSError:
+            pass
+    _fault = (now, reason)
+    return reason
+
+
 def ollama_env(settings) -> dict[str, str]:
     """Programın başlattığı Ollama'ya eklenecek ortam: tam güçte yalnızca en güçlü kart görünsün.
 
@@ -197,6 +230,12 @@ def check(running: list[dict], settings, program_owned: bool) -> Report:
     best = strongest()
     if best is None:
         return Report(True, "ekran kartı yok · işlemci")
+    broken = fault()
+    if broken:  # önce: hafif mod da bu yüzden açık, "işlemcide (hafif mod)" diye gizlenmesin
+        return Report(False, f"Ekran kartı ({best.short}) hata verdi, {broken}: modeller işlemcide çalışıyor ve çok yavaş. "
+                             f"Program bu arada küçük model ve kısa bağlam kullanıyor.",
+                      fix="Bilgisayarı yeniden başlat (Ollama'yı yeniden başlatmak bunu düzeltmez).",
+                      card="⚠ işlemci")
     if not running:
         return Report(True, f"{best.short} hazır", card=best.short)
     share = min((r.get("size_vram", 0) / r["size"] if r.get("size") else 0) for r in running)

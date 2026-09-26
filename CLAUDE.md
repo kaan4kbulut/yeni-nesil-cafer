@@ -289,6 +289,16 @@ etiket ya da doğrulama için başka bir yere dokunma. Testler:
   düşer ve her şey dakikalarca "takılır"). Düzelmesi için yeniden başlatma gerekir. `ollama ps` → "100% CPU".
   Aynı durum resim üretimi yokken de görüldü (çekirdek kaydında `Xid 62` / `Xid 154`, `NV_ERR_RESET_REQUIRED`;
   sürücü ya da güç yönetimi kaynaklı olabilir). Belirti: `nvidia-smi`'de `ERR!`.
+  2026-09-26 22:15 yine oldu (Xid 62, `llama-server` sırasında; "GPU requires reset"). `gpu.fault()` bunu
+  `nvidia-smi --query-gpu=temperature.gpu` çıktısından algılar (30 sn önbellek); o zaman `power.saving` her ayarda
+  True (küçük model, 8K bağlam; `roster.default` hafif modda >5B yerel varsayılanı atlar) ve `gpu.check` "bilgisayarı
+  yeniden başlat" der (Ollama'yı yeniden başlatmak düzeltmez). Testler `gpu.fault`'u taklit etmeli.
+- Testler kullanıcının gerçek veri klasörüne yazmamalı: her test dosyası `asistan`'ı içe aktarmadan ÖNCE
+  XDG_CONFIG_HOME/XDG_DATA_HOME'u geçici klasöre almalı (`config` yolları içe aktarılırken sabitlenir; yalıtılmamış
+  bir test önce yüklenirse sonrakiler de gerçek klasörü kullanır — 2026-09-26'da `gelisim.jsonl`'e test satırı düştü).
+- Bağlantılar: `Connection.needs_key`/`usable`; anahtarsız ya da 401 alan (`connections.key_error`, oturumluk
+  `_REJECTED`) bağlantı yönlendiricide, menülerde ve varsayılanda (`roster.default`) atlanır; API penceresi anahtarsız
+  kaydetmez. (2026-09-26: anahtarsız OpenAI bağlantısı varsayılan bulut modeliydi, her mesaj 401 veriyordu.)
 
 - Gemma 4 (normal ve sansürsüz) sistem talimatı olmadan araç çağırmaz, komutu metin olarak yazar; ara sıra
   bozuk bir araç çağrısında dakikalarca tamponlayıp hiçbir şey akıtmaz. `agent.py`: `STALL_SECONDS`,

@@ -57,6 +57,12 @@ SÜRÜM 2.3'TE YENİ
       · OpenRouter: tarayıcıda giriş yap, anahtar kendiliğinden alınır (ücretsiz modeller dahil)
     Hesap bilgilerini program görmez; resmi programlar kendisi saklar. Bu programlar yalnızca senin
     sohbette gönderdiğin isteklerde, o işin klasöründe çalışır.
+  - API'ler sekmesi sadeleşti: en üstte hesabınla kullanabileceklerin, her satırın altında durumu
+    ("✓ bağlı · 40 model", "anahtar yok · tıkla, gir"). Anahtarsız bağlantı artık kaydedilmez; anahtarı
+    reddedilen bağlantıya mesaj gönderilmez, iş başka bir modelle yapılır.
+  - Ekran kartının sürücüsü hata verirse (dizüstülerde ara sıra "sıfırlama gerekiyor" durumu) program
+    bunu açıkça söyler: bilgisayarı yeniden başlat. O zamana kadar küçük model ve kısa bağlamla çalışır,
+    dakikalarca bekletmez.
 
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar

@@ -18,6 +18,15 @@ CLI_SIZES = {"cli:codex": "~110 MB indirme, kurulunca ~270 MB", "cli:gemini": "~
 
 
 class AccountsMixin:
+    def _account_requested(self, what: str):
+        """API'ler sekmesindeki "hesabınla" satırı: resmi programı kur / giriş yap ya da OpenRouter'a giriş."""
+        from .. import catalog
+
+        if cli_agents.is_cli(what):
+            self._cli_connect(what)
+        else:
+            self._account_login(catalog.BY_ID[what], "online", "")
+
     def _account_actions(self, menu: QMenu, prov, kind: str, model: str = "") -> bool:
         """Firmanın hesapla kullanma seçenekleri; bir şey eklendiyse True."""
         added = False
@@ -105,6 +114,7 @@ class AccountsMixin:
                 self._notify(f"{agent.title} hazırlanamadı: {describe_error(error)}", 20000)
                 return
             self._notify(f"✓ {agent.title} hazır — {agent.via} kod ve genel işlerde kullanılıyor", 15000)
+            self.api_panel.refresh()
             self._set_default_model("code", f"{provider}|{agent.default}")
 
         run_in_background(work, done, self)

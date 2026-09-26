@@ -220,6 +220,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.agent_panel.changed.connect(self._update_header)
         self.api_panel = ApiPanel(self.connections, settings=self.settings)
         self.api_panel.changed.connect(self._connections_changed)
+        self.api_panel.account_requested.connect(self._account_requested)
         self.library_panel = LibraryPanel()
         for page in (self.work_panel, self.agent_panel, self.api_panel, self.library_panel):
             wrap = QWidget()
@@ -696,7 +697,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
                 sub = menu.addMenu(f"{prov.name}  ·  bağlı")
                 self._provider_submenu(sub, prov, "online", "", inline=True)
         for conn in self.connections:  # katalogda olmayan, elle eklenmiş sağlayıcılar
-            if conn.kind == "llm" and conn.enabled and not any(h in conn.base_url for h in known_hosts):
+            if conn.kind == "llm" and conn.usable and not any(h in conn.base_url for h in known_hosts):
                 linked_any = True
                 sub = menu.addMenu(f"{conn.name}  ·  bağlı")
                 for m in _models_for_menu(conn.models, False)[:25]:

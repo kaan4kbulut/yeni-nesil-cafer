@@ -231,6 +231,10 @@ def ask(settings: Settings, connections: list[Connection], provider: str, model:
                                          {"role": "user", "content": content}],
             **({"response_format": {"type": "json_object"}} if schema else {}),
         }, timeout=httpx.Timeout(600, connect=15))
+        if resp.status_code == 401:
+            from .connections import key_error
+
+            raise key_error(conn, 401)
         if resp.status_code != 200:
             raise RuntimeError(f"{conn.name} hatası ({resp.status_code}): {resp.text[:300]}")
         return resp.json()["choices"][0]["message"]["content"].strip()

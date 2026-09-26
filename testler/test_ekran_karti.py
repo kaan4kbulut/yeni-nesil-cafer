@@ -8,6 +8,7 @@ Kartlar ve nvidia-smi çıktısı sahte; gerçek ekran kartı gerekmez.
 
 import os
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -15,6 +16,9 @@ from unittest import mock
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
+_GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
+os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
+os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
 from asistan import gpu  # noqa: E402
 
@@ -26,7 +30,16 @@ HAFIF = SimpleNamespace(power_mode="tasarruf")
 YUKLU = [{"name": "gemma4:12b", "size": 100, "size_vram": 100}]
 
 
-class EnGucluKart(unittest.TestCase):
+class _GercekKartaBakma(unittest.TestCase):
+    """Testler bu bilgisayardaki kartın gerçek durumunu (ör. sürücü hatası) okumasın."""
+
+    def setUp(self):
+        p = mock.patch.object(gpu, "fault", return_value="")
+        p.start()
+        self.addCleanup(p.stop)
+
+
+class EnGucluKart(_GercekKartaBakma):
     def test_ayri_kart_tumlesikten_once_sonra_bellek(self):
         self.assertIs(gpu.strongest([INTEL, MX, RTX]), RTX)
         self.assertIs(gpu.strongest([INTEL]), INTEL)
@@ -42,8 +55,9 @@ class EnGucluKart(unittest.TestCase):
             self.assertEqual(gpu.ollama_env(TAM_GUC), {})
 
 
-class Denetim(unittest.TestCase):
+class Denetim(_GercekKartaBakma):
     def setUp(self):
+        super().setUp()
         p = mock.patch.object(gpu, "cards", return_value=[INTEL, MX, RTX])
         p.start()
         self.addCleanup(p.stop)
@@ -89,6 +103,43 @@ class Denetim(unittest.TestCase):
         gpu.note_device(" NVIDIA GeForce RTX 5070 Ti Laptop GPU ")
         self.assertTrue(gpu.image_report(TAM_GUC).ok)
         gpu.note_device("")
+
+
+class SurucuHatasi(unittest.TestCase):
+    """2026-09-26: Xid 62 sonrası "GPU requires reset"; Ollama sessizce işlemciye düştü, 14B model dakikalarca bekletti."""
+
+    def setUp(self):
+        gpu._fault = (0.0, "")
+        self.addCleanup(lambda: setattr(gpu, "_fault", (0.0, "")))
+
+    def _cikti(self, stdout, code=0):
+        return mock.patch.object(gpu.subprocess, "run", return_value=mock.Mock(stdout=stdout, stderr="",
+                                                                               returncode=code))
+
+    def test_sifirlama_isteyen_kart_algilanir_ve_yeniden_baslatma_onerilir(self):
+        with mock.patch.object(gpu, "cards", return_value=[INTEL, RTX]), self._cikti("[GPU requires reset]\n"):
+            self.assertEqual(gpu.fault(), "sürücü sıfırlama istiyor")
+            r = gpu.check(YUKLU, TAM_GUC, True)
+        self.assertFalse(r.ok)
+        self.assertIn("Bilgisayarı yeniden başlat", r.fix)
+        self.assertTrue(r.fix)  # boş değil: pencere Ollama'yı boşuna yeniden başlatmaz
+
+    def test_saglam_kart_ve_nvidia_yok(self):
+        with mock.patch.object(gpu, "cards", return_value=[INTEL, RTX]), self._cikti("45\n"):
+            self.assertEqual(gpu.fault(), "")
+        gpu._fault = (0.0, "")
+        with mock.patch.object(gpu, "cards", return_value=[INTEL]), self._cikti("[GPU requires reset]\n") as run:
+            self.assertEqual(gpu.fault(), "")
+        run.assert_not_called()
+
+    def test_kart_bozukken_hafif_mod_kucuk_baglam(self):
+        from asistan import power
+
+        with mock.patch.object(gpu, "fault", return_value="sürücü sıfırlama istiyor"):
+            s = SimpleNamespace(power_mode="performans", ollama_num_ctx=16384)
+            self.assertTrue(power.saving(s))
+            self.assertEqual(power.num_ctx(s), power.BATTERY_CTX)
+            self.assertIn("ekran kartı hatası", power.label(s))
 
 
 class NvidiaCiktisi(unittest.TestCase):

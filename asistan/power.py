@@ -111,7 +111,14 @@ def state(refresh: bool = False) -> PowerState:
 
 
 def saving(settings) -> bool:
-    """Hafif modda mı çalışılmalı? Ayar: otomatik (pildeyken) · performans (hiç) · tasarruf (her zaman)."""
+    """Hafif modda mı çalışılmalı? Ayar: otomatik (pildeyken) · performans (hiç) · tasarruf (her zaman).
+
+    Ekran kartının sürücüsü hata verdiyse (gpu.fault) her ayarda hafif: modeller işlemcide çalışır, 14B model
+    işlemcide istemi saniyede ~17 token okur (2026-09-26 ölçümü; 7.800 tokenlık istek ~7 dk)."""
+    from .gpu import fault
+
+    if fault():
+        return True
     mode = getattr(settings, "power_mode", "otomatik")
     if mode == "performans":
         return False
@@ -127,6 +134,10 @@ def num_ctx(settings) -> int:
 
 def label(settings) -> str:
     """Durum çubuğu için kısa metin ("" : fişte, tam güç)."""
+    from .gpu import fault
+
+    if fault():
+        return "⚠ ekran kartı hatası · hafif mod"
     s = state()
     if not saving(settings):
         return "🔋 pil · tam güç" if s.on_battery else ""

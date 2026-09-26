@@ -18,7 +18,7 @@ import anthropic
 import httpx
 
 from .config import Settings
-from .connections import ANTHROPIC_KEY, Connection
+from .connections import ANTHROPIC_KEY, Connection, key_error
 from .keystore import get_secret
 from .profiles import AgentProfile
 from . import api_catalog, cli_agents, hooks, learning, power, security, specialists, sysinfo
@@ -1730,6 +1730,8 @@ class Agent:
                         _API_CTX[model] = max(MIN_API_CTX, ctx // 2)
                         self._compact(messages, system, tools, _API_CTX[model], force=True)
                         continue
+                    if resp.status_code == 401:
+                        raise key_error(conn, 401)
                     raise RuntimeError(f"{conn.name} hatası ({resp.status_code}): {resp.text[:500]}")
                 for line in resp.iter_lines():
                     self._check_cancel()

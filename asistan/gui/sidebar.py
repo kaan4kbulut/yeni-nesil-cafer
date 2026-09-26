@@ -42,9 +42,13 @@ def run_in_background(fn, on_done, parent: QObject):
 
     def work():
         try:
-            job.done.emit(fn(), None)
+            result, error = fn(), None
         except Exception as e:
-            job.done.emit(None, e)
+            result, error = None, e
+        try:
+            job.done.emit(result, error)
+        except RuntimeError:  # sonucu bekleyen pencere bu arada kapandı
+            pass
 
     threading.Thread(target=work, daemon=True).start()
 
@@ -301,6 +305,13 @@ class ApiDialog(QDialog):
         if not draft.name or not draft.base_url:
             QMessageBox.warning(self, "Eksik bilgi", "Ad ve adres boş olamaz.")
             return
+        if draft.needs_key and not self.key.text().strip():  # anahtarsız bağlantı her mesajda 401 verir
+            from ..connections import account_hint
+
+            QMessageBox.warning(self, "API anahtarı gerekli",
+                                f"{draft.name or 'Bu sağlayıcı'} API anahtarı olmadan çalışmaz. Anahtarı yapıştır"
+                                + (account_hint(draft.base_url) or "") + ".")
+            return
         if draft.kind == "tool" and not draft.description:
             QMessageBox.warning(self, "Eksik bilgi",
                                 "Asistanın bu API'yi ne zaman kullanacağını bilmesi için bir açıklama yaz.")
@@ -338,6 +349,7 @@ def login_account(method: str, parent) -> tuple[str, tuple | None]:
 
 class ApiPanel(QWidget):
     changed = Signal()  # bağlantılar eklendi / değişti / silindi
+    account_requested = Signal(str)  # "cli:codex" / "openrouter": pencere kurulum ve giriş akışını başlatır
 
     def __init__(self, connections: list[Connection], parent=None, settings=None):
         super().__init__(parent)
@@ -373,35 +385,63 @@ class ApiPanel(QWidget):
         self.refresh()
 
     def refresh(self):
+        """Her satırın altında durumu: ne işe yaradığı belli olsun (2026-09-26: kullanıcı "hiçbiri işe yaramıyor gibi"
+        dedi — üç sağlayıcının üçü de anahtarsızdı ve yalnızca gri nokta görünüyordu)."""
+        import os
+
+        from .. import accounts, cli_agents
+        from ..connections import _REJECTED
+
         self.list.clear()
-        self.list.addItem(_header_item("MODEL SAĞLAYICILARI"))
-        self._add_row("anthropic", "Anthropic (Claude)", "☁")
+        self.list.addItem(_header_item("HESABINLA — API ANAHTARI GEREKMEZ"))
+        for a in cli_agents.AGENTS.values():
+            if cli_agents.available(a.provider):
+                self._status_row(f"__account__:{a.provider}", a.title, f"✓ {a.via} hazır", True)
+            else:
+                how = "giriş yap" if cli_agents.installed(a.provider) else "kur"
+                self._status_row(f"__account__:{a.provider}", a.title, f"{a.via} · tıkla, {how}", None,
+                                 tip=f"{a.title}: {a.via} çalışan resmi program. Tıklayınca "
+                                     + ("tarayıcıda giriş yaparsın." if how == "giriş yap"
+                                        else "program kurulur, sonra tarayıcıda giriş yaparsın."))
+        router = any("openrouter.ai" in c.base_url and c.usable for c in self.connections)
+        if not router and accounts.available("openrouter"):
+            self._status_row("__account__:openrouter", "OpenRouter", "tıkla, tarayıcıda giriş yap", None,
+                             tip="Tek hesapla yüzlerce model, ücretsizler dahil. Anahtar kendiliğinden alınır.")
+        self.list.addItem(_header_item("API ANAHTARIYLA"))
+        claude_key = bool(get_secret(ANTHROPIC_KEY) or os.environ.get("ANTHROPIC_API_KEY"))
+        self._add_row("anthropic", "Anthropic (Claude)", "☁", claude_key)
         for c in self.connections:
             if c.kind == "llm":
-                self._add_row(c.id, c.name, "🧠")
+                self._add_row(c.id, c.name, "🧠", not c.needs_key or bool(get_secret(f"conn:{c.id}")),
+                              c.id in _REJECTED)
         tools = [c for c in self.connections if c.kind == "tool"]
         self.list.addItem(_header_item("ARAÇ API'LERİ"))
         off = set(self.settings.extra.get("api_off", [])) if self.settings else set()
         free = [e for e in api_catalog.CATALOG if e.free]
-        ready = QListWidgetItem(f"≡  hazır, anahtarsız: {len([e for e in free if e.id not in off])}/{len(free)} açık")
+        ready = QListWidgetItem(f"≡  anahtarsız hazır araçlar (hava, döviz, deprem…)\n"
+                                f"    {len([e for e in free if e.id not in off])}/{len(free)} açık · asistan gerekince kullanır")
         ready.setData(Qt.UserRole, "__catalog__")
         ready.setToolTip("Asistan bunları kurulum gerektirmeden kullanır. Açıp kapatmak için tıkla.")
         self.list.addItem(ready)
-        if not tools:
-            empty = QListWidgetItem("Henüz yok — asistanın çağıracağı\nbir servis ekleyebilirsin")
-            empty.setFlags(Qt.NoItemFlags)
-            empty.setForeground(QColor(C["muted"]))
-            self.list.addItem(empty)
         for c in tools:
-            self._add_row(c.id, c.name + ("" if c.enabled else "  (kapalı)"), "🔌")
+            self._add_row(c.id, c.name + ("" if c.enabled else "  (kapalı)"), "🔌",
+                          not c.needs_key or bool(get_secret(f"conn:{c.id}")))
 
-    def _add_row(self, conn_id: str, name: str, icon: str):
-        ok, msg = self.status.get(conn_id, (None, "Henüz test edilmedi"))
+    def _status_row(self, data: str, name: str, status: str, ok: bool | None, icon: str = "🔑", tip: str = ""):
         color = C["muted"] if ok is None else (C["success"] if ok else C["error"])
-        item = QListWidgetItem(_dot(color), f"{icon}  {name}")
-        item.setData(Qt.UserRole, conn_id)
-        item.setToolTip(msg)
+        item = QListWidgetItem(_dot(color), f"{icon}  {name}\n    {status}")
+        item.setData(Qt.UserRole, data)
+        item.setToolTip(tip or status)
         self.list.addItem(item)
+
+    def _add_row(self, conn_id: str, name: str, icon: str, has_key: bool = True, rejected: bool = False):
+        ok, msg = self.status.get(conn_id, (None, "henüz denenmedi"))
+        tip = msg
+        if not has_key:
+            ok, msg, tip = False, "anahtar yok · tıkla, gir", "Anahtarı girmek için tıkla; kullanmayacaksan sağ tık → Sil."
+        elif rejected and ok is not True:
+            ok, msg = False, "anahtar reddedildi · tıkla, düzelt"
+        self._status_row(conn_id, name, msg.replace("Bağlantı başarılı", "bağlı"), ok, icon, tip)
 
     def _find(self, conn_id: str) -> Connection | None:
         return next((c for c in self.connections if c.id == conn_id), None)
@@ -452,6 +492,8 @@ class ApiPanel(QWidget):
         conn_id = item.data(Qt.UserRole)
         if conn_id == "__catalog__":
             self.open_catalog()
+        elif conn_id and conn_id.startswith("__account__:"):
+            self.account_requested.emit(conn_id.split(":", 1)[1])
         elif conn_id:
             self.edit(conn_id)
 
@@ -515,9 +557,19 @@ class ApiPanel(QWidget):
 
     # ---- test
     def test_all(self):
-        self.test("anthropic")
+        import os
+
+        if get_secret(ANTHROPIC_KEY) or os.environ.get("ANTHROPIC_API_KEY"):
+            self.test("anthropic")
         for c in self.connections:
-            self.test(c.id)
+            if not c.needs_key or get_secret(f"conn:{c.id}"):  # anahtarsızı denemenin anlamı yok (satırda yazıyor)
+                self.test(c.id)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        if not getattr(self, "_tested_once", False):  # sekme ilk açılınca durumlar kendiliğinden denensin
+            self._tested_once = True
+            self.test_all()
 
     def test(self, conn_id: str):
         conn = self._find(conn_id)

@@ -15,6 +15,9 @@ from pathlib import Path
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
+_GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
+os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
+os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 from PySide6.QtCore import QEventLoop, QTimer  # noqa: E402

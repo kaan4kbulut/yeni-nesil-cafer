@@ -447,7 +447,8 @@ class ModelsMixin:
         """(bağlı mı, sağlayıcı anahtarı, hesaptaki modeller)"""
         if prov.id == "anthropic":
             return specialists._claude_available(), "claude", list(CLAUDE_MODELS)
-        conn = next((c for c in self.connections if c.kind == "llm" and c.enabled and prov.host in c.base_url), None)
+        # anahtarsız / anahtarı reddedilmiş bağlantı "bağlı" sayılmaz: menüde bağlan ve 🔑 seçenekleri görünür
+        conn = next((c for c in self.connections if c.kind == "llm" and c.usable and prov.host in c.base_url), None)
         return conn is not None, (f"api:{conn.id}" if conn else ""), (list(conn.models) if conn else [])
 
     def _provider_submenu(self, menu: QMenu, prov, kind: str, chosen: str, inline: bool = False):
@@ -497,7 +498,7 @@ class ModelsMixin:
             ok, value = specialists._claude_available(), f"claude|{model}"
         else:
             conn = next((c for c in self.connections if prov.host in c.base_url), None)
-            if edit and conn:
+            if conn:  # zaten var (anahtarsız olsa da): yenisini açma, onu düzenle
                 self.api_panel.edit(conn.id)
             else:
                 self.api_panel._add(prov.preset)

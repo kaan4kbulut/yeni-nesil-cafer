@@ -62,6 +62,22 @@ class Connection:
     @key.setter
     def key(self, value: str) -> None:
         set_secret(f"conn:{self.id}", value)
+        _REJECTED.discard(self.id)  # yeni anahtar: yeniden denensin
+
+    @property
+    def needs_key(self) -> bool:
+        """Anahtarsız çalışmaz mı? (LM Studio gibi yerel sunucular ve "anahtar yok" araç API'leri hariç)"""
+        if self.kind != "llm":
+            return self.auth != "none"
+        local = any(h in self.base_url for h in ("localhost", "127.0.0.1"))
+        return LLM_PRESETS.get(self.preset, ("", True))[1] and not local
+
+    @property
+    def usable(self) -> bool:
+        """Model olarak seçilebilir mi: açık, anahtar isteniyorsa anahtarı var ve bu oturumda reddedilmedi.
+        (2026-09-26: anahtarsız kaydedilen OpenAI bağlantısı otomatik seçilip her mesajda 401 veriyordu.)"""
+        return (self.enabled and self.id not in _REJECTED
+                and (not self.needs_key or bool(get_secret(f"conn:{self.id}"))))
 
     @property
     def slug(self) -> str:
@@ -78,6 +94,30 @@ class Connection:
             headers[self.auth_param or "X-Api-Key"] = key
         elif self.auth == "query":
             params[self.auth_param or "key"] = key
+
+
+_REJECTED: set[str] = set()  # bu oturumda anahtarı reddedilen (401) bağlantılar; anahtar değişince silinir
+
+
+def account_hint(base_url: str) -> str:
+    """Anahtarsız kullanma yolu varsa kısa bir öneri: " ya da ChatGPT hesabınla kullan (…)"."""
+    from . import catalog, cli_agents
+
+    prov = catalog.by_host(base_url)
+    if prov is None or not prov.login:
+        return ""
+    agent = cli_agents.AGENTS.get(prov.login)
+    how = f"{agent.via} kullan" if agent else "hesabınla giriş yap"
+    return f" ya da {how} (model menüsü → {prov.name} → 🔑)"
+
+
+def key_error(conn: "Connection", status: int) -> RuntimeError:
+    """401: anahtar yok ya da geçersiz. Bağlantı bu oturumda otomatik seçilmez; ne yapılacağı Türkçe söylenir."""
+    _REJECTED.add(conn.id)
+    missing = not get_secret(f"conn:{conn.id}")
+    return RuntimeError(f"{conn.name}: API anahtarı {'girilmemiş' if missing else 'geçersiz'} ({status}). "
+                        f"API'ler sekmesinde {conn.name} bağlantısına sağ tık → Düzenle ile anahtarı gir"
+                        f"{account_hint(conn.base_url)}. Bu arada istekler başka bir modelle yapılır.")
 
 
 def load_connections() -> list[Connection]:

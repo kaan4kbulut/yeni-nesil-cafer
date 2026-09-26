@@ -14,6 +14,9 @@ from unittest import mock
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
+_GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
+os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
+os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
 from asistan import apps, security  # noqa: E402
 from asistan import permissions as p  # noqa: E402

@@ -97,8 +97,8 @@ def _cloud(settings: Settings) -> list[Candidate]:
         model = settings.claude_model if settings.claude_model in CLAUDE_MODELS else CLAUDE_MODELS[0]
         out.append(Candidate("claude", model, {"tools", "vision", "thinking", "code"}, 100))
     for c in load_connections():
-        if c.kind != "llm" or not c.enabled or any(h in c.base_url for h in ("localhost", "127.0.0.1")):
-            continue
+        if c.kind != "llm" or not c.usable or any(h in c.base_url for h in ("localhost", "127.0.0.1")):
+            continue  # anahtarsız ya da anahtarı reddedilmiş bağlantı otomatik seçilmez
         # katalogdaki önerilen model (hesapta varsa); katalogda olmayan firmada listenin ilki
         provider = catalog.by_host(c.base_url)
         featured = [m for m, _ in provider.chat] if provider else []
@@ -139,7 +139,16 @@ def default(settings: Settings, kind: str) -> Candidate | None:
         if not cli_agents.available(provider):
             return None
         return Candidate(provider, model, {"tools", "code", "thinking", "vision"}, 95)
+    if provider.startswith("api:"):  # seçilen bağlantı silinmiş, anahtarsız ya da anahtarı reddedilmiş: otomatiğe dön
+        from .connections import load_connections
+
+        conn = next((c for c in load_connections() if c.id == provider[4:]), None)
+        if conn is None or not conn.usable:
+            return None
     found = next((c for c in candidates(settings) if c.key == (provider, model)), None)
+    if found and found.local and found.params > power.BATTERY_MAX_PARAMS and power.saving(settings) \
+            and not model_updates.is_uncensored(found.model):
+        return None  # hafif modda (pil, ekran kartı hatası) büyük yerel model yerine otomatik seçilen küçük model
     if found:
         return found
     if provider == "ollama":
