@@ -1,0 +1,46 @@
+"""Tanıtım (gui/tour.py): ilk kurulumda ve her yeni sürümde bir kez; düğmeler özelliği açar.
+
+Çalıştırma (proje kökünde, programın Python'uyla):
+    ~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v
+"""
+
+import os
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+from unittest import mock
+
+KOK = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(KOK))
+os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+_GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
+os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
+os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
+
+from PySide6.QtWidgets import QApplication, QPushButton  # noqa: E402
+
+APP = QApplication.instance() or QApplication([])
+
+from asistan.config import Settings  # noqa: E402
+from asistan.gui import tour  # noqa: E402
+
+
+class TanitimTesti(unittest.TestCase):
+    def test_bir_kez_gosterilir_yeni_surumde_yine(self):
+        s = Settings()
+        self.assertTrue(tour.pending(s))  # bu sürümün yenilikleri tanımlı
+        tour.mark_seen(s)
+        self.assertEqual(tour.pending(s), [])
+        with mock.patch.object(tour, "__version__", "9.9"), mock.patch.dict(tour.NEWS, {"9.9": [("x", "y", "", "")]}):
+            self.assertEqual(len(tour.pending(s)), 1)  # yeni sürüm: yeniden
+
+    def test_dugme_ozelligi_acar(self):
+        acilan = []
+        dlg = tour.TourDialog(tour.NEWS[tour.__version__], acilan.append)
+        next(b for b in dlg.findChildren(QPushButton) if b.text() == "göster").click()
+        self.assertEqual(acilan, ["_tour_media"])
+
+
+if __name__ == "__main__":
+    unittest.main()

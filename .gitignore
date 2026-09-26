@@ -1,0 +1,7 @@
+# sanal ortam ve derleme artıkları
+.venv/
+__pycache__/
+*.pyc
+paketleme/build/
+paketleme/dist/
+dist/

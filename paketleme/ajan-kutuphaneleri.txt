@@ -1,0 +1,22 @@
+# Ajanların Python kodu (run_python) için pakete gömülü hazır kütüphaneler.
+# Listeyi değiştirirsen asistan/tools.py'deki AGENT_LIBRARIES'i de güncelle (model neyin hazır olduğunu oradan öğrenir).
+pandas
+numpy
+matplotlib
+openpyxl
+python-docx
+python-pptx
+pypdf
+reportlab
+pillow
+requests
+pyyaml
+# dikte (asistan/dictation.py): konuşmayı yazıya çevirme; ajanlar da ses dosyaları için kullanır
+faster-whisper
+# 3D baskı: ölçülü CAD parçası ve baskıya uygunluk denetimi (tools.check_3d_model)
+build123d
+trimesh
+manifold3d
+# video (beceriler/video): MP4/GIF yazma; ffmpeg pip paketinin içinde gelir (Windows dahil)
+imageio
+imageio-ffmpeg

@@ -1,0 +1,112 @@
+YENİ NESİL CAFER · @PAKET@ (sürüm @SURUM@)
+======================================
+Bilgisayarında çalışan kişisel yapay zekâ asistanı ve ekibi. Sohbet eder, dosyalarınla çalışır,
+web'de araştırır, işleri uzman ajanlara dağıtır. Yerel modellerle (Ollama) ücretsiz ve çevrimdışı
+çalışır; istersen Claude, GPT, Gemini gibi bulut modellerine de bağlanır.
+
+İşlemleri bir güvenlik ajanı denetler: zararsız adımlar hemen yapılır, riskliler incelenir, zararlılar
+reddedilir. Bir işlemi engellediğinde sohbette nedenini gösteren "Neden?" ve "Güvenliği Kapat" düğmeleri
+çıkar. Güvenliği kapatırsan (üstteki 🛡 düğmesi) her adım için senden onay ister.
+
+Kurulum için hiçbir şey indirmen ya da kurman gerekmez: Python, gerekli kütüphaneler, Ollama ve
+temel yapay zekâ modeli paketin içinde gelir. Kurulum internetsiz çalışır.
+
+
+KURULUM · WINDOWS 10 / 11
+  1. @PAKET@-Windows.zip dosyasına sağ tıkla → "Tümünü ayıkla…" → bir klasöre çıkar.
+     (Zip'in içinden çalıştırma, önce mutlaka çıkar.)
+  2. Çıkan klasördeki "Kur.bat" dosyasına çift tıkla.
+  3. Mavi bir "Windows bilgisayarınızı korudu" ekranı çıkarsa:
+     "Ek bilgi" → "Yine de çalıştır". Program imzasız olduğu ve internetten indirildiği için
+     Windows bu uyarıyı gösterir; zararlı bir şey yoktur, kurulum betiği açık metindir.
+  4. Kurulum 2-5 dakika sürer ve senden hiçbir şey istemez:
+     - Programı, içindeki Python'u ve Ollama'yı kurar (bilgisayarında ayrıca olması gerekmez).
+     - Temel yapay zekâ modelini kurar.
+     - Masaüstüne ve Başlat menüsüne "YENİ NESİL CAFER" kısayolu ekler.
+  5. Program kendiliğinden açılır. Kurulum sihirbazı sistemini tarar ve sana uygun modelleri önerir.
+  Kaldırmak için "Kaldir.bat" (sohbetlerin ve ayarların silinmez).
+
+
+KURULUM · LINUX
+  1. Arşivi çıkar:   tar xzf @PAKET@-Linux.tar.gz
+  2. Kur:            ./@PAKET@/kur.sh
+  3. Uygulama menüsünden ya da masaüstünden "YENİ NESİL CAFER"i aç.
+  Kaldırmak için:    ./@PAKET@/kaldir.sh
+
+
+SÜRÜM 2.2'DE YENİ
+  - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar
+    (onayınla), yapar, sonucu gözle kontrol eder ve bulduğu yolu "beceri" olarak kaydeder; bir dahaki
+    sefere doğrudan bilir. Sonucu belirleyen bir bilgi eksikse (ör. bir ölçü) önce sorar ve hatırlar.
+  - Hazır beceriler: 3D baskı, veri analizi, Word/PowerPoint/PDF rapor, ses (yazıya çevirme, seslendirme),
+    video (animasyon, slayt, ses ekleme).
+  - 3D yazıcı için ölçülü parça: milimetre ölçülerle model, STL/3MF/STEP, baskıya uygunluk denetimi.
+  - Görsel sekmesi (sağ panel): resim üretimini adım adım canlı izle; resim, video ve 3D modelleri
+    (döndürerek, ölçüleriyle) önizle.
+  - Konuşarak yaz: mesaj kutusundaki 🎤 (Ctrl+Shift+Space). Tamamen bilgisayarında, Türkçe.
+  - Zorlanınca daha güçlü modele devreder; model seçimi programın kendi sınavına dayanır.
+  - Yönetici izni olmadan uygulama kurabilir (AppImage / Flatpak / winget), her seferinde onayınla.
+  - Sorun raporu: bir şey ters giderse sohbette "🐞 Sorunu raporla" çıkar (ya da Yardım → Sorun bildir);
+    geliştiriciye gönderebileceğin raporu masaüstüne hazırlar, API anahtarlarını gizler.
+  - Kurulum sihirbazı hafıza modelini de önerir; öneriler her bilgisayarın donanımına göre.
+
+SÜRÜM 2.1'DE YENİ
+  - Daha güvenli: "rm -rf ~" gibi zararlı işlemler hangi kipte olursa olsun reddedilir; sansürsüz
+    modda riskli adımlar her zaman sorulur.
+  - Daha hızlı: güvenlik ajanı zararsız adımlarda modeli bellekten boşaltmıyor.
+  - Uzun sohbetlerde unutmaz: bağlam dolunca eski konuşma özetlenir (sohbet ekranında hepsi kalır).
+  - Küçük modellerde daha çok yer: talimatlar kısaldı, geçmişe iki kat yer kaldı.
+  - Durdur düğmesi uzman modele danışırken de çalışır.
+  - Kendi talimatların: çalışma klasörüne ASISTAN.md koyarsan asistan ona uyar.
+  - Kendi ajanların ve becerilerin: ~/.config/yeni-nesil-cafer/ajanlar/*.md ve
+    ~/.config/yeni-nesil-cafer/beceriler/<ad>/SKILL.md (Claude Code biçimi).
+  - Hook'lar: ~/.config/yeni-nesil-cafer/hooks.json ile belirli anlarda kendi komutlarını çalıştır
+    (ör. bir işlemi engelle, iş bitince bildirim göster).
+
+
+GÖMÜLÜ TEMEL MODEL
+  Paketin içinde her bilgisayarda çalışan küçük bir yapay zekâ modeli gelir (qwen3.5:4b · 3.4 GB).
+  Sohbet eder, araç kullanır, resim görür. Kurulumda internet olmadan yüklenir.
+  Sistemine uygun daha güçlü modelleri kurulum sihirbazı ve program içindeki "Model önerileri"
+  gösterir. Bu liste internet varsa her gün güncellenir.
+
+
+GEREKENLER
+  - Windows 10/11 ya da Linux (64 bit)
+  - Başka hiçbir şey: Python ve Ollama paketin içinde (bilgisayarında zaten varsa da sorun olmaz)
+  - En az 8 GB RAM. Yerel modeller için önerilen: 16 GB RAM ve 8 GB+ ekran kartı.
+    Daha zayıf bilgisayarlarda program küçük modelleri önerir.
+  - Boş alan: kurulum için yaklaşık 8 GB (kurulumdan sonra zip ve çıkan klasör silinebilir),
+    ek modeller için model başına 2–10 GB. İnternet yalnızca ek model indirmek ve bulut
+    modellerini kullanmak için gerekir.
+
+
+İLK ADIMLAR
+  - Model seçmek zorunda değilsin: program işe göre uygun modeli kendisi seçer.
+  - Üstteki Online (bulut) ve Offline (yerel) menülerinde bugünün en iyi 10 modeli ve uzmanlığa
+    göre (ajan, kod, görme, belge, arama…) en iyi listeler var. Etiketler modelin neyi iyi
+    yaptığını, ücretsiz mi pahalı mı olduğunu gösterir.
+  - Online menüsündeki "Ücretsiz" bölümünde kart gerektirmeyen bulut seçenekleri var
+    (ör. Google Gemini, Groq, OpenRouter ücretsiz modelleri).
+  - Asistan Excel, Word, PowerPoint ve PDF dosyaları oluşturabilir, tablo ve grafik hazırlayabilir.
+    Bunun için gereken kütüphaneler paketle birlikte gelir.
+  - API'ler sekmesindeki "hazır API'ler" ile hava durumu, döviz, haberler gibi servisleri tek
+    tıkla ekleyebilirsin. Birçoğu anahtarsız, hemen çalışır.
+
+
+BİLİNEN SINIRLAR (sürüm @SURUM@)
+  - Gömülü küçük model hızlıdır ama bazen yanılabilir: örneğin var olmayan bir paket adı
+    önerebilir. Bu yüzden her işlem önce sana gösterilir. Daha iyi sonuç için sihirbazın
+    önerdiği daha büyük bir yerel modeli indir ya da ücretsiz bir bulut modeline bağlan.
+  - Bulut modelleri için ilgili firmadan kendi API anahtarını alman gerekir. Anahtarlar
+    yalnızca kendi bilgisayarında saklanır.
+  - Windows kurulumu henüz az sayıda bilgisayarda denendi. Sorun yaşarsan kurulum penceresindeki
+    mesajın ekran görüntüsünü gönder.
+
+
+SIK SORULANLAR
+  - "Kurulum dosyaları bulunamadı" uyarısı: zip'i çıkarmadan çalıştırmışsın. Önce çıkar.
+  - "Model cevap vermiyor": program Ollama'yı kendisi başlatır. Olmadıysa programı kapatıp
+    yeniden aç; yine olmazsa Kaldir.bat ve Kur.bat ile yeniden kur.
+  - "Çok yavaş": bilgisayarına göre büyük bir model seçilmiş olabilir. Offline menüsünde
+    "yavaş" etiketli olmayan bir model seç ya da seçimi programa bırak.
