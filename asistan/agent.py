@@ -478,7 +478,7 @@ def program_prompt(settings: Settings, request: str = "", lean: bool = False) ->
         "and Offline (local) model menus with today's best and per-specialty lists, 🛡 güvenlik (security agent "
         "approves instead of the user; off by default) and 🔓 sansürsüz (uncensored local model). Under the chat "
         "box: model picker (otomatik = the program chooses), workspace folder. Right panel, three stacked parts always "
-        "visible: adımlar (each step and the model's thinking; tabs kayıt, modeller, önizle), dosyalar, and a live "
+        "visible: adımlar (each step and the model's thinking; tab kayıt), dosyalar, and a live "
         "view of produced images, videos and 3D models (shows each new STL/OBJ/GLB/image as soon as it is saved). Help menu: Hafıza ve öğrenme.\n"
         "- By default a security agent reviews every action with side effects by risk tier and may approve, send "
         "back or refuse it; the user can switch it off (🛡) to approve each step themselves (▶ uygula, then each step).\n"

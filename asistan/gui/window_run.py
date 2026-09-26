@@ -49,6 +49,15 @@ class RunMixin:
         for w in (self.model_pill, self.workspace_btn, self.api_panel, self.agent_panel):
             w.setEnabled(not running)
 
+    def _submit(self):
+        """Enter: iş sürerken durdurmaz; yazılan mesaj sıraya girer, iş bitince kendiliğinden gönderilir.
+        Durdurmak yalnızca ■ durdur düğmesi ya da Esc ile."""
+        if not self.worker:
+            self._send_or_stop()
+        elif self.input.toPlainText().strip() and not self.queued_send:
+            self.queued_send = True
+            self.chat.add_notice("⏳ Mesajın sırada: bu iş bitince gönderilecek (kutuda düzenleyebilirsin).", C["muted"])
+
     def _send_or_stop(self):
         if self.worker:
             self.worker.cancel()
@@ -285,6 +294,10 @@ class RunMixin:
         self.input.setFocus()
         QTimer.singleShot(500, self._check_context)
         self.suggest_timer.start()  # öneriler ancak kullanıcı bir süre yazmazsa: yeni komut beklemesin
+        if self.queued_send:  # iş sürerken Enter'la sıraya alınan mesaj (durdurulduysa kutuda bekler)
+            self.queued_send = False
+            if not w.is_cancelled() and self.input.toPlainText().strip():
+                QTimer.singleShot(0, self._send_or_stop)
 
     def _refresh_suggestions(self):
         """Kullanıcı bir dakika boş kalınca, son isteklere göre kişisel önerileri arka planda yerel modelle yeniler."""

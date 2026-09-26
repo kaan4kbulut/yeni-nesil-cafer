@@ -311,7 +311,8 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         self.input = InputBox(objectName="inputBox")
         self.input.setPlaceholderText("Asistana bir şey sor ya da bir görev ver")
         self.input.setFixedHeight(52)
-        self.input.submitted.connect(self._send_or_stop)
+        self.queued_send = False  # iş sürerken Enter: mesaj iş bitince gönderilir
+        self.input.submitted.connect(self._submit)
         input_row.addWidget(self.input, 1)
         cl.addLayout(input_row)
         self.attachments: list[str] = []
@@ -579,9 +580,9 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         v.addAction(right)
         v.addSeparator()
         r = self.right
-        for name, tab in (("Adımlar", r.activity), ("Dosyalar", r.files), ("Görsel", r.media), ("Kayıt", r.log),
-                          ("Modeller", r.models), ("Önizleme", r.preview)):
-            a = QAction(f"{name} paneli", self)
+        for name, tab in (("Adımlar", r.activity), ("Kayıt", r.log), ("Modeller", r.models),
+                          ("Önizleme", r.preview)):
+            a = QAction(name, self)
             a.triggered.connect(lambda _=False, tab=tab: self._show_tab(tab))
             v.addAction(a)
         h = bar.addMenu("Yardım")
@@ -626,8 +627,14 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         return self.provider_box.currentData()
 
     def _preview_file(self, path: str):
+        """Resim, video ve 3D model sağ paneldeki canlı görüntüde; diğer dosyalar önizleme penceresinde açılır."""
+        from .media_panel import media_kind
+
         self.toggle_right.setChecked(True)
         self.right.show()
+        if media_kind(path):
+            self.right.media.show_file(path)
+            return
         self.right.show_part(self.right.preview)
         self.right.preview.show_file(path)
 

@@ -685,13 +685,26 @@ class DocumentView(QWidget):
             self.stack.setCurrentWidget(self.code)
 
 
+class _PartWindow(QWidget):
+    """Sağ panelden çıkarılan bir bölümün kendi penceresi (kapatılınca gizlenir, içeriği korunur)."""
+
+    def __init__(self, title: str, part: QWidget, parent: QWidget, size: tuple[int, int]):
+        super().__init__(parent, Qt.Window)
+        self.setWindowTitle(f"{title} · YENİ NESİL CAFER")
+        self.resize(*size)
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(part)
+
+
 class RightPanel(QWidget):
     closed = Signal()
 
     def __init__(self, settings):
         super().__init__(objectName="rightPanel")
-        """Üç bölüm alt alta, hepsi aynı anda görünür: adımlar (sekmelerle kayıt, modeller, önizle),
-        dosyalar ve canlı görüntü (üretilen resim / video / 3D model). Bölümler aradaki çizgiyle büyütülür."""
+        """Üç bölüm alt alta, hepsi aynı anda görünür: adımlar (yanında kayıt sekmesi), dosyalar ve canlı görüntü
+        (üretilen resim / video / 3D model). Bölümler aradaki çizgiyle büyütülür. Modeller ve belge önizlemesi
+        panelde yer kaplamaz: istenince kendi pencerelerinde açılır."""
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
@@ -704,12 +717,11 @@ class RightPanel(QWidget):
         self.preview = DocumentView()
         self.tabs.addTab(self.activity, "adımlar")
         self.tabs.addTab(self.log, "kayıt")
-        self.tabs.addTab(self.models, "modeller")
-        self.tabs.addTab(self.preview, "önizle")
+        self.windows = {self.models: _PartWindow("Modeller", self.models, self, (620, 640)),
+                        self.preview: _PartWindow("Önizleme", self.preview, self, (760, 820))}
         self.tabs.tabBar().setExpanding(False)
         self.tabs.tabBar().setDrawBase(False)
         self.tabs.tabBar().setUsesScrollButtons(False)
-        self.tabs.currentChanged.connect(self._tab_changed)
         close = QToolButton(objectName="iconButton", toolTip="Paneli kapat (Ctrl+J)")
         close.setText("✕")
         close.clicked.connect(self.closed)
@@ -723,13 +735,17 @@ class RightPanel(QWidget):
         lay.addWidget(self.split)
 
     def show_part(self, widget):
-        """Bölümü öne çıkarır: sekmeyse ona geçer (dosyalar ve canlı görüntü zaten hep görünür)."""
+        """Bölümü öne çıkarır: sekmeyse ona geçer, modeller / önizleme kendi penceresinde açılır
+        (dosyalar ve canlı görüntü zaten hep görünür)."""
         if self.tabs.indexOf(widget) >= 0:
             self.tabs.setCurrentWidget(widget)
-
-    def _tab_changed(self, i: int):
-        if self.tabs.widget(i) is self.models:
-            self.models.refresh()
+        elif widget in self.windows:
+            if widget is self.models:
+                self.models.refresh()
+            win = self.windows[widget]
+            win.show()
+            win.raise_()
+            win.activateWindow()
 
     def set_root(self, path: str):
         """Sohbetin klasörü: dosya ağacı ve canlı görüntü bölümünin izlediği klasör."""
