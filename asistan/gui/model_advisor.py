@@ -155,6 +155,23 @@ class ModelAdvisor(QDialog):
             names = ", ".join(dict.fromkeys(heavy[:6]))
             self._note(f"Sistemine ağır gelir (yavaş çalışır): {names}")
 
+        win = self.parent()
+        if hasattr(win, "_cli_connect"):  # ana pencereden açıldıysa (gui/window_accounts.py)
+            from .. import cli_agents
+
+            self._section("BULUT — HESABINLA", "API anahtarı gerekmez: aboneliğin ya da hesabın varsa firmanın resmi "
+                                               "programı senin girişinle çalışır, kotanı kullanır.")
+            for agent in cli_agents.AGENTS.values():
+                if cli_agents.available(agent.provider):
+                    buttons = [("hazır ✓", None)]
+                else:
+                    text = "giriş yap" if cli_agents.installed(agent.provider) else "kur ve giriş yap"
+                    buttons = [(text, lambda _=False, p=agent.provider: (win._cli_connect(p), self._fill()))]
+                self._row(f"<b>{agent.title}</b>", f"{agent.via} · kod ve genel işler", buttons)
+            router = catalog.BY_ID["openrouter"]
+            self._row("<b>OpenRouter</b>", "tarayıcıda giriş yap, anahtar kendiliğinden alınır; ücretsiz modeller dahil",
+                      [("hesabınla giriş yap", lambda _=False: win._account_login(router, "online", ""))])
+
         self._section("BULUT — ÜCRETSİZ KOTA", "Kart gerekmez; günlük/aylık istek sınırı vardır. Anahtarı alıp "
                                               "“bağlan” ile yapıştırman yeterli.")
         for name, note, pid in model_updates.FREE_TIERS:
