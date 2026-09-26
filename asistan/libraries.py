@@ -85,7 +85,7 @@ def install(packages: str) -> str:
         raise ValueError("Yalnızca kütüphane adları yazılmalı (ör. pandas openpyxl).")
     USER_LIBS.mkdir(parents=True, exist_ok=True)
     out = subprocess.run([python_exe(), "-m", "pip", "install", "--disable-pip-version-check", "--target",
-                          str(USER_LIBS), "--upgrade", *names], capture_output=True, text=True, timeout=900,
+                          str(USER_LIBS), "--upgrade", *names], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
                          creationflags=NO_WINDOW)
     if out.returncode != 0:
         lines = [ln for ln in (out.stderr or out.stdout).splitlines() if ln.strip()]

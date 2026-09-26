@@ -59,7 +59,8 @@ class AracKaydi(unittest.TestCase):
         self.assertTrue(is_action("install_app", {"name": "x"}))  # ✓ beklenirken kurulmaz
         for name in ("read_file", "web_search", "remember", "look_at_image", "delegate_to_agent"):
             self.assertFalse(is_action(name, {}), name)
-        self.assertFalse(is_action("run_command", {"command": "ls -la"}))  # salt okunur komut
+        if sys.platform != "win32":  # Windows'ta hiçbir komut salt okunur sayılmaz (bilinçli)
+            self.assertFalse(is_action("run_command", {"command": "ls -la"}))  # salt okunur komut
 
     def test_resim_araci_dogrulanabiliyor(self):
         # eski hata: generate_image ALL_SPECS'te yoktu, her çağrı "Unknown tool" dönüyordu

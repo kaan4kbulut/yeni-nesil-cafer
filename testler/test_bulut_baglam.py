@@ -63,13 +63,15 @@ def gecmis(tur: int) -> list:
     return out
 
 
+Agent = ag.Agent
+
+
 def ajan() -> Agent:
     a = ag.Agent(Settings(workspace=str(Path(_GECICI) / "is")), _Cb())
     a.tool_specs = []  # araç tanımları testte gereksiz: bütçeyi mesajlar belirlesin
     return a
 
 
-Agent = ag.Agent
 
 
 class OpenAIBaglamTesti(unittest.TestCase):

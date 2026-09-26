@@ -82,7 +82,7 @@ def _windows() -> PowerState:
 
 def _mac() -> PowerState:
     try:
-        out = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, timeout=3).stdout
+        out = subprocess.run(["pmset", "-g", "batt"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3).stdout
     except (OSError, subprocess.SubprocessError):
         return PowerState()
     has = "InternalBattery" in out

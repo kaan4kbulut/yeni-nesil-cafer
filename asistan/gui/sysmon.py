@@ -61,7 +61,7 @@ def _gpu():
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=utilization.gpu,temperature.gpu,memory.used,memory.total",
              "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=3,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3,
         ).stdout.strip().splitlines()[0]
         util, temp, used, total = (float(v) for v in out.split(","))
         return util, temp, used / 1024, total / 1024

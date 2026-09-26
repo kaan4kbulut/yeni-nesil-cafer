@@ -42,7 +42,8 @@ class UygulamaTesti(unittest.TestCase):
         self.patches = [mock.patch.object(apps, "APPS_DIR", d / "Applications"),
                         mock.patch.object(apps, "DESKTOP_DIR", d / "applications"),
                         mock.patch.object(apps, "_ARCH", ("x86_64", "amd64", "x64")),
-                        mock.patch.object(apps, "_runs", return_value=False)]
+                        mock.patch.object(apps, "_runs", return_value=False),
+                        mock.patch.object(apps.sys, "platform", "linux")]  # AppImage yolu her sistemde denensin
         for x in self.patches:
             x.start()
         self.d = d

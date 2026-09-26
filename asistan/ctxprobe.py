@@ -17,7 +17,7 @@ def gpu_total_mib() -> int | None:
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
         ).stdout.split()
         return int(out[0]) if out else None
     except (OSError, ValueError, subprocess.SubprocessError):

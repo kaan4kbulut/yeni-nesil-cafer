@@ -59,7 +59,7 @@ print(f"{w}x{h}, {n} kare, {fps:.0f} fps, {n / fps if fps else 0:.1f} sn")
 def _run(code: str, *args: str) -> tuple[bool, str]:
     from .tools import NO_WINDOW, agent_env, python_exe
 
-    out = subprocess.run([python_exe(), "-c", code, *args], capture_output=True, text=True, timeout=180,
+    out = subprocess.run([python_exe(), "-c", code, *args], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=180,
                          env=agent_env(), creationflags=NO_WINDOW)
     if out.returncode != 0:
         return False, (out.stderr.strip().splitlines() or ["?"])[-1]

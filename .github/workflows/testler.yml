@@ -15,6 +15,7 @@ jobs:
     env:
       QT_QPA_PLATFORM: offscreen
       PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"  # program Windows'ta da -X utf8 ile başlatılır
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5

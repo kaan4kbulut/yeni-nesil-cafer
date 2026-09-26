@@ -75,7 +75,7 @@ def run(event: str, payload: dict, tool: str = "") -> Outcome:
             try:
                 proc = subprocess.run(command, shell=True, input=json.dumps({"event": event, **payload},
                                                                             ensure_ascii=False, default=str),
-                                      capture_output=True, text=True, timeout=float(hook.get("timeout") or TIMEOUT),
+                                      capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=float(hook.get("timeout") or TIMEOUT),
                                       cwd=payload.get("cwd") or None, creationflags=NO_WINDOW)
             except subprocess.TimeoutExpired:
                 _log(f"{event} {command}: zaman aşımı")

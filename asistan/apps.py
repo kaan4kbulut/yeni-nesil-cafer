@@ -163,7 +163,7 @@ def install(name: str, source: str = "", progress=None, cancelled=lambda: False)
                        "AppImage (its GitHub releases page or website) and call install_app again with "
                        "source='owner/repo' or the https address of the .AppImage")
     try:
-        out = subprocess.run(cmd, capture_output=True, text=True, timeout=TIMEOUT, creationflags=NO_WINDOW)
+        out = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TIMEOUT, creationflags=NO_WINDOW)
     except FileNotFoundError:
         raise AppError(f"{cmd[0]} is not available on this computer")
     if out.returncode != 0:

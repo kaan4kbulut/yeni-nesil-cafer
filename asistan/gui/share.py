@@ -45,7 +45,7 @@ def _handler(scheme: str) -> str:
     """Bu bağlantı türünü açan uygulama (.desktop adı) ya da boş."""
     try:
         out = subprocess.run(["xdg-mime", "query", "default", f"x-scheme-handler/{scheme}"],
-                             capture_output=True, text=True, timeout=3).stdout.strip()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ""
     # tarayıcılar her şeyi "açar"; onları uygulama saymayalım

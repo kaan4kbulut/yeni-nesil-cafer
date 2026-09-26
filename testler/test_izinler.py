@@ -51,7 +51,8 @@ class KararTesti(unittest.TestCase):
         self.assertEqual(karar("run_command", SIL), p.ASK)
         self.assertEqual(karar("run_command", SIL, confirm_commands=False), p.ALLOW)
         self.assertEqual(karar("run_command", SIL, auto_approve=lambda n, a: True), p.ALLOW)
-        self.assertEqual(karar("run_command", {"command": "ls -la"}), p.ALLOW)  # salt okur
+        if sys.platform != "win32":  # Windows'ta hiçbir komut salt okunur sayılmaz (bilinçli)
+            self.assertEqual(karar("run_command", {"command": "ls -la"}), p.ALLOW)  # salt okur
         self.assertEqual(karar("write_file", YAZ), p.ALLOW)
         self.assertEqual(karar("write_file", YAZ, must_act=True), p.ASK)  # ▶ turunda her değişiklik sorulur
         self.assertEqual(karar("generate_image", {"prompt": "kedi"}, must_act=True), p.ASK)

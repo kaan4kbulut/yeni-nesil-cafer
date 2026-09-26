@@ -61,7 +61,7 @@ foreach ($klasor in @([Environment]::GetFolderPath("Desktop"), (Join-Path $env:A
     Remove-Item (Join-Path $klasor "Yerel Asistan.lnk") -ErrorAction SilentlyContinue  # 2.2'ye kadarki adı
     $k = $kabuk.CreateShortcut((Join-Path $klasor "YENİ NESİL CAFER.lnk"))
     $k.TargetPath = $pyw
-    $k.Arguments = '"' + $main + '"'
+    $k.Arguments = '-X utf8 "' + $main + '"'
     $k.WorkingDirectory = $Hedef
     $k.IconLocation = Join-Path $Hedef "asistan\gui\assets\icon.ico"
     $k.Description = "YENİ NESİL CAFER — kişisel yapay zekâ asistanı"
@@ -101,4 +101,4 @@ if (Test-Path $Eski) {  # eski adlı kurulum (Yerel Asistan): ayarlar ve sohbetl
     Remove-Item $Eski -Recurse -Force -ErrorAction SilentlyContinue
 }
 Yaz "Kurulum bitti. YENİ NESİL CAFER açılıyor; ilk açılışta sistemini tarayıp sana uygun modelleri önerecek."
-Start-Process $pyw -ArgumentList ('"' + $main + '"') -WorkingDirectory $Hedef
+Start-Process $pyw -ArgumentList ('-X utf8 "' + $main + '"') -WorkingDirectory $Hedef

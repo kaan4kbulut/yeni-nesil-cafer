@@ -90,7 +90,7 @@ def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, ca
     # başka bir Claude Code oturumundan başlatıldıysa iç içe oturum sayılmasın
     env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDECODE") and k != "CLAUDE_CODE_ENTRYPOINT"}
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True)
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     start = time.time()
     while True:
         try:

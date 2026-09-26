@@ -65,7 +65,7 @@ class SystemInfo:
 
 def _run(cmd: list[str]) -> str:
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=5).stdout.strip()
+        return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5).stdout.strip()
     except (OSError, subprocess.SubprocessError):
         return ""
 
@@ -354,7 +354,7 @@ def import_bundled(model: str = BASE_MODEL[0]) -> None:
     if not modelfile or not exe:
         raise RuntimeError("gömülü model ya da Ollama bulunamadı")
     proc = subprocess.run([exe, "create", model, "-f", str(modelfile)], cwd=modelfile.parent,
-                          capture_output=True, text=True, timeout=1800)
+                          capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
     if proc.returncode != 0:
         raise RuntimeError((proc.stderr or proc.stdout).strip()[-300:])
     for gguf in modelfile.parent.glob("*.gguf"):

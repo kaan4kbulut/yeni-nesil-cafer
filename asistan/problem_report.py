@@ -112,7 +112,7 @@ def _system(settings) -> str:
     gpu = ""
     try:
         out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total,driver_version", "--format=csv,noheader"],
-                             capture_output=True, text=True, timeout=5)
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5)
         gpu = out.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         pass
@@ -248,7 +248,7 @@ def build(kind: str, detail: str, request: str, model: str, settings, messages: 
 
 def desktop() -> Path:
     try:
-        out = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True, timeout=5).stdout.strip()
+        out = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5).stdout.strip()
         if out and Path(out).is_dir() and Path(out) != Path.home():
             return Path(out)
     except (OSError, subprocess.TimeoutExpired):

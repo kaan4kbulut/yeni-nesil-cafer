@@ -169,12 +169,17 @@ def validate(data: dict) -> dict:
 
 # ---------------------------------------------------------------- sandbox
 
+# Windows'ta Python ve Windows API'leri bu değişkenler olmadan çalışmaz (anahtar ya da sır taşımazlar)
+_KEEP_ENV = {"PATH", "LANG", "LC_ALL", "SYSTEMROOT", "WINDIR", "SYSTEMDRIVE", "TEMP", "TMP", "COMSPEC", "PATHEXT",
+             "USERPROFILE", "APPDATA", "LOCALAPPDATA", "PROGRAMDATA"}
+
+
 def _env(extra: Path | None = None) -> dict:
     from .tools import BUNDLED_LIBS, USER_LIBS
 
     paths = [str(p) for p in (extra, PACKAGES_DIR, BUNDLED_LIBS, USER_LIBS) if p]
-    env = {k: v for k, v in os.environ.items() if k in ("PATH", "LANG", "LC_ALL", "SYSTEMROOT", "TEMP", "TMP")}
-    env.update(PYTHONPATH=os.pathsep.join(paths), PYTHONNOUSERSITE="1", PYTHONIOENCODING="utf-8",
+    env = {k: v for k, v in os.environ.items() if k.upper() in _KEEP_ENV}
+    env.update(PYTHONPATH=os.pathsep.join(paths), PYTHONNOUSERSITE="1", PYTHONIOENCODING="utf-8", PYTHONUTF8="1",
                MPLBACKEND="Agg")
     return env
 
@@ -195,7 +200,7 @@ def install_packages(packages: list[str]) -> str:
 
     PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
     out = subprocess.run([python_exe(), "-m", "pip", "install", "--disable-pip-version-check", "--target",
-                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, timeout=900)
+                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
     if out.returncode != 0:
         lines = [ln for ln in (out.stderr or out.stdout).splitlines() if ln.strip()]
         raise FactoryError("paket kurulamadı: " + " | ".join(lines[-4:]))
@@ -213,7 +218,7 @@ def sandbox_test(tool: dict) -> tuple[bool, str]:
         env = {**_env(d), "HOME": tmp}
         try:
             out = subprocess.run(_offline_prefix() + [python_exe(), "test_arac.py"], cwd=tmp, env=env,
-                                 capture_output=True, text=True, timeout=TEST_TIMEOUT)
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=TEST_TIMEOUT)
         except subprocess.TimeoutExpired:
             return False, f"test {TEST_TIMEOUT} saniyede bitmedi (sonsuz döngü ya da internet bekliyor olabilir)"
         text = (out.stdout + "\n" + out.stderr).strip()
@@ -240,7 +245,7 @@ def _runner(tool_dir: Path, workspace_fn):
         cwd.mkdir(parents=True, exist_ok=True)
         try:
             out = subprocess.run([python_exe(), "-c", _RUNNER, str(tool_dir)], input=json.dumps(args), cwd=cwd,
-                                 env=_env(tool_dir), capture_output=True, text=True, timeout=RUN_TIMEOUT)
+                                 env=_env(tool_dir), capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=RUN_TIMEOUT)
         except subprocess.TimeoutExpired:
             return f"Error: the tool did not finish in {RUN_TIMEOUT} s"
         if out.returncode != 0:

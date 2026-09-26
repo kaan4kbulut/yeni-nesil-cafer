@@ -227,7 +227,7 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
     if os.name != "nt":
         env["LD_LIBRARY_PATH"] = os.pathsep.join(filter(None, [str(exe.parent), env.get("LD_LIBRARY_PATH", "")]))
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, errors="replace",
+    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
                             env=env, cwd=str(exe.parent), creationflags=flags)
     tail: list[str] = []
     step_re = re.compile(r"\|\s*(\d+)/(\d+) - [\d.]+(?:s/it|it/s)")  # yalnızca örnekleme adımları (yükleme değil)

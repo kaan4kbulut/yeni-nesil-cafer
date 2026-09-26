@@ -7,6 +7,7 @@
 import json
 import os
 import shlex
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -24,13 +25,19 @@ from asistan import hooks, permissions  # noqa: E402
 from asistan.agent import PROGRAM, Agent  # noqa: E402
 from asistan.config import Settings  # noqa: E402
 
-PY = shlex.quote(sys.executable)
 KAYIT = Path(_GECICI) / "hook-cikti.json"
 
 
+def _komut(*argv: str) -> str:
+    """Kabuğa göre tırnaklanmış komut satırı (Windows'ta cmd, diğerlerinde sh)."""
+    return subprocess.list2cmdline(argv) if sys.platform == "win32" else shlex.join(argv)
+
+
 def py(code: str) -> str:
-    """Hook komutu: olay JSON'unu okuyan küçük bir Python programı."""
-    return f"{PY} -c {shlex.quote('import sys, json; d = json.load(sys.stdin); ' + code)}"
+    """Hook komutu: olay JSON'unu okuyan küçük bir Python programı (tırnak sorunu olmasın diye dosyaya yazılır)."""
+    betik = Path(tempfile.mkstemp(suffix=".py", dir=_GECICI)[1])
+    betik.write_text("import sys, json; d = json.load(sys.stdin); " + code, encoding="utf-8")
+    return _komut(sys.executable, str(betik))
 
 
 def kur(ayar: dict) -> None:

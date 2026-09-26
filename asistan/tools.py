@@ -44,9 +44,9 @@ def _askpass_launcher() -> str:
 
     script = DATA_DIR / "askpass.sh"
     body = f'#!/bin/sh\nexec "{python_exe()}" "{Path(__file__).resolve().parent / "askpass.py"}" "$@"\n'
-    if not script.exists() or script.read_text() != body:
+    if not script.exists() or script.read_text(encoding="utf-8") != body:
         script.parent.mkdir(parents=True, exist_ok=True)
-        script.write_text(body)
+        script.write_text(body, encoding="utf-8")
         script.chmod(script.stat().st_mode | stat.S_IXUSR)
     return str(script)
 
@@ -65,7 +65,7 @@ def agent_env() -> dict:
     paths = [str(p) for p in (USER_LIBS, BUNDLED_LIBS) if p.is_dir()]
     if os.environ.get("PYTHONPATH"):
         paths.append(os.environ["PYTHONPATH"])
-    return {**os.environ, "PYTHONPATH": os.pathsep.join(paths), "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"}
+    return {**os.environ, "PYTHONPATH": os.pathsep.join(paths), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "MPLBACKEND": "Agg"}
 
 TOOL_SPECS = [
     {
@@ -781,7 +781,7 @@ class Toolbox:
         if not re.fullmatch(r"\s*\d+(\.\d+)?\s*x\s*\d+(\.\d+)?\s*x\s*\d+(\.\d+)?\s*", bed or ""):
             raise ToolError("bed must look like 220x220x250 (mm)")
         out = subprocess.run([python_exe(), "-c", _CHECK_3D, str(target), bed.replace(" ", "")], capture_output=True,
-                             text=True, timeout=120, env=agent_env(), creationflags=NO_WINDOW)
+                             text=True, encoding="utf-8", errors="replace", timeout=120, env=agent_env(), creationflags=NO_WINDOW)
         if out.returncode != 0:
             if "No module named 'trimesh'" in out.stderr:
                 raise ToolError("trimesh is not installed: install it with install_python_package (trimesh "
@@ -810,7 +810,7 @@ class Toolbox:
             if not shutil.which(argv[0]):
                 return
             try:
-                out = subprocess.run(argv, capture_output=True, text=True, timeout=20, creationflags=NO_WINDOW).stdout
+                out = subprocess.run(argv, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=20, creationflags=NO_WINDOW).stdout
             except (OSError, subprocess.SubprocessError):
                 return
             lines = [ln.strip() for ln in out.splitlines() if ln.strip() and keep(ln)][:8]
@@ -869,13 +869,13 @@ class Toolbox:
                     "cwd": str(Path.home())}
         if sys.platform == "win32":
             ps = f"Start-Process -FilePath '{name}'"
-            proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True,
+            proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                   timeout=30, creationflags=NO_WINDOW)
             if proc.returncode:
                 return f"'{name}' NOT FOUND or could not start: {proc.stderr.strip()[:500]}"
             return f"Opened '{name}'."
         if sys.platform == "darwin":
-            proc = subprocess.run(["open", "-a", name], capture_output=True, text=True, timeout=30)
+            proc = subprocess.run(["open", "-a", name], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
             return f"Opened '{name}'." if proc.returncode == 0 else f"'{name}' NOT FOUND: {proc.stderr.strip()}"
 
         # Linux: uygulama menüsündeki .desktop dosyalarında ad, Türkçe ad, anahtar kelime ve dosya adına bak

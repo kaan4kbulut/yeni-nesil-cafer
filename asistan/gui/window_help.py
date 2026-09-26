@@ -384,7 +384,7 @@ class HelpMixin:
         from ..updates import PROGRAM_DIR
 
         flags = subprocess.CREATE_NEW_PROCESS_GROUP | subprocess.DETACHED_PROCESS if sys.platform == "win32" else 0
-        subprocess.Popen([sys.executable, str(PROGRAM_DIR / "main.py")], cwd=str(PROGRAM_DIR), creationflags=flags,
+        subprocess.Popen([sys.executable, *(["-X", "utf8"] if sys.platform == "win32" else []), str(PROGRAM_DIR / "main.py")], cwd=str(PROGRAM_DIR), creationflags=flags,
                          start_new_session=sys.platform != "win32")
         QApplication.quit()
 
