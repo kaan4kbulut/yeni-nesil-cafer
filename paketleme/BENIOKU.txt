@@ -34,6 +34,10 @@ KURULUM · LINUX
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
+SÜRÜM 2.3'TE YENİ
+  - Sağ panel üç bölüm: adımlar, dosyalar ve canlı görüntü alt alta, hepsi aynı anda görünür. Resim,
+    video ya da 3D model hazırlanırken sonucu sekme değiştirmeden izlersin.
+
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar
     (onayınla), yapar, sonucu gözle kontrol eder ve bulduğu yolu "beceri" olarak kaydeder; bir dahaki
@@ -41,7 +45,7 @@ SÜRÜM 2.2'DE YENİ
   - Hazır beceriler: 3D baskı, veri analizi, Word/PowerPoint/PDF rapor, ses (yazıya çevirme, seslendirme),
     video (animasyon, slayt, ses ekleme).
   - 3D yazıcı için ölçülü parça: milimetre ölçülerle model, STL/3MF/STEP, baskıya uygunluk denetimi.
-  - Görsel sekmesi (sağ panel): resim üretimini adım adım canlı izle; resim, video ve 3D modelleri
+  - Canlı görüntü (sağ panel): resim üretimini adım adım canlı izle; resim, video ve 3D modelleri
     (döndürerek, ölçüleriyle) önizle.
   - Konuşarak yaz: mesaj kutusundaki 🎤 (Ctrl+Shift+Space). Tamamen bilgisayarında, Türkçe.
   - Zorlanınca daha güçlü modele devreder; model seçimi programın kendi sınavına dayanır.

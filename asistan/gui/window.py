@@ -259,7 +259,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         tr.setSpacing(8)
         self.toggle_icon = QLabel()
         self.toggle_icon.setPixmap(pixmap("panel-right", C["text2"], 14))
-        toggle_text = QLabel("etkinlik")
+        toggle_text = QLabel("panel")
         toggle_text.setStyleSheet("background: transparent; font-family: 'IBM Plex Mono'; font-size: 12px;")
         toggle_key = QLabel("Ctrl+J", objectName="keyHint")
         for w in (self.toggle_icon, toggle_text, toggle_key):
@@ -403,7 +403,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         # sağ panel
         self.right = RightPanel(self.settings)
         self.right.setMinimumWidth(372)
-        self.right.setMaximumWidth(560)
+        self.right.setMaximumWidth(760)  # canlı görüntü büyütülebilsin
         self.right.models.model_chosen.connect(self._choose_ollama_model)
         self.right.activity.file_open.connect(self._preview_file)
         self.right.closed.connect(lambda: self.toggle_right.setChecked(False))
@@ -420,7 +420,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         self.splitter.setSizes([248, 820, 372])
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setCollapsible(1, False)
-        self.toggle_right.setChecked(True)  # etkinlik paneli varsayılan olarak açık
+        self.toggle_right.setChecked(True)  # sağ panel varsayılan olarak açık
 
         # durum çubuğu: [HAZIR] ● ollama bağlı | bağlam … ····· CPU | GPU | VRAM | RAM
         bar = self.statusBar()
@@ -485,7 +485,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         bar = self.menuBar()
         mark = self.app_mark = QLabel(objectName="appMark")  # referans tutulmazsa Python siler
         mark.setTextFormat(Qt.RichText)
-        mark.setText(f'<span style="background:{C["accent"]}; color:{C["accent"]};">▌</span>&nbsp;&nbsp;yerel asistan')
+        mark.setText(f'<span style="background:{C["accent"]}; color:{C["accent"]};">▌</span>&nbsp;&nbsp;YENİ NESİL CAFER')
         bar.setCornerWidget(mark, Qt.TopLeftCorner)
         # sağ üst: hafif mod anahtarı (küçük model, 8K bağlam, düşünmesiz) — power.py
         corner = QWidget(bar)
@@ -579,7 +579,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         v.addAction(right)
         v.addSeparator()
         r = self.right
-        for name, tab in (("Etkinlik", r.activity), ("Dosyalar", r.files), ("Görsel", r.media), ("Kayıt", r.log),
+        for name, tab in (("Adımlar", r.activity), ("Dosyalar", r.files), ("Görsel", r.media), ("Kayıt", r.log),
                           ("Modeller", r.models), ("Önizleme", r.preview)):
             a = QAction(f"{name} paneli", self)
             a.triggered.connect(lambda _=False, tab=tab: self._show_tab(tab))
@@ -628,7 +628,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
     def _preview_file(self, path: str):
         self.toggle_right.setChecked(True)
         self.right.show()
-        self.right.tabs.setCurrentWidget(self.right.preview)
+        self.right.show_part(self.right.preview)
         self.right.preview.show_file(path)
 
     def _build_model_menu(self):

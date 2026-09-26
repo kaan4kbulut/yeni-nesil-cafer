@@ -237,7 +237,7 @@ class ChatsMixin:
                 "Sohbet edebilir, çalışma klasöründeki dosyalarla çalışabilir, komut ve Python "
                 "çalıştırabilir, web'de araştırma yapabilirim.",
                 lambda: suggest.pick("", folder=folder),  # her açılışta farklı; son sohbetlerine göre kişisel
-                "Attığım her adımı etkinlik panelinde görebilirsin · Ctrl+J", self._pick_suggestion)
+                "Attığım her adımı sağ paneldeki adımlarda görebilirsin · Ctrl+J", self._pick_suggestion)
         self.agent_panel.select(agent_id)
         self.chat_tree.clearSelection()
         self._auto_route()  # üst menüdeki seçim (Online · Offline) açılışta da etikete yansısın

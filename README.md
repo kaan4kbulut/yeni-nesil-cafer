@@ -10,7 +10,7 @@ istersen Claude, GPT, Gemini gibi bulut modellerine de bağlanır. Arayüz ve ko
   yapar, sonucu gözle kontrol eder ve bulduğu yolu "beceri" olarak kaydeder. Sonucu belirleyen bir bilgi eksikse sorar.
 - **Hazır beceriler:** 3D baskı (ölçülü STL/3MF/STEP ve baskıya uygunluk denetimi), veri analizi (Excel/CSV, grafik),
   Word/PowerPoint/PDF rapor, ses (konuşmayı yazıya çevirme, Türkçe seslendirme), video (animasyon, slayt, ses ekleme).
-- **Görsel sekmesi:** resim üretimini adım adım canlı izleme; resim, video ve 3D model önizleme.
+- **Sağ panel üç bölüm:** adımlar, dosyalar ve canlı görüntü hep görünür; resim üretimini adım adım canlı izleme; resim, video ve 3D model önizleme.
 - **Konuşarak yazma:** mesaj kutusundaki 🎤; tamamen bilgisayarında.
 - **Model seçmek zorunda değilsin:** program modelleri kendi sınavından geçirir, işe göre seçer, zorlanınca daha
   güçlüsüne devreder.

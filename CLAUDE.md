@@ -170,16 +170,19 @@ menüleri, bağlantılar, varsayılan/otomatik model), `window_bar` (ekler, üst
 metotları harfi harfine taşıdı (167 üyenin kaynağı önce/sonra aynı, pencere ekransız açılıp kapandı). Yeni metot
 konusunun dosyasına; Qt sinyalleri yalnızca `MainWindow` gövdesinde tanımlanır.
 
-## Görsel sekmesi (2026-09-26)
+## Sağ panel ve canlı görüntü (2026-09-26)
 
-Sağ panelde "dosyalar"ın yanında (`gui/media_panel.py`, `RightPanel.set_root` iki sekmeye birden). Resim üretimi
+Sağ panel (2.3'ten beri) dikey `QSplitter`'da üç bölüm, hepsi aynı anda görünür: üstte sekmeler (adımlar, kayıt,
+modeller, önizle), ortada dosyalar, altta canlı görüntü (`gui/media_panel.py`). Kullanıcı 3D model hazırlanırken
+sonucu sekme değiştirmeden görmek istedi; canlı görüntüyü yeniden sekmeye koyma. `RightPanel.set_root` hem dosyalara
+hem canlı görüntüye klasörü verir. Resim üretimi
 `imagegen.generate(preview=…)` ile `sd-cli --preview proj` her adımda `Resimler/.canli-onizleme.png`'ye 64×64
 yaklaşık görüntü yazar (ek model yok, yavaşlatmaz; 16 adımda 15 farklı görüntü ölçüldü); ajan `on_media` →
-`AgentWorker.media` → `window_run._media_event` (üretim başlayınca sekme açılır). Klasör taraması 1 sn'de bir
+`AgentWorker.media` → `window_run._media_event` (üretim başlayınca sağ panel açılır). Klasör taraması 1 sn'de bir
 (gizli dosya/klasör atlanır, en çok 4 düzey / 5000 girdi); dosya iki taramada aynı kalınca "yazılması bitti" sayılır.
 Resim (GIF oynar), video (QtMultimedia, sessiz başlar, döngü), 3D (`assets/model3d.qml`, Qt Quick 3D
 `RuntimeLoader`: GLB/GLTF, OBJ, STL, PLY; ölçüler `bounds`'tan). 3D ekransız (offscreen) kipte ÇİZİLMEZ ve ölçü
-hesaplanmaz: 3D'yi gerçek ekranda doğrula. Sekmeler sıra numarasıyla değil widget'la açılır (`_show_tab(widget)`).
+hesaplanmaz: 3D'yi gerçek ekranda doğrula. Bölümler sıra numarasıyla değil widget'la gösterilir (`_show_tab(widget)` → `RightPanel.show_part`).
 
 ## Dikte (2026-09-26)
 

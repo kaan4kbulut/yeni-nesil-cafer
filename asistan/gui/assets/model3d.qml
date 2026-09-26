@@ -1,4 +1,4 @@
-// Görsel sekmesi: 3D model önizleme (media_panel.ModelView). Fareyle döndür, tekerlekle yakınlaştır.
+// canlı görüntü bölümü: 3D model önizleme (media_panel.ModelView). Fareyle döndür, tekerlekle yakınlaştır.
 // Model sahnenin ortasına alınır ve ekrana sığacak kadar ölçeklenir; gerçek ölçüleri `dims` ile bildirilir.
 import QtQuick
 import QtQuick3D

@@ -60,9 +60,9 @@ class BarMixin:
                 "(Resimleri görmek için look_at_image, metin dosyalarını okumak için read_file kullan.)")
 
     def _show_tab(self, tab):
-        """Sağ paneli açıp sekmeyi gösterir (sekmenin kendisiyle: yeni sekme eklenince sıralar kaymasın)."""
+        """Sağ paneli açıp bölümü gösterir (bölümün kendisiyle: yeni sekme eklenince sıralar kaymasın)."""
         self.toggle_right.setChecked(True)
-        self.right.tabs.setCurrentWidget(tab)
+        self.right.show_part(tab)
 
     # ---- dikte: konuşarak yaz (asistan/dictation.py)
     def _toggle_dictation(self):

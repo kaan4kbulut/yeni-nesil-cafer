@@ -1,8 +1,10 @@
 """Tanıtım: ilk kurulumda ve her yeni sürümde o sürümün öne çıkan özellikleri bir kez gösterilir.
 
 Görüldüğü `Settings.extra["tanitim_surumu"]` ile hatırlanır. Her madde, özelliğe götüren bir düğmeyle gelir
-(ör. Görsel sekmesini açar); kullanıcı hiçbirini denemek zorunda değildir.
+(ör. canlı görüntü bölümünü gösterir); kullanıcı hiçbirini denemek zorunda değildir.
 """
+
+import re
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
@@ -12,11 +14,16 @@ from .theme import C
 
 # sürüm → (başlık, açıklama, düğme yazısı, pencerede yapılacak iş: MainWindow metodu adı ya da "")
 NEWS = {
+    "2.3": [
+        ("Sağ panel üç bölüm", "Adımlar, dosyalar ve canlı görüntü artık alt alta, hepsi aynı anda görünür: resim, "
+         "video ya da 3D model hazırlanırken sonucu sekme değiştirmeden izlersin. Bölümleri aradaki çizgiyle "
+         "büyütebilirsin.", "göster", "_tour_media"),
+    ],
     "2.2": [
         ("İşleri kendi başına çözer", "Bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar "
          "(onayınla), yapar ve sonucu gözle kontrol eder. Bulduğu yolu tarif olarak kaydeder; bir dahaki sefere "
          "doğrudan bilir. Sonucu belirleyen bir bilgi eksikse önce sorar.", "", ""),
-        ("Görsel sekmesi", "Sağ panelde: resim üretilirken her adımı canlı izle; resim, video ve 3D modelleri "
+        ("Canlı görüntü", "Sağ panelde: resim üretilirken her adımı canlı izle; resim, video ve 3D modelleri "
          "(döndürerek, ölçüleriyle) önizle.", "göster", "_tour_media"),
         ("Konuşarak yaz", "Mesaj kutusundaki 🎤 ya da Ctrl+Shift+Space: konuş, tekrar bas; yazıya çevrilip kutuya "
          "eklenir. Tamamen bilgisayarında çalışır.", "dene", "_toggle_dictation"),
@@ -31,10 +38,14 @@ NEWS = {
 
 
 def pending(settings) -> list[tuple[str, str, str, str]]:
-    """Gösterilecek maddeler: bu sürümün yenilikleri daha önce görülmediyse."""
-    if (settings.extra or {}).get("tanitim_surumu") == __version__:
-        return []
-    return NEWS.get(__version__, [])
+    """Gösterilecek maddeler: son görülen sürümden sonraki bütün sürümlerin yenilikleri (yenisi önce)."""
+    seen = _key((settings.extra or {}).get("tanitim_surumu") or "0")
+    return [item for v in sorted(NEWS, key=_key, reverse=True) if seen < _key(v) <= _key(__version__)
+            for item in NEWS[v]]
+
+
+def _key(version: str) -> tuple:
+    return tuple(int(x) for x in re.findall(r"\d+", str(version)))
 
 
 def mark_seen(settings) -> None:

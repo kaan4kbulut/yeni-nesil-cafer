@@ -23,7 +23,7 @@ class AgentWorker(QThread):
     plan = Signal(object)  # yöneticinin planı: None (çıkarılıyor), [] (gerek yok) ya da adım listesi
     plan_step = Signal(int, str, str)  # (adım sırası, durum, not)
     route_note = Signal(str)  # yöneticinin model notu ("işi X yapıyor")
-    media = Signal(str, int, str)  # Görsel sekmesi: (dosya, yüzde; <0 bitti, not)
+    media = Signal(str, int, str)  # canlı görüntü bölümü: (dosya, yüzde; <0 bitti, not)
     failed = Signal(str)
     stopped = Signal()
 

@@ -97,7 +97,7 @@ class HelpMixin:
         lay = QVBoxLayout(dlg)
         lay.setContentsMargins(20, 16, 20, 14)
         hint = QLabel("Bulut asistan bu işleri senin bilgisayarında yapılsın diye bıraktı. Hiçbiri sen onaylamadan "
-                      "çalışmaz; “yap” dersen yeni bir sohbette yerel asistan yapar ve sonucu buluta geri gönderir.",
+                      "çalışmaz; “yap” dersen yeni bir sohbette YENİ NESİL CAFER yapar ve sonucu buluta geri gönderir.",
                       objectName="hint")
         hint.setWordWrap(True)
         lay.addWidget(hint)

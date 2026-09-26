@@ -477,8 +477,9 @@ def program_prompt(settings: Settings, request: str = "", lean: bool = False) ->
         "Kütüphaneler (Python libraries: program, preinstalled for agents, added later). Top bar: Online (cloud) "
         "and Offline (local) model menus with today's best and per-specialty lists, 🛡 güvenlik (security agent "
         "approves instead of the user; off by default) and 🔓 sansürsüz (uncensored local model). Under the chat "
-        "box: model picker (otomatik = the program chooses), workspace folder. Right panel: etkinlik (each step "
-        "and the model's thinking), dosyalar, kayıt, modeller, önizle. Help menu: Hafıza ve öğrenme.\n"
+        "box: model picker (otomatik = the program chooses), workspace folder. Right panel, three stacked parts always "
+        "visible: adımlar (each step and the model's thinking; tabs kayıt, modeller, önizle), dosyalar, and a live "
+        "view of produced images, videos and 3D models (shows each new STL/OBJ/GLB/image as soon as it is saved). Help menu: Hafıza ve öğrenme.\n"
         "- By default a security agent reviews every action with side effects by risk tier and may approve, send "
         "back or refuse it; the user can switch it off (🛡) to approve each step themselves (▶ uygula, then each step).\n"
         "When the user asks about the program, how something works in it, or wants to change it, look at its files "
@@ -491,7 +492,7 @@ LEAN_CTX = 12000
 _APP_REQUEST = re.compile(r"\b(aç|açar m|başlat|çalıştır|kur|kurar|kaldır|yükle|indir|sil|güncelle|install|open|launch)",
                           re.I)
 _PROGRAM_REQUEST = re.compile(r"program|uygulama|asistan|panel|menü|ayar|sekme|düğme|buton|sohbet|ajan|güvenlik|"
-                              r"sansürsüz|hafıza|kütüphane|yerel asistan", re.I)
+                              r"sansürsüz|hafıza|kütüphane|yerel asistan|yeni nesil cafer|cafer", re.I)
 
 _OPEN_APP_NOTE = (
     "Open / start / launch an app (\"telegram aç\", \"spotify'ı başlat\"): call open_app with the app name right "
@@ -1042,7 +1043,7 @@ class Agent:
         from . import imagegen
 
         out = Path(self.toolbox.root) / "Resimler"
-        live = out / ".canli-onizleme.png"  # gizli: Görsel sekmesinin klasör taraması galeriye almaz
+        live = out / ".canli-onizleme.png"  # gizli: canlı görüntü bölümünin klasör taraması galeriye almaz
         prompt, negative = str(args.get("prompt", "")), str(args.get("negative") or "")
         try:
             imagegen.check_prompt(prompt)  # çeviriden önce de: çeviri bir şeyi yumuşatmasın
@@ -1069,7 +1070,7 @@ class Agent:
                                               "what was made; offer variations.")
 
     def _media(self, path: str, pct: int, text: str) -> None:
-        """Görsel sekmesine üretim ilerlemesi: pct 0-99 ara görüntü, pct < 0 bitti (path: sonuç ya da boş)."""
+        """canlı görüntü bölümüne üretim ilerlemesi: pct 0-99 ara görüntü, pct < 0 bitti (path: sonuç ya da boş)."""
         on_media = getattr(self.cb, "on_media", None)
         if on_media:
             on_media(path, pct, text)

@@ -378,7 +378,7 @@ class FilesPanel(QWidget):
         self.image_page = image_scroll
         pv.addWidget(self.stack, 1)
         split.addWidget(preview_box)
-        split.setSizes([260, 400])
+        split.setSizes([300, 200])  # sağ panelde üç bölümden biri: ağaç öne
         lay.addWidget(split, 1)
         self.root = ""
         self.current_file = ""
@@ -690,6 +690,8 @@ class RightPanel(QWidget):
 
     def __init__(self, settings):
         super().__init__(objectName="rightPanel")
+        """Üç bölüm alt alta, hepsi aynı anda görünür: adımlar (sekmelerle kayıt, modeller, önizle),
+        dosyalar ve canlı görüntü (üretilen resim / video / 3D model). Bölümler aradaki çizgiyle büyütülür."""
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
@@ -700,9 +702,7 @@ class RightPanel(QWidget):
         self.log = LogPanel()
         self.models = ModelsPanel(settings)
         self.preview = DocumentView()
-        self.tabs.addTab(self.activity, "etkinlik")
-        self.tabs.addTab(self.files, "dosyalar")
-        self.tabs.addTab(self.media, "görsel")
+        self.tabs.addTab(self.activity, "adımlar")
         self.tabs.addTab(self.log, "kayıt")
         self.tabs.addTab(self.models, "modeller")
         self.tabs.addTab(self.preview, "önizle")
@@ -710,23 +710,28 @@ class RightPanel(QWidget):
         self.tabs.tabBar().setDrawBase(False)
         self.tabs.tabBar().setUsesScrollButtons(False)
         self.tabs.currentChanged.connect(self._tab_changed)
-        # sekme görünmüyorken yeni görsel geldi: başlıkta işaret (sekmeye geçince kalkar)
-        self.media.new_media.connect(lambda: self.tabs.setTabText(self.tabs.indexOf(self.media), "görsel •")
-                                     if self.tabs.currentWidget() is not self.media else None)
         close = QToolButton(objectName="iconButton", toolTip="Paneli kapat (Ctrl+J)")
         close.setText("✕")
         close.clicked.connect(self.closed)
         self.tabs.setCornerWidget(close, Qt.TopRightCorner)
-        lay.addWidget(self.tabs)
+        self.split = QSplitter(Qt.Vertical)
+        self.split.setChildrenCollapsible(False)
+        for w, stretch in ((self.tabs, 3), (self.files, 3), (self.media, 5)):  # canlı görüntüye en çok yer
+            w.setMinimumHeight(140)
+            self.split.addWidget(w)
+            self.split.setStretchFactor(self.split.count() - 1, stretch)
+        lay.addWidget(self.split)
+
+    def show_part(self, widget):
+        """Bölümü öne çıkarır: sekmeyse ona geçer (dosyalar ve canlı görüntü zaten hep görünür)."""
+        if self.tabs.indexOf(widget) >= 0:
+            self.tabs.setCurrentWidget(widget)
 
     def _tab_changed(self, i: int):
-        widget = self.tabs.widget(i)
-        if widget is self.models:
+        if self.tabs.widget(i) is self.models:
             self.models.refresh()
-        elif widget is self.media:
-            self.tabs.setTabText(i, "görsel")
 
     def set_root(self, path: str):
-        """Sohbetin klasörü: dosya ağacı ve Görsel sekmesinin izlediği klasör."""
+        """Sohbetin klasörü: dosya ağacı ve canlı görüntü bölümünin izlediği klasör."""
         self.files.set_root(path)
         self.media.set_root(path)

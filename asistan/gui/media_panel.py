@@ -1,4 +1,4 @@
-"""Sağ panel · Görsel sekmesi: üretilen resim, video ve 3D modelleri canlı izleme ve önizleme.
+"""Sağ panel · canlı görüntü bölümü: üretilen resim, video ve 3D modelleri canlı izleme ve önizleme.
 
 - Canlı: resim üretilirken (imagegen, `--preview proj`) her adımın ara görüntüsü ve ilerleme çubuğu (`live`).
 - İzleme: sohbetin iş klasöründe yeni oluşan ya da değişen her medya dosyası (model run_python ile video kareleri,
@@ -258,9 +258,9 @@ class ModelView(QWidget):
 
 
 class MediaPanel(QWidget):
-    """Görsel sekmesi (ayrıntı modül açıklamasında)."""
+    """canlı görüntü bölümü (ayrıntı modül açıklamasında)."""
 
-    new_media = Signal()  # sekme görünmüyorken yeni medya geldi (sekme başlığında işaret)
+    new_media = Signal()  # yeni medya geldi
 
     def __init__(self):
         super().__init__()
@@ -268,7 +268,7 @@ class MediaPanel(QWidget):
         lay.setContentsMargins(14, 14, 14, 14)
         lay.setSpacing(8)
         head = QHBoxLayout()
-        self.title = QLabel("GÖRSEL", objectName="panelTitle")
+        self.title = QLabel("CANLI GÖRÜNTÜ", objectName="panelTitle")
         self.title.setToolTip("")
         self.open_btn = QPushButton("Aç", objectName="smallButton")
         self.open_btn.setEnabled(False)
@@ -348,7 +348,7 @@ class MediaPanel(QWidget):
             self._stop_video()
             self.current = ""
             self.open_btn.setEnabled(False)
-            self.title.setText("GÖRSEL")
+            self.title.setText("CANLI GÖRÜNTÜ")
             self.stack.setCurrentWidget(self.empty)
 
     def _sorted(self) -> list[str]:

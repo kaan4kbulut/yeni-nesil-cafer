@@ -192,7 +192,7 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
              cancelled=lambda: False, progress=None, key: str = DEFAULT_MODEL,
              preview: Path | None = None) -> list[Path]:
     """Resim üretir; kaydedilen dosyaların yolları. saving (hafif mod): daha az adım, pilde çok daha kısa sürer.
-    preview: her örnekleme adımında ara görüntünün yazılacağı dosya (Görsel sekmesinde canlı izleme). "proj"
+    preview: her örnekleme adımında ara görüntünün yazılacağı dosya (canlı görüntü bölümünde canlı izleme). "proj"
     yöntemi ek model istemez ve üretimi yavaşlatmaz; görüntü düşük çözünürlüklü bir yaklaşımdır."""
     check_prompt(prompt)
     check_prompt(negative)  # olumsuz isteme yazıp yasağı ters çevirmek de olmaz

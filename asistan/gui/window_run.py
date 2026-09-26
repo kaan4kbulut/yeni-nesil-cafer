@@ -201,7 +201,7 @@ class RunMixin:
             self.right.activity.add_file(str(path), name == "edit_file")
 
     def _media_event(self, path: str, pct: int, text: str):
-        """Resim üretimi ilerliyor: izlemek için Görsel sekmesi açılır, her adım orada canlı görünür."""
+        """Resim üretimi ilerliyor: sağ panel açılır, her adım canlı görüntü bölümünde görünür."""
         if pct >= 0 and not self.right.media.live_active:
             self._show_tab(self.right.media)
         self.right.media.live(path, pct, text)
