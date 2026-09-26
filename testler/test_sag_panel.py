@@ -1,4 +1,4 @@
-"""Sağ panel (üç bölüm, üstte yalnızca adımlar ve kayıt) ve iş sürerken Enter (durdurmaz, sıraya alır).
+"""Sağ panel (sekmeler adımlar · kayıt · klasörler; canlı önizleme yalnızca görsel işte) ve iş sürerken Enter (durdurmaz, sıraya alır).
 
 Çalıştırma (proje kökünde, programın Python'uyla):
     ~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v
@@ -25,6 +25,7 @@ APP = QApplication.instance() or QApplication([])
 from asistan.config import Settings  # noqa: E402
 from asistan.gui import tour  # noqa: E402
 from asistan.gui.window import MainWindow  # noqa: E402
+from asistan.gui.window_run import visual_note  # noqa: E402
 
 
 class SagPanelTesti(unittest.TestCase):
@@ -32,11 +33,51 @@ class SagPanelTesti(unittest.TestCase):
     def setUpClass(cls):
         cls.w = MainWindow()
 
-    def test_ust_sekmeler_yalnizca_adimlar_ve_kayit(self):
+    def test_sekmeler_adimlar_kayit_klasorler(self):
         tabs = self.w.right.tabs
-        self.assertEqual([tabs.tabText(i) for i in range(tabs.count())], ["adımlar", "kayıt"])
-        split = self.w.right.split  # dosyalar ve canlı görüntü sekmede değil, hep görünür bölümler
-        self.assertEqual([split.widget(i) for i in range(3)], [tabs, self.w.right.files, self.w.right.media])
+        self.assertEqual([tabs.tabText(i) for i in range(tabs.count())], ["adımlar", "kayıt", "klasörler"])
+
+    def test_canli_onizleme_yalnizca_gorsel_iste(self):
+        r = self.w.right
+        self.w.show()
+        try:
+            self.assertFalse(r.media.isVisible())  # görsel iş yokken yer kaplamaz
+            self.assertEqual(visual_note("run_python", {"code": "print(2 + 2)"}), "")
+            self.assertEqual(visual_note("read_file", {"path": "a.stl"}), "")
+            not3d = visual_note("run_python", {"code": "from build123d import *\nexport_stl(b, 'kup.stl')"})
+            self.assertIn("3D", not3d)
+            self.assertTrue(visual_note("generate_image", {"prompt": "kedi"}))
+            r.show_media(not3d)
+            self.assertTrue(r.media.isVisible())
+            self.assertIn("3D", r.media.empty.text())
+            r.hide_media()  # yeni iş başlayınca
+            self.assertFalse(r.media.isVisible())
+            self.w._new_media()  # iş yokken klasöre görsel gelse de açılmaz
+            self.assertFalse(r.media.isVisible())
+        finally:
+            self.w.hide()
+
+    def test_adimlar_en_alta_kayar(self):
+        a = self.w.right.activity
+        self.w.resize(1400, 700)
+        self.w.show()
+        self.w.toggle_right.setChecked(True)
+        self.w.right.tabs.setCurrentWidget(a)
+        try:
+            a.begin_run("model")
+            for i in range(40):
+                a.tool_start(str(i), "run_python", f"adım {i}")
+            for _ in range(5):
+                APP.processEvents()
+            bar = a.scroll.verticalScrollBar()
+            self.assertGreater(bar.maximum(), 0)
+            self.assertEqual(bar.value(), bar.maximum())
+            bar.setValue(0)  # kullanıcı yukarı kaydırdı: takip durur
+            a.tool_start("x", "run_python", "yeni adım")
+            APP.processEvents()
+            self.assertEqual(bar.value(), 0)
+        finally:
+            self.w.hide()
 
     def test_modeller_kendi_penceresinde(self):
         self.w.right.show_part(self.w.right.models)

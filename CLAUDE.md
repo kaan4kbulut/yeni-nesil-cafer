@@ -172,11 +172,15 @@ konusunun dosyasına; Qt sinyalleri yalnızca `MainWindow` gövdesinde tanımlan
 
 ## Sağ panel ve canlı görüntü (2026-09-26)
 
-Sağ panel (2.3'ten beri) dikey `QSplitter`'da üç bölüm, hepsi aynı anda görünür: üstte sekmeler (yalnızca adımlar ve
-kayıt; kullanıcı böyle istedi), ortada dosyalar, altta canlı görüntü (`gui/media_panel.py`). Kullanıcı 3D model hazırlanırken
-sonucu sekme değiştirmeden görmek istedi; canlı görüntüyü yeniden sekmeye koyma. Modeller ve belge önizlemesi (`RightPanel.windows`, `_PartWindow`)
-kendi pencerelerinde açılır; resim/video/3D önizlemesi canlı görüntüde. İş sürerken Enter işi DURDURMAZ: mesaj
-sıraya girer (`_submit`, `queued_send`), iş bitince gönderilir; durdurmak yalnızca ■ durdur ya da Esc. `RightPanel.set_root` hem dosyalara
+Sağ panel (2.3'ten beri, kullanıcının isteğiyle): üstte yalnızca üç sekme, adımlar · kayıt · klasörler. Adımlar
+iş sürerken kendiliğinden en alta kayar (`ActivityPanel.stick`; kullanıcı yukarı kaydırınca durur, en alta dönünce
+sürer). Canlı önizleme (`gui/media_panel.py`) sekmelerin altında YALNIZCA görsel iş yapılırken açılır: resim
+üretimi (`_media_event`), görsel bir araç çağrısı (`window_run.visual_note`: generate_image, check_3d_model ya da
+kodu/dosya adı build123d, trimesh, .stl, .png, .mp4… içeren çağrı) ya da iş sürerken klasöre yeni görsel yazılması
+(`_new_media`); her yeni işin başında kapanır, ✕ ile de gizlenir. Bunu sürekli görünen bir bölüme ya da sekmeye
+çevirme. Modeller ve belge önizlemesi (`RightPanel.windows`, `_PartWindow`) kendi pencerelerinde açılır; resim/
+video/3D önizlemesi canlı önizlemede. İş sürerken Enter işi DURDURMAZ: mesaj sıraya girer (`_submit`,
+`queued_send`), iş bitince gönderilir; durdurmak yalnızca ■ durdur ya da Esc. `RightPanel.set_root` hem dosyalara
 hem canlı görüntüye klasörü verir. Resim üretimi
 `imagegen.generate(preview=…)` ile `sd-cli --preview proj` her adımda `Resimler/.canli-onizleme.png`'ye 64×64
 yaklaşık görüntü yazar (ek model yok, yavaşlatmaz; 16 adımda 15 farklı görüntü ölçüldü); ajan `on_media` →

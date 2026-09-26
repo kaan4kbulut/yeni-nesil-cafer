@@ -15,15 +15,14 @@ from .theme import C
 # sürüm → (başlık, açıklama, düğme yazısı, pencerede yapılacak iş: MainWindow metodu adı ya da "")
 NEWS = {
     "2.3": [
-        ("Sağ panel üç bölüm", "Adımlar, dosyalar ve canlı görüntü artık alt alta, hepsi aynı anda görünür: resim, "
-         "video ya da 3D model hazırlanırken sonucu sekme değiştirmeden izlersin. Bölümleri aradaki çizgiyle "
-         "büyütebilirsin.", "göster", "_tour_media"),
+        ("Canlı önizleme", "Resim, video ya da 3D model hazırlanırken sağ panelde adımların altında canlı "
+         "önizleme açılır; görsel iş yokken yer kaplamaz. Adımlar iş sürerken kendiliğinden aşağı kayar.", "göster", "_tour_media"),
     ],
     "2.2": [
         ("İşleri kendi başına çözer", "Bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar "
          "(onayınla), yapar ve sonucu gözle kontrol eder. Bulduğu yolu tarif olarak kaydeder; bir dahaki sefere "
          "doğrudan bilir. Sonucu belirleyen bir bilgi eksikse önce sorar.", "", ""),
-        ("Canlı görüntü", "Sağ panelde: resim üretilirken her adımı canlı izle; resim, video ve 3D modelleri "
+        ("Görsel önizleme", "Sağ panelde: resim üretilirken her adımı canlı izle; resim, video ve 3D modelleri "
          "(döndürerek, ölçüleriyle) önizle.", "göster", "_tour_media"),
         ("Konuşarak yaz", "Mesaj kutusundaki 🎤 ya da Ctrl+Shift+Space: konuş, tekrar bas; yazıya çevrilip kutuya "
          "eklenir. Tamamen bilgisayarında çalışır.", "dene", "_toggle_dictation"),

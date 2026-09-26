@@ -406,6 +406,7 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         self.right.setMinimumWidth(372)
         self.right.setMaximumWidth(760)  # canlı görüntü büyütülebilsin
         self.right.models.model_chosen.connect(self._choose_ollama_model)
+        self.right.media.new_media.connect(self._new_media)
         self.right.activity.file_open.connect(self._preview_file)
         self.right.closed.connect(lambda: self.toggle_right.setChecked(False))
         self.right.hide()
@@ -488,17 +489,11 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         mark.setTextFormat(Qt.RichText)
         mark.setText(f'<span style="background:{C["accent"]}; color:{C["accent"]};">▌</span>&nbsp;&nbsp;YENİ NESİL CAFER')
         bar.setCornerWidget(mark, Qt.TopLeftCorner)
-        # sağ üst: hafif mod anahtarı (küçük model, 8K bağlam, düşünmesiz) — power.py
-        corner = QWidget(bar)
-        corner_row = QHBoxLayout(corner)
-        corner_row.setContentsMargins(0, 0, 10, 0)
+        # hafif mod anahtarı (küçük model, 8K bağlam, düşünmesiz) — power.py; güvenlik ve sansürsüz ile aynı sırada
         self.light_btn = QToolButton(objectName="modelTab", checkable=True)
         self.light_btn.setCursor(Qt.PointingHandCursor)
         self.light_btn.setChecked(power.saving(self.settings))
         self.light_btn.toggled.connect(self._toggle_light)
-        corner_row.addWidget(self.light_btn)
-        bar.setCornerWidget(corner, Qt.TopRightCorner)
-        self._update_light_btn()
         for i in range(5):
             QShortcut(QKeySequence(f"Ctrl+{i + 1}"), self, activated=lambda i=i: self.side_tabs.button(i).click())
         QShortcut(QKeySequence("Ctrl+K"), self, activated=self._focus_search)
@@ -567,8 +562,10 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         self.free_btn.setChecked(bool(self.settings.extra.get("uncensored")))
         self.free_btn.toggled.connect(self._toggle_uncensored)
         row.addWidget(self.free_btn)
+        row.addWidget(self.light_btn)
         self._update_guard_btn()
         self._update_free_btn()
+        self._update_light_btn()
         bar.installEventFilter(self)
         self._center_model_tabs()
         v = bar.addMenu("Görünüm")
@@ -580,7 +577,8 @@ class MainWindow(HelpMixin, ModelsMixin, BarMixin, ModesMixin, ChatsMixin, RunMi
         v.addAction(right)
         v.addSeparator()
         r = self.right
-        for name, tab in (("Adımlar", r.activity), ("Kayıt", r.log), ("Modeller", r.models),
+        for name, tab in (("Adımlar", r.activity), ("Kayıt", r.log), ("Klasörler", r.files),
+                          ("Canlı önizleme", r.media), ("Modeller", r.models),
                           ("Önizleme", r.preview)):
             a = QAction(name, self)
             a.triggered.connect(lambda _=False, tab=tab: self._show_tab(tab))

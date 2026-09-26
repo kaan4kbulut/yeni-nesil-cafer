@@ -34,6 +34,31 @@ UNCENSORED_NOTE = (
     "exactly the same.")
 
 
+
+# Görsel iş: canlı önizleme açılır. Kod ya da dosya adı resim / video / 3D üretimini gösteriyorsa.
+_VISUAL = re.compile(r"build123d|cadquery|trimesh|manifold3d|\.(stl|3mf|obj|glb|gltf|ply|step|png|jpe?g|webp|gif|"
+                     r"mp4|webm|mov|svg)\b|savefig|imageio|moviepy|PIL\b|Image\.new", re.I)
+
+
+def visual_note(name: str, args: dict) -> str:
+    """Araç çağrısı görsel bir iş başlatıyorsa canlı önizlemede gösterilecek bekleme yazısı; değilse boş."""
+    if name == "generate_image":
+        return "Resim hazırlanıyor…"
+    if name == "check_3d_model":
+        return "3D model denetleniyor…"
+    if name in ("run_python", "run_command", "write_file"):
+        text = " ".join(str(args.get(k, "")) for k in ("code", "command", "path"))
+        m = _VISUAL.search(text)
+        if m:
+            kind = m.group(0).lower()
+            if any(k in kind for k in ("build123d", "cadquery", "trimesh", "manifold", "stl", "3mf", "obj", "glb",
+                                       "gltf", "ply", "step")):
+                return "3D model hazırlanıyor… kaydedilince burada döndürüp inceleyebilirsin."
+            if any(k in kind for k in ("mp4", "webm", "mov", "moviepy")):
+                return "Video hazırlanıyor…"
+            return "Görsel hazırlanıyor…"
+    return ""
+
 class RunMixin:
     """MainWindow'un parçası (window.py); konusu modülün açıklamasında."""
 
@@ -48,6 +73,11 @@ class RunMixin:
                                       else "Asistana bir şey sor ya da bir görev ver")
         for w in (self.model_pill, self.workspace_btn, self.api_panel, self.agent_panel):
             w.setEnabled(not running)
+
+    def _new_media(self):
+        """İş sürerken klasöre resim / video / 3D model yazıldı: canlı önizleme açılır (iş yokken açılmaz)."""
+        if self.worker:
+            self.right.show_media()
 
     def _submit(self):
         """Enter: iş sürerken durdurmaz; yazılan mesaj sıraya girer, iş bitince kendiliğinden gönderilir.
@@ -186,6 +216,7 @@ class RunMixin:
         w.finished.connect(self._finished)
         self._set_running(True)
         self.right.activity.begin_run(model)
+        self.right.hide_media()  # canlı önizleme yalnızca bu işte görsel bir şey yapılırsa açılır
         self.run_clock.start()
         w.start()
 
@@ -198,6 +229,10 @@ class RunMixin:
         self.tool_args[call_id] = (name, args)
         self.chat.start_tool(call_id, name, args)
         self.right.activity.tool_start(call_id, name, summarize_args(name, args))
+        note = visual_note(name, args)
+        if note:
+            self.toggle_right.setChecked(True)
+            self.right.show_media(note)
 
     def _tool_ended(self, call_id: str, result: str, is_error: bool):
         self.chat.end_tool(call_id, result, is_error)
@@ -210,9 +245,10 @@ class RunMixin:
             self.right.activity.add_file(str(path), name == "edit_file")
 
     def _media_event(self, path: str, pct: int, text: str):
-        """Resim üretimi ilerliyor: sağ panel açılır, her adım canlı görüntü bölümünde görünür."""
+        """Resim üretimi ilerliyor: sağ panel ve canlı önizleme açılır, her adım orada görünür."""
         if pct >= 0 and not self.right.media.live_active:
-            self._show_tab(self.right.media)
+            self.toggle_right.setChecked(True)
+            self.right.show_media()
         self.right.media.live(path, pct, text)
 
     def _ask_approval(self, name: str, args: dict):

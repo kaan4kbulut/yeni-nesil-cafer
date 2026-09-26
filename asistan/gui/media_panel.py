@@ -15,7 +15,7 @@ from PySide6.QtCore import QSize, Qt, QTimer, QUrl, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont, QIcon, QMovie, QPainter, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox, QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QProgressBar, QPushButton, QSlider,
-    QStackedWidget, QVBoxLayout, QWidget,
+    QStackedWidget, QToolButton, QVBoxLayout, QWidget,
 )
 
 from .theme import C
@@ -261,6 +261,7 @@ class MediaPanel(QWidget):
     """canlı görüntü bölümü (ayrıntı modül açıklamasında)."""
 
     new_media = Signal()  # yeni medya geldi
+    closed = Signal()  # ✕: canlı önizlemeyi gizle
 
     def __init__(self):
         super().__init__()
@@ -278,6 +279,10 @@ class MediaPanel(QWidget):
         head.addWidget(self.title, 1)
         head.addWidget(self.open_btn)
         head.addWidget(folder_btn)
+        close = QToolButton(objectName="iconButton", toolTip="Canlı önizlemeyi gizle")
+        close.setText("✕")
+        close.clicked.connect(self.closed)
+        head.addWidget(close)
         lay.addLayout(head)
 
         self.live_row = QWidget()
@@ -444,6 +449,16 @@ class MediaPanel(QWidget):
     def _stop_video(self):
         if self._video is not None:
             self._video.stop()
+
+    def expect(self, note: str):
+        """Görsel iş başladı ama henüz görüntü yok: ne hazırlandığını yazar (ilk görüntü gelince yerini alır)."""
+        if self.live_active:
+            return
+        self._stop_video()
+        self.empty.setText(note)
+        self.stack.setCurrentWidget(self.empty)
+        self.title.setText("CANLI · HAZIRLANIYOR")
+        self.open_btn.setEnabled(False)
 
     # ---- canlı üretim (imagegen)
     def live(self, path: str, pct: int, text: str):

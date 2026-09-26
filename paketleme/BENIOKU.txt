@@ -35,8 +35,11 @@ KURULUM · LINUX
 
 
 SÜRÜM 2.3'TE YENİ
-  - Sağ panel üç bölüm: adımlar, dosyalar ve canlı görüntü alt alta, hepsi aynı anda görünür. Resim,
-    video ya da 3D model hazırlanırken sonucu sekme değiştirmeden izlersin.
+  - Canlı önizleme: resim, video ya da 3D model hazırlanırken sağ panelde adımların altında açılır;
+    görsel iş yokken yer kaplamaz. Sağ panelde yalnızca adımlar, kayıt ve klasörler sekmeleri var.
+  - Adımlar iş sürerken kendiliğinden aşağı kayar; takibi kaçırmazsın.
+  - İş sürerken Enter artık işi durdurmaz: yazdığın mesaj sıraya girer, iş bitince gönderilir.
+    Durdurmak için ■ durdur düğmesi ya da Esc.
 
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar

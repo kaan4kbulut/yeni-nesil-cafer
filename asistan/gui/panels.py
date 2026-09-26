@@ -163,6 +163,9 @@ class ActivityPanel(QWidget):
         self.col.addStretch()
         scroll.setWidget(inner)
         lay.addWidget(scroll, 3)
+        self.stick = True  # en alta yapışık: iş sürerken son adım hep görünür
+        scroll.verticalScrollBar().rangeChanged.connect(self._range_changed)
+        scroll.verticalScrollBar().valueChanged.connect(self._scrolled)
 
         files_head = QHBoxLayout()
         files_head.addWidget(_title("Değişen dosyalar"), 1)
@@ -173,8 +176,7 @@ class ActivityPanel(QWidget):
         self.files_box = QVBoxLayout()
         self.files_box.setSpacing(0)
         self.files_box.addWidget(_Rule())
-        lay.addLayout(self.files_box)
-        lay.addStretch(1)
+        lay.addLayout(self.files_box)  # boş alan adımlara kalsın (canlı önizleme açıkken de sıkışmasın)
 
         # eski arayüzle uyum için (pencere bu alanlara yazıyor)
         self.state = QLabel("Hazır", objectName="stepSub")
@@ -214,10 +216,18 @@ class ActivityPanel(QWidget):
         return row
 
     def _follow(self):
-        """Kullanıcı yukarı kaydırmadıysa en son adımı göster."""
-        bar = self.scroll.verticalScrollBar()
-        if bar.maximum() - bar.value() < 80:
+        """Kullanıcı yukarı kaydırmadıysa en son adımı göster (içerik büyüdükçe `_range_changed` da aşağı indirir)."""
+        if self.stick:
+            bar = self.scroll.verticalScrollBar()
             QTimer.singleShot(0, lambda: bar.setValue(bar.maximum()))
+
+    def _range_changed(self, _lo: int, hi: int):
+        if self.stick:  # düşünce ya da yeni adım içeriği uzattı: takip kaçmasın
+            self.scroll.verticalScrollBar().setValue(hi)
+
+    def _scrolled(self, value: int):
+        # kullanıcı yukarı kaydırınca takip durur, en alta dönünce yeniden başlar
+        self.stick = self.scroll.verticalScrollBar().maximum() - value < 40
 
     def begin_run(self, model: str):
         for i in reversed(range(self.col.count())):
@@ -234,6 +244,7 @@ class ActivityPanel(QWidget):
         self.current_model = None
         self.model = model
         self.running = True
+        self.stick = True
         self.clock.start()
         self.state.setText("Çalışıyor")
         self.progress.setRange(0, 0)
@@ -702,9 +713,9 @@ class RightPanel(QWidget):
 
     def __init__(self, settings):
         super().__init__(objectName="rightPanel")
-        """Üç bölüm alt alta, hepsi aynı anda görünür: adımlar (yanında kayıt sekmesi), dosyalar ve canlı görüntü
-        (üretilen resim / video / 3D model). Bölümler aradaki çizgiyle büyütülür. Modeller ve belge önizlemesi
-        panelde yer kaplamaz: istenince kendi pencerelerinde açılır."""
+        """Sekmeler: adımlar, kayıt, klasörler. Canlı önizleme (resim / video / 3D model) yalnızca görsel iş
+        yapılırken adımların altında açılır (`show_media`), yeni bir iş başlayınca kapanır. Modeller ve belge
+        önizlemesi panelde yer kaplamaz: istenince kendi pencerelerinde açılır."""
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
         self.tabs = QTabWidget()
@@ -717,6 +728,7 @@ class RightPanel(QWidget):
         self.preview = DocumentView()
         self.tabs.addTab(self.activity, "adımlar")
         self.tabs.addTab(self.log, "kayıt")
+        self.tabs.addTab(self.files, "klasörler")
         self.windows = {self.models: _PartWindow("Modeller", self.models, self, (620, 640)),
                         self.preview: _PartWindow("Önizleme", self.preview, self, (760, 820))}
         self.tabs.tabBar().setExpanding(False)
@@ -728,16 +740,31 @@ class RightPanel(QWidget):
         self.tabs.setCornerWidget(close, Qt.TopRightCorner)
         self.split = QSplitter(Qt.Vertical)
         self.split.setChildrenCollapsible(False)
-        for w, stretch in ((self.tabs, 3), (self.files, 3), (self.media, 5)):  # canlı görüntüye en çok yer
-            w.setMinimumHeight(140)
+        for w, stretch in ((self.tabs, 2), (self.media, 3)):  # açıkken canlı önizlemeye daha çok yer
+            w.setMinimumHeight(160)
             self.split.addWidget(w)
             self.split.setStretchFactor(self.split.count() - 1, stretch)
+        self.media.hide()
+        self.media.closed.connect(self.media.hide)
         lay.addWidget(self.split)
 
+    def show_media(self, note: str = ""):
+        """Görsel iş başladı: canlı önizleme adımların altında açılır (note: ilk görüntü gelene kadarki yazı)."""
+        if note:
+            self.media.expect(note)
+        if not self.media.isVisible():
+            self.media.show()
+            h = max(self.split.height(), 400)
+            self.split.setSizes([h * 2 // 5, h * 3 // 5])
+
+    def hide_media(self):
+        self.media.hide()
+
     def show_part(self, widget):
-        """Bölümü öne çıkarır: sekmeyse ona geçer, modeller / önizleme kendi penceresinde açılır
-        (dosyalar ve canlı görüntü zaten hep görünür)."""
-        if self.tabs.indexOf(widget) >= 0:
+        """Bölümü öne çıkarır: sekmeyse ona geçer; modeller ve önizleme kendi penceresinde açılır."""
+        if widget is self.media:
+            self.show_media()
+        elif self.tabs.indexOf(widget) >= 0:
             self.tabs.setCurrentWidget(widget)
         elif widget in self.windows:
             if widget is self.models:
@@ -748,6 +775,6 @@ class RightPanel(QWidget):
             win.activateWindow()
 
     def set_root(self, path: str):
-        """Sohbetin klasörü: dosya ağacı ve canlı görüntü bölümünin izlediği klasör."""
+        """Sohbetin klasörü: dosya ağacı ve canlı önizlemenin izlediği klasör."""
         self.files.set_root(path)
         self.media.set_root(path)
