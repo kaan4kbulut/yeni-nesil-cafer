@@ -9,6 +9,7 @@ Sıra (ilk eşleşen karar verir):
 5. Kullanıcı kipi: onay gerektiren (ya da ▶ turunda değişiklik yapan) çağrı kullanıcıya sorulur; "komutları onayla"
    kapalıysa, "bu oturumda hep izin ver" ya da otomatik onay listesindeyse sorulmaz.
 Yeni bir onay kuralı yalnızca buraya eklenir; `agent._execute_tool` kararı uygular, kendisi karar vermez.
+Araç dışı tek kural: bulut maliyet tavanı (`bulut_tavani`) aşılınca ücretli bulut çağrısı hep kullanıcıya sorulur.
 """
 
 import re
@@ -117,3 +118,16 @@ def decide(name: str, args, ctx: Context) -> Decision:
     # sansürsüz modelle güvenlik kipi: kullanıcı güvenlik ajanının yerine geçer, "komutları onayla" kutusu yok sayılır
     confirm = ctx.confirm_commands or ctx.approval_mode == "guvenlik"
     return Decision(ASK if asks and confirm and not user_allowed else ALLOW)
+
+
+BULUT_TAVANI = "bulut_tavani"  # onay penceresine giden ad (araç değil: ücretli bulut çağrısı izni)
+
+
+def bulut_tavani(asim: str, onaylandi: bool = False) -> Decision:
+    """Bulut maliyet tavanı (`ayar.toml → [bulut]`) aşıldıysa ücretli bulut çağrısı kullanıcıya sorulur.
+
+    Güvenlik ajanı, "hep izin ver" ya da otomatik onay listesi bunu geçemez: para harcatan karar hep kullanıcının.
+    Aynı istekte bir kez onaylandıysa (`onaylandi`) yeniden sorulmaz."""
+    if not asim or onaylandi:
+        return Decision(ALLOW)
+    return Decision(ASK, asim)

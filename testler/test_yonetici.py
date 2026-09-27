@@ -19,6 +19,24 @@ os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
 from asistan import manager  # noqa: E402
 from asistan.agent import PROGRAM, _clean  # noqa: E402
+from asistan.cekirdek import yonlendirici  # noqa: E402
+from asistan.cekirdek.saglayici import Saglik  # noqa: E402
+
+_YAMALAR = []
+
+
+def setUpModule():
+    """Yönlendirici bu testlerde gerçek sağlayıcılara sormasın: sağlık hep iyi, aday yok → yönetici sohbet modeli."""
+    _YAMALAR.extend([mock.patch.object(yonlendirici, "SAGLIK",
+                                       yonlendirici.SaglikOnbellegi(sorgu=lambda ad, _=None: Saglik(True))),
+                     mock.patch.object(yonlendirici, "adaylar", return_value=[])])
+    for yama in _YAMALAR:
+        yama.start()
+
+
+def tearDownModule():
+    for yama in _YAMALAR:
+        yama.stop()
 
 
 class PlanKarari(unittest.TestCase):

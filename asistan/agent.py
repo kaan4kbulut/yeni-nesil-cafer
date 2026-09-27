@@ -19,7 +19,7 @@ from typing import Protocol
 import anthropic
 import httpx
 
-from .cekirdek import modeller, saglayici as sg
+from .cekirdek import modeller, saglayici as sg, yonlendirici
 from .cekirdek.saglayici import claude as sg_claude, cli_ajan as sg_cli, ollama as sg_ollama
 from .cekirdek.saglayici.openai_uyumlu import OpenAIUyumluSaglayici
 from .config import Settings
@@ -1476,14 +1476,16 @@ class Agent:
                 json_retries = 0
                 elapsed = time.monotonic() - started
                 usage = response.usage
-                self.cb.on_model_end({
+                stats = {
                     "model": response.model,
                     "input_tokens": usage.input_tokens + (usage.cache_read_input_tokens or 0)
                     + (usage.cache_creation_input_tokens or 0),
                     "output_tokens": usage.output_tokens,
                     "seconds": elapsed,
                     "tokens_per_sec": usage.output_tokens / elapsed if elapsed else 0,
-                })
+                }
+                yonlendirici.harcama_ekle("claude", stats["input_tokens"] + stats["output_tokens"])  # bulut tavanı
+                self.cb.on_model_end(stats)
             except ValueError:
                 # SDK'nin hiç ayrıştıramadığı araç girdisi JSON'u: turu yeniden iste
                 json_retries += 1
@@ -1809,6 +1811,7 @@ class Agent:
             elapsed = time.monotonic() - started
             usage = son.get("usage") or {}
             out_tokens = usage.get("completion_tokens") or son.get("parca", 0)
+            yonlendirici.harcama_ekle(f"api:{conn.id}", (usage.get("prompt_tokens") or 0) + (out_tokens or 0))
             self.cb.on_model_end({
                 "model": model,
                 "input_tokens": usage.get("prompt_tokens", 0),

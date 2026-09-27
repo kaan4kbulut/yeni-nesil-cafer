@@ -546,7 +546,12 @@ class PlanCard(QFrame):
         self.rows[i].setText(text)
         done = sum(s.get("status") == "done" for s in self.steps)
         failed = sum(s.get("status") == "failed" for s in self.steps)
-        self.head.setText(f"PLAN  ·  {done}/{len(self.steps)} adım bitti" + (f"  ·  {failed} başarısız" if failed else ""))
+        who = ""  # K3: yönlendiricinin kararı (yönetici değiştiyse "X → Y")
+        if st.get("yonetici"):
+            who = f"  ·  Yönetici: {st['yonetici']}" + (f"  ·  İşçi: {st['secim'].get('model')}"
+                                                        if isinstance(st.get("secim"), dict) else "")
+        self.head.setText(f"PLAN  ·  {done}/{len(self.steps)} adım bitti" + (f"  ·  {failed} başarısız" if failed else "")
+                          + who)
 
 
 class ToolCard(QFrame):

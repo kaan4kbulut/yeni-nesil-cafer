@@ -54,7 +54,8 @@ DURDURMA_SN = 120  # zaman aşımında ■ durdurduktan sonra işin kapanması i
 def secenekler(argv=None):
     p = argparse.ArgumentParser(description="YENİ NESİL CAFER sınav seti")
     p.add_argument("--model", default="", help="Ollama modeli ya da sağlayıcı:model (boş: programın kendi seçimi)")
-    p.add_argument("--yonetici", default="", help="yönetici politikası (Aşama 2'de etkili; şimdilik kaydedilir)")
+    p.add_argument("--yonetici", default="", choices=("", "otomatik", "yerel", "bulut"),
+                   help="yönetici politikası (K3; boş: ayardaki, varsayılan otomatik)")
     p.add_argument("--etiket", default="", help="yalnızca bu etiketli görevler")
     p.add_argument("--hizli", action="store_true", help="internet/gpu/motor/uzun hariç (varsayılan)")
     p.add_argument("--hepsi", action="store_true", help="bütün görevler")
@@ -298,7 +299,7 @@ def ortam_hazirla(g: Path, a) -> dict:
     s.setdefault("extra", {})["tanitim_surumu"] = asistan.__version__  # tanıtım penceresi açılmasın
     s["extra"]["kurulum"] = True
     if a.yonetici:
-        s["yonetici_politikasi"] = a.yonetici  # Aşama 2'de ayar olacak; o zamana kadar program yok sayar
+        s["extra"]["yonetici_politikasi"] = a.yonetici  # K3: otomatik | yerel | bulut (cekirdek/yonlendirici.py)
     if not bulut:
         s["anthropic_api_key"] = ""
     if a.model and ":" not in a.model:

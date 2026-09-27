@@ -49,3 +49,7 @@
 - [ ] ayar.toml'da kademe_kilidi = "dusuk" yap, programı aç → sade arayüz, hızlı açılış, bulut anahtarıyla görev bitiyor mu? Sonra kilidi boşalt.
 - [ ] NOTLAR/SORULAR.md'deki soruları cevapla; geçici kararları beğenmediysen /hata-analiz ya da /asama ile düzelttir.
 - [ ] git checkout main && git merge k-serisi && git tag v3.0.0 && git push --tags
+
+## K2 — Donanım profili ve kademe (2026-09-28 01:31)
+- [ ] Durum çubuğundaki kademe laptop'unla uyuşuyor mu? (NOTLAR/<tarih>-K2.md ve .cafer/profil.json)
+- [ ] NOTLAR/MODELLER_ONERI.md'ye bak, ayar/modeller.json'daki geçici seçimleri beğenmediysen değiştir, "gecici" alanını sil.

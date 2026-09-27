@@ -232,6 +232,11 @@ def _ag() -> bool:
         return False
 
 
+def ag_var() -> bool:
+    """Şu an ağ var mı? (yönlendirici: çevrimdışıysa yalnızca yerel modeller)"""
+    return _ag()
+
+
 def _ollama(url: str) -> dict:
     """Ollama çalışıyor mu (başlatmaz): sürüm ve kurulu modeller."""
     import httpx

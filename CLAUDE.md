@@ -90,7 +90,8 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   `config` eski yol), `saglayici/` (Ollama/Claude/OpenAI uyumlu/CLI: tek model çağrısı, `hata_metni`), `araclar/`
   (dosya, komut/Python, web; `Toolbox` devreder), `istek.py` (ajanı kur + yöneticiyle çalıştır; masaüstü ve bulut),
   `profil.py` (donanım → `DATA_DIR/profil.json`, kademe, kilit, `acik_mi`), `modeller.py` (`asistan/ayar/modeller.json`:
-  bütün model adları). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
+  bütün model adları), `yonlendirici.py` (K3: `Secim{saglayici, model, neden}`, sağlık önbelleği, yedekleme zinciri,
+  bulut tavanı, gizlilik; yönetici seçimi burada, `roster.manager_for`/`stronger` devreder). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
   adların eski yolu (2.8'de kalkar).
 - Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
   `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
@@ -119,8 +120,8 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
 
 ## Aşamalar (ayrıntı: `NOTLAR/mimari-ayrintilar.md`)
 
-0. Git + aktarma ✓ · 1. Araç kaydı + MCP ✓ · 2. Yönetici döngüsü ✓ · 3. Model yönlendirici: kartlar ve `roster` ✓, **yöneticiye
-en güçlü / işçiye hızlı model politikası ve adımların farklı modellere dağıtımı EKSİK** · 4. Hafıza + beceriler ✓ ·
+0. Git + aktarma ✓ · 1. Araç kaydı + MCP ✓ · 2. Yönetici döngüsü ✓ · 3. Model yönlendirici: kartlar, `roster`, yönetici
+politikası ve yedekleme zinciri ✓ (K3), **adımların kategoriye göre farklı modellere dağıtımı EKSİK** · 4. Hafıza + beceriler ✓ ·
 5. Araç fabrikası ✓ (MCP sunucusunu kendisi kurma ve çalışan aracı güncelleme eksik) · 6. Bulut beyin: kod ✓, **gerçek
 sunucu kurulmadı**. Ek: BrowserAgent, hook'lar, dosyayla ajanlar, dikte, 3D süs/figür, sonuç toplama, internet kurulumu,
 otomatik güncelleme ✓ (NOTLAR/2026-09-26 ve 27).
@@ -142,12 +143,13 @@ etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` �
 - Gemma 4 sistem talimatı olmadan araç çağırmaz, komutu metin yazar; bozuk çağrıda dakikalarca tamponlayabilir
   (`STALL_SECONDS`, `NUM_PREDICT`, `_CLAIMS_WORK`). Kartlar: gemma3/dolphin3 araç 0/3, sansürsüz gemma4 1/3.
 - Sistem talimatı + araç tanımları ~5.600 token; 8K bağlamda geçmişe ~1.100 token kalır → `LEAN_CTX` altında `agent.lean`.
-- 4B modeller işçi ve denetçi olarak zayıf; yönetici hâlâ sohbet modeliyle planlıyor. Kalıcı çözüm: YAPILACAKLAR K3–K4.
+- 4B modeller işçi ve denetçi olarak zayıf; yönetici artık yönlendiriciden (K3: Claude Code → bulut → 6/6 yerel), sınavda
+  bulut/CLI kapalı olduğundan yerel. Şema-kısıtlı karar: YAPILACAKLAR K4.
 - Küçük modeller dosya adını kısaltır, aracı `run_python` içinde işlev gibi çağırır, planı ara sıra Çince yazar.
 
 ## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`, K serisi)
 
-1. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı (K3).
+1. Adımları kategorisine göre uzman modele dağıtmak (K3'ten kalan); bulut maliyetinin ₺ karşılığı (fiyat listesi).
 2. Araç çağıramayan modeller için şema-kısıtlı karar (K4).
 3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak (K5).
 4. Bulut sunucuyu gerçek sunucuda kurmak (K8).

@@ -99,16 +99,22 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 ## Aşama K3 — Model yönlendirici ve yedekleme zinciri
 **Hedef:** Her adım için "hangi model, neden" kararı; başarısızlıkta otomatik yükselme.
 
-- [ ] `cekirdek/yonlendirici.py`: `docs/MIMARI.md` §4 kural sırası (çevrimdışı → gizlilik → görev türü → kademe → zincir)
-- [ ] Sağlayıcı sağlık kontrolü 5 dk önbellek; sağlıksız sağlayıcı zincirden düşer
-- [ ] Yedekleme zinciri: zaman aşımı / 2 başarısızlık → üst seviye; zincir sonu → hata analizine devret
-- [ ] Bulut maliyet tavanı (`ayar.toml → [bulut]`); aşımda kullanıcıya sor
-- [ ] Karar `secim = {saglayici, model, neden}` olarak dönüyor ve UI'da görünüyor
-- [ ] Gizlilik modu `yerel | karma | bulut` ayarı ve UI anahtarı
-- [ ] Testler: sahte sağlayıcılarla her kural için en az bir senaryo; zincir yükselme senaryosu
-- [ ] Yöneticiye en güçlü model, işçiye hızlı model politikası (`yonetici_politikasi`, `roster.manager_for`) — mevcut
+- [x] `cekirdek/yonlendirici.py`: `docs/MIMARI.md` §4 kural sırası (çevrimdışı → gizlilik → görev türü → kademe → zincir);
+      saf karar (`karar`, `yonetici_karari`) + programın kadrosundan adaylar (`adaylar`, `sec`); karta sığmayan yerel model geride
+- [x] Sağlayıcı sağlık kontrolü 5 dk önbellek; sağlıksız sağlayıcı zincirden düşer (sağlıksız sonuç 1 dk: SORULAR K3;
+      gerçek çağrıdaki 401/bağlantı hatası `SAGLIK.bildir` ile önbelleğe yazılır)
+- [x] Yedekleme zinciri: zaman aşımı / 2 başarısızlık → üst seviye; zincir sonu → hata analizine devret (`Zincir`,
+      `devret`: `analiz/hata.py` K6'da; o zamana kadar `DATA_DIR/hata_sirasi.jsonl`, SEMALAR §3 biçimi)
+- [x] Bulut maliyet tavanı (`ayar.toml → [bulut]`); aşımda kullanıcıya sor (token; defter `DATA_DIR/bulut_harcama.json`,
+      soru `permissions.bulut_tavani` → onay penceresi; ₺ karşılığı fiyat listesi gelince)
+- [x] Karar `secim = {saglayici, model, neden}` olarak dönüyor ve UI'da görünüyor (her turda "🧭 sağlayıcı/model — neden: …"
+      notu; plan adımlarında `secim`, plan kartında "Yönetici · İşçi")
+- [x] Gizlilik modu `yerel | karma | bulut` ayarı ve UI anahtarı (Ayarlar → Gizlilik; `ayar.toml [gizlilik] mod` önce gelir)
+- [x] Testler: sahte sağlayıcılarla her kural için en az bir senaryo; zincir yükselme senaryosu (`test_cekirdek_yonlendirici.py`)
+- [x] Yöneticiye en güçlü model, işçiye hızlı model politikası (`yonetici_politikasi`, `roster.manager_for`) — mevcut
       plandan taşındı (eski Aşama 2, talimat aşağıda). Yedekleme zinciri ve `secim` maddeleriyle aynı iş: yönetici seçimi
-      yönlendiricinin bir rolü olarak yazılır, yanında ikinci bir seçim kodu açılmaz.
+      yönlendiricinin bir rolü olarak yazılır, yanında ikinci bir seçim kodu açılmaz. **Kalan:** adımları kategorisine göre
+      `categories` modeliyle yapmak (döngüye dokunmak gerekiyor; YAPMA maddesi) — NOTLAR/2026-09-28-K3.md
 
 **Bitti sayılır:** Sohbet ekranında her cevabın yanında "ollama/x — neden: …" görünüyor; Ollama kapatılınca bulut varsa buluta, yoksa "çevrimdışı" mesajına düşüyor. Taşınan eski Aşama 2'nin bitti ölçütü de sağlanmış.
 

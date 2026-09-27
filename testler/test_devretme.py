@@ -35,8 +35,11 @@ KART = {"qwen3.5:4b": 2, "qwen3.5:9b": 2, "gemma4:12b": 2, "zayif:12b": 1, "huih
 
 
 def secim(current: str, policy: str = "yerel"):
+    from asistan.cekirdek import yonlendirici
+
     with mock.patch.object(roster, "candidates", return_value=ADAYLAR), \
-            mock.patch.object(roster.cards, "tools_level", side_effect=lambda m: KART.get(m)):
+            mock.patch.object(roster.cards, "tools_level", side_effect=lambda m: KART.get(m)), \
+            mock.patch.object(yonlendirici, "cevrimici", return_value=True):  # K3: çevrimdışıyken bulut yok
         c = roster.stronger(Settings(model_policy=policy), ("ollama", current))
     return c.model if c else None
 

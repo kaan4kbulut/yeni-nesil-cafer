@@ -108,12 +108,15 @@ def _cloud(settings: Settings) -> list[Candidate]:
 
 def candidates(settings: Settings, refresh: bool = False) -> list[Candidate]:
     """Kullanılabilir tüm modeller (kısa süre önbellekte tutulur)."""
+    from .cekirdek import yonlendirici
+
     global _cache
     now = time.time()
-    key = (settings.ollama_url, power.saving(settings))  # fişe takılınca/çıkınca puanlar değişir
+    local_only = yonlendirici.gizlilik(settings) == "yerel"  # K3: gizlilik "yalnızca yerel" → bulut otomatik seçilmez
+    key = (settings.ollama_url, power.saving(settings), local_only)  # fişe takılınca/çıkınca puanlar değişir
     if not refresh and _cache and now - _cache[0] < CACHE_SECONDS and _cache[1] == key:
         return _cache[2]
-    found = _ollama(settings) + _cloud(settings)
+    found = _ollama(settings) + ([] if local_only else _cloud(settings))
     _cache = (now, key, found)
     return found
 
@@ -273,42 +276,18 @@ def worker_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str] | N
     return best.key
 
 
-def manager_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str]:
-    """Plan çıkarıp denetleyecek model. "En güçlü" politikasında bağlı en güçlü bulut modeli; aksi halde sohbet
-    modeli plan sınavını geçtiyse kendisi, geçemediyse plan sınavını geçen en güçlü yerel model."""
-    provider, model = chat
-    if settings.model_policy == "guclu":
-        cloud = [c for c in candidates(settings) if not c.local]
-        if cloud:
-            return max(cloud, key=lambda c: c.score).key
-    if provider != "ollama":
-        return chat
-    card = cards.card(model)
-    if card is None or card.get("plan"):
-        return chat
-    free = model_updates.is_uncensored(model)
-    pool = [c for c in candidates(settings) if c.local and (cards.card(c.model) or {}).get("plan")]
-    if not pool:
-        return chat
-    return max(pool, key=lambda c: (model_updates.is_uncensored(c.model) == free, round(c.score))).key
+def manager_for(settings: Settings, chat: tuple[str, str], policy: str | None = None) -> tuple[str, str]:
+    """Plan çıkarıp denetleyecek model. Karar yönlendiricinin "yönetici" rolünde (`cekirdek/yonlendirici.py`,
+    politika otomatik | yerel | bulut); model bulunamazsa sohbet modeli."""
+    from .cekirdek import yonlendirici
+
+    secim = yonlendirici.yonetici_sec(settings, chat, politika_=policy)
+    return secim.anahtar or tuple(chat)
 
 
 def stronger(settings: Settings, current: tuple[str, str]) -> Candidate | None:
-    """Başarısız bir adımı devralacak daha güçlü model (yönetici): puanı yüksek, araç kullandığı doğrulanmış.
+    """Başarısız bir adımı devralacak daha güçlü model: yönlendiricinin yedekleme zincirinde bir üst basamak
+    (`yonlendirici.daha_guclu`; kurallar orada)."""
+    from .cekirdek import yonlendirici
 
-    Yerelde yalnızca araç sınavını tam geçenler (kart 6/6), sansürsüz ↔ normal geçişi yok. Bulut modelleri yalnızca
-    "güçlü" politikasında: kullanıcı "yerel" seçtiyse ücretli olabilecek bir servise kendiliğinden gidilmez."""
-    pool = candidates(settings)
-    key = tuple(current)
-    base = next((c.score for c in pool if c.key == key), 0.0)
-    free = model_updates.is_uncensored(current[1])
-    usable = []
-    for c in pool:
-        if c.key == key or "tools" not in c.caps or c.score <= base:
-            continue
-        if c.local and (cards.tools_level(c.model) != 2 or model_updates.is_uncensored(c.model) != free):
-            continue
-        if not c.local and settings.model_policy != "guclu":
-            continue
-        usable.append(c)
-    return max(usable, key=lambda c: c.score, default=None)
+    return yonlendirici.daha_guclu(settings, current)

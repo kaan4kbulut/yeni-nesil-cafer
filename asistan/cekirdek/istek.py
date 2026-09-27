@@ -111,5 +111,19 @@ def istegi_calistir(ajan, saglayici: str, mesajlar: list, metin: str) -> Sonuc:
     except Iptal:
         return Sonuc("durduruldu")
     except Exception as e:
+        _sagligi_bildir(saglayici, e)
         return Sonuc("hata", hata_metni(e), e)
     return Sonuc("tamam")
+
+
+def _sagligi_bildir(saglayici: str, hata: Exception) -> None:
+    """Bağlantı kurulamadı ya da anahtar reddedildi: yönlendirici bu sağlayıcıyı bir süre sağlıksız sayar,
+    sonraki istek yedeğe gider (docs/MIMARI.md §4 madde 6)."""
+    import httpx
+
+    from . import yonlendirici
+
+    ulasilamadi = isinstance(hata, (httpx.ConnectError, httpx.ConnectTimeout)) or type(hata).__name__ in (
+        "AuthenticationError", "APIConnectionError") or "(401)" in str(hata)
+    if ulasilamadi:
+        yonlendirici.SAGLIK.bildir(saglayici, False, hata_metni(hata)[:200])

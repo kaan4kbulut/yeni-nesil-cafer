@@ -219,8 +219,10 @@ def settings_for_cloud(conf: dict):
     from .config import Settings
 
     s = Settings.load()
+    # kuyruktan gelen istek: yönlendirici CLI ajanlarını (Claude Code…) seçmez (CLAUDE.md)
     return replace(s, provider="ollama", ollama_model=conf["model"], approval_mode="kullanici",
-                   workspace=str(DATA_DIR / "bulut-calisma"), auto_model=False, model_policy="yerel")
+                   workspace=str(DATA_DIR / "bulut-calisma"), auto_model=False, model_policy="yerel",
+                   extra={**s.extra, "istek_kaynagi": "kuyruk"})
 
 
 _agent_lock = threading.Lock()  # küçük sunucuda aynı anda tek model çağrısı

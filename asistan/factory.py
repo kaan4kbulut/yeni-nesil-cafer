@@ -341,7 +341,7 @@ def _writers(settings, chat: tuple[str, str]) -> list[tuple[str, str]]:
     """Aracı yazacak modeller, sırayla: bulut önceliğinde bulut önce; yoksa yönetici modeli, sonra bağlı Claude."""
     from . import roster, specialists
 
-    local = roster.manager_for(settings, chat) if chat[0] else chat
+    local = roster.manager_for(settings, chat, policy="yerel") if chat[0] else chat
     cloud = []
     if specialists._claude_available():
         cloud.append(("claude", settings.claude_model))

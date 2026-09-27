@@ -94,6 +94,30 @@ class SettingsDialog(QDialog):
         self.policy.addItem("En güçlü model (bulut dahil, ücretli olabilir)", "guclu")
         self.policy.setCurrentIndex(max(self.policy.findData(settings.model_policy), 0))
         form.addRow("Öncelik:", self.policy)
+        from ..cekirdek import yonlendirici
+
+        self.privacy = QComboBox()  # K3: yönlendiricinin gizlilik modu
+        self.privacy.addItem("Karma: basit işler yerelde, gerekirse bulut", "karma")
+        self.privacy.addItem("Yalnızca yerel: hiçbir şey buluta gitmez", "yerel")
+        self.privacy.addItem("Bulut öncelikli: bağlı bulut modelleri önce", "bulut")
+        self.privacy.setCurrentIndex(max(self.privacy.findData(yonlendirici.gizlilik(settings)), 0))
+        if yonlendirici.gizlilik_kilitli():
+            self.privacy.setEnabled(False)
+            self.privacy.setToolTip("ayar.toml → [gizlilik] mod ile sabitlenmiş; oradan değiştir.")
+        else:
+            self.privacy.setToolTip("Yalnızca yerel seçilirse yönetici, işçi ve yedek modellerin hepsi bu bilgisayarda "
+                                    "çalışır; bulut bağlantıları kendiliğinden kullanılmaz.")
+        form.addRow("Gizlilik:", self.privacy)
+        self.boss_policy = QComboBox()  # eski Aşama 2: yöneticiye en güçlü model
+        self.boss_policy.addItem("Otomatik: en güçlü erişilebilir model", "otomatik")
+        self.boss_policy.addItem("Yerel: bu bilgisayardaki en güçlü model", "yerel")
+        self.boss_policy.addItem("Bulut: Claude Code ya da bağlı bulut modeli", "bulut")
+        self.boss_policy.setCurrentIndex(max(self.boss_policy.findData(
+            settings.extra.get(yonlendirici.EXTRA_POLITIKA, "otomatik")), 0))
+        self.boss_policy.setToolTip("Çok adımlı işleri planlayan ve her adımı denetleyen model. Otomatik: girişli "
+                                    "Claude Code → bağlı bulut → araç sınavını tam geçen en güçlü yerel model. "
+                                    "Gizlilik 'yalnızca yerel' iken her zaman yerel.")
+        form.addRow("Yönetici:", self.boss_policy)
         self.power = QComboBox()
         for value, text in power.MODES.items():
             self.power.addItem(text, value)
@@ -245,6 +269,9 @@ class SettingsDialog(QDialog):
         extra["dikte_temizle"] = self.dictation_clean.isChecked()
         extra["guncelleme_otomatik"] = self.auto_update.isChecked()
         extra["sonuclari_topla"] = self.collect_results.isChecked()
+        if self.privacy.isEnabled():  # ayar.toml'la sabitlenmişse arayüz yazmaz
+            extra["gizlilik"] = self.privacy.currentData()
+        extra["yonetici_politikasi"] = self.boss_policy.currentData()
         if url and token:
             extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked()}
         else:
