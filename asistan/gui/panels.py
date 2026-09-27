@@ -540,20 +540,21 @@ class ModelsPanel(QWidget):
                 item.setText("★ " + item.text())
             self.list.addItem(item)
 
+        from .. import gpu, sysinfo
+
         self.gpu_share = None
         if running:
             lines = []
             for r in running:
                 share = r.get("size_vram", 0) / r["size"] if r.get("size") else 0
-                self.gpu_share = share if self.gpu_share is None else min(self.gpu_share, share)
+                if not gpu.is_embedding(r):  # gömme modelinin payı sohbet hızını etkilemez (gpu.check)
+                    self.gpu_share = share if self.gpu_share is None else min(self.gpu_share, share)
                 where = "GPU" if share > 0.99 else ("CPU" if share < 0.01 else f"%{share * 100:.0f} GPU")
                 lines.append(f"Bellekte: {r['name']}  ·  {human_size(r.get('size', 0))}  ·  {where}  ·  "
                              f"bağlam {r.get('context_length', '?')}")
             self.running_label.setText("\n".join(lines))
         else:
             self.running_label.setText("Şu an bellekte model yok (ilk mesajda yüklenir).")
-        from .. import gpu, sysinfo
-
         report = self.gpu_report = gpu.check(running, self.settings, sysinfo.program_owned())
         self.warn.setVisible(not report.ok)
         if not report.ok:

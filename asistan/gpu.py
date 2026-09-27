@@ -222,6 +222,14 @@ def _same(card: Card, name: str) -> bool:
     return card.short.lower() in low or card.name.lower() in low or (card.vendor != "intel" and card.vendor in low)
 
 
+def is_embedding(model: dict) -> bool:
+    """/api/ps kaydı bir gömme modeli mi (nomic-embed-text: aile nomic-bert)? Bunlar küçüktür; kart doluyken
+    Ollama onları kısmen işlemciye koyar ve bu yanıtları yavaşlatmaz, ekran kartı teşhisine katılmamalı."""
+    details = model.get("details") or {}
+    families = [details.get("family") or "", *(details.get("families") or [])]
+    return "embed" in (model.get("name") or "").lower() or any("bert" in f.lower() for f in families)
+
+
 def check(running: list[dict], settings, program_owned: bool) -> Report:
     """Ollama'nın bellekteki modelleri en güçlü kartta mı? `running`: /api/ps'deki modeller.
 
@@ -236,6 +244,8 @@ def check(running: list[dict], settings, program_owned: bool) -> Report:
                              f"Program bu arada küçük model ve kısa bağlam kullanıyor.",
                       fix="Bilgisayarı yeniden başlat (Ollama'yı yeniden başlatmak bunu düzeltmez).",
                       card="⚠ işlemci")
+    # yalnızca sohbet modelleri: %74'ü işlemcideki gömme modeli "model sığmadı" uyarısı verdiriyordu (2026-09-27)
+    running = [r for r in running if not is_embedding(r)]
     if not running:
         return Report(True, f"{best.short} hazır", card=best.short)
     share = min((r.get("size_vram", 0) / r["size"] if r.get("size") else 0) for r in running)

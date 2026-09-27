@@ -91,6 +91,17 @@ class Denetim(_GercekKartaBakma):
         self.assertIn("%60", r.text)
         self.assertTrue(r.fix)  # boş değil: pencere Ollama'yı boşuna yeniden başlatmaz
 
+    def test_gomme_modeli_uyari_verdirmez(self):
+        # kart doluyken nomic-embed-text'in %74'ü işlemcide: sohbet modeli tamamen kartta, uyarı yanlış olurdu
+        gomme = {"name": "nomic-embed-text:latest", "size": 100, "size_vram": 26,
+                 "details": {"family": "nomic-bert", "families": ["nomic-bert"]}}
+        sohbet = {"name": "qwen2.5:14b", "size": 100, "size_vram": 100, "details": {"family": "qwen2"}}
+        self.assertTrue(gpu.is_embedding(gomme))
+        self.assertFalse(gpu.is_embedding(sohbet))
+        self.assertTrue(self._check([sohbet, gomme]).ok)
+        self.assertTrue(self._check([gomme]).ok)
+        self.assertFalse(self._check([{**sohbet, "size_vram": 60}, gomme]).ok)  # gerçek sığmama yine uyarır
+
     def test_kart_yoksa_ve_model_yoksa(self):
         with mock.patch.object(gpu, "cards", return_value=[]):
             self.assertTrue(gpu.check(YUKLU, TAM_GUC, False).ok)

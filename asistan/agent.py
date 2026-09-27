@@ -37,6 +37,11 @@ THINK_LIMIT = 6000  # yerel modelin gizli düşünmesi için karakter sınırı 
 THINK_SECONDS = 240  # pilde yavaş modelde karakter sınırına varmadan dakikalarca düşünebilir: süre sınırı da var
 STALL_SECONDS = 150  # Ollama'dan bu kadar süre tek parça gelmezse çağrı takılmış sayılır (model yükleme dahil sığar)
 NUM_PREDICT = 8192  # tek çağrıda en çok bu kadar token: uzun hikâyeye yeter, kısır döngü dakikalarca sürmez
+# kendini tekrar eden model: metnin son REPEAT_TAIL karakteri metinde REPEAT_COUNT kez geçiyorsa döngüdedir.
+# qwen2.5:14b grup görevinde aynı kod bloğunu ~20 kez yazdı (8192 token, 3 dk 47 sn; 2026-09-27): o sürede
+# Ollama tek isteği işlediği için sohbet de bekledi.
+REPEAT_TAIL = 300
+REPEAT_COUNT = 3
 QUICK_REQUEST = 60  # bu kadar kısa, tek satırlık istekler ("telegram aç") düşünmeden yapılır
 
 # Sunucu tarafı yedek model (refusal fallback) desteklenen modeller
@@ -1478,6 +1483,7 @@ class Agent:
 
         state = {}  # bu turda yapılan uyarılar (_unfinished_nudge)
         continued = 0  # kesilen cevabın kaç kez sürdürüldüğü
+        repeated = 0  # tekrar döngüsü yüzünden kaç kez durduruldu
         request = (self.user_text or "").strip()
         if len(request) <= QUICK_REQUEST and "\n" not in request:
             self.no_think = True  # kısa, basit istek: uzun düşünme yalnızca bekletir
@@ -1517,6 +1523,13 @@ class Agent:
                 messages.pop()
                 self.no_think = True
                 self.cb.on_text("*(Uzun düşünme bağlamı doldurdu; doğrudan cevaplıyorum.)*\n\n")
+                continue
+            if not tool_calls and final.get("done_reason") == "repeat" and repeated < 1:
+                # tekrar kesildi (metin ilk tekrarın sonunda): aynı şeyi yeniden yazmasın, işi araçla yapsın
+                repeated += 1
+                messages.append({"role": "user", PROGRAM: True, "content": (
+                    "You started writing the same text over and over, so you were stopped. Do not write it again. "
+                    "If code or a command has to run, call the tool now; otherwise finish with a short answer.")})
                 continue
             if not tool_calls and final.get("done_reason") == "length" and content.strip() and continued < 2:
                 # bağlam doldu (uzun düşünme + uzun cevap): cevap yarıda kesildi, kaldığı yerden sürdürsün
@@ -1638,19 +1651,24 @@ class Agent:
         sysinfo.make_room(self.settings.ollama_url, self.settings.ollama_model)
         num_ctx = power.num_ctx(self.settings)  # pilde en çok 8K: kısa geçmiş, hızlı okuma
         fixed = len(system.get("content") or "") + len(json.dumps(tools or []))
+        scale = _CTX_SCALE.get(self.settings.ollama_model, 1.0)
+        sent = fit_context(messages, num_ctx, fixed, scale)
+        # cevap bağlamın kalanına sığsın: taşarsa Ollama istemin başını silip üretmeyi sürdürür (context shift),
+        # model kendi talimatını kaybeder ve anlamsız, dakikalarca süren bir cevap yazar
+        room = num_ctx - estimate_tokens(sent, fixed) * scale
         payload = {
             "model": self.settings.ollama_model,
-            "messages": [system, *fit_context(messages, num_ctx, fixed,
-                                              _CTX_SCALE.get(self.settings.ollama_model, 1.0))],
+            "messages": [system, *sent],
             **({"tools": tools} if tools else {}),
             "stream": True,
             **({"format": self.json_format} if self.json_format else {}),
-            "options": {"num_ctx": num_ctx, "num_predict": NUM_PREDICT},
+            "options": {"num_ctx": num_ctx, "num_predict": int(min(NUM_PREDICT, max(REPLY_RESERVE, room)))},
             **({"think": False} if self.no_think else {}),
             "keep_alive": "30m",  # modeli bellekte tut; her mesajda yeniden yüklenmesin
         }
         content, tool_calls, final = "", [], {}
         thought = 0  # bu çağrıda üretilen düşünme metninin uzunluğu
+        checked = 0  # tekrar denetiminin en son baktığı metin uzunluğu
         started = time.monotonic()
         with httpx.stream("POST", url, json=payload, timeout=httpx.Timeout(600, connect=10, read=STALL_SECONDS)) as resp:
             if resp.status_code != 200:
@@ -1675,6 +1693,14 @@ class Agent:
                 if msg.get("content"):
                     content += msg["content"]
                     self.cb.on_text(msg["content"])
+                    if len(content) - checked >= 200:
+                        checked = len(content)
+                        cut = repeat_cut(content)
+                        if cut:  # akışı kapatmak Ollama'da üretimi de durdurur
+                            content = content[:cut]
+                            self.cb.on_text("\n\n*(Model aynı metni tekrar tekrar yazmaya başladı; durdurdum.)*\n\n")
+                            final = {"done_reason": "repeat"}
+                            break
                 tool_calls.extend(msg.get("tool_calls") or [])
                 if not (content or tool_calls or thought) and time.monotonic() - started > STALL_SECONDS:
                     raise httpx.ReadTimeout("boş parçalar geliyor")  # akış sürüyor ama içi boş: takılma sayılır
@@ -1794,6 +1820,17 @@ class Agent:
                 tools = []  # engellenen işlemde ısrar: araçları kapat, planı yazsın
             self.cb.on_text("\n\n")
         self.cb.on_text("\n\n*Adım sınırına ulaşıldı.*")
+
+
+def repeat_cut(text: str) -> int:
+    """Model kendini tekrar ediyor mu? Son REPEAT_TAIL karakter metinde REPEAT_COUNT kez geçiyorsa döngüdedir;
+    metnin kesileceği yer (ilk geçişin sonu: bir kopya kalır) döner, döngü yoksa 0."""
+    if len(text) < REPEAT_TAIL * REPEAT_COUNT:
+        return 0
+    tail = text[-REPEAT_TAIL:]
+    if not tail.strip() or text.count(tail) < REPEAT_COUNT:
+        return 0
+    return text.find(tail) + REPEAT_TAIL
 
 
 class _ThinkTooLong(Exception):

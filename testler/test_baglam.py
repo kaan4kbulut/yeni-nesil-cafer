@@ -193,5 +193,65 @@ class YontemTesti(unittest.TestCase):
         self.assertIsNone(a._unfinished_nudge([], "Telefonunuzun genişliği kaç mm?", True, 1, {}))
 
 
+BLOK = ("```python\nfrom build123d import *\n\nwith BuildPart() as part:\n    organic = Extrude(randomize_mesh(20, 20))\n"
+        "    scale((100, 100, 100))\n    move((130, 130, 130))  # tablanın ortası\n\npart.export_stl('3D/organik.stl')\n"
+        "check_3d_model('3D/organik.stl')\n```\n\nBu kodla basılabilir bir organik form tasarlayıp kaydedeceğiz.\n\n")
+
+
+class _Akis:
+    """httpx.stream yerine: Ollama'nın akışlı cevabını parça parça verir, kaç parça okunduğunu sayar."""
+
+    def __init__(self, parcalar):
+        self.parcalar, self.okunan, self.status_code = parcalar, 0, 200
+
+    def __enter__(self): return self
+    def __exit__(self, *a): return False
+
+    def iter_lines(self):
+        import json
+        for p in self.parcalar:
+            self.okunan += 1
+            yield json.dumps({"message": {"content": p}})
+        yield json.dumps({"message": {}, "done": True, "done_reason": "stop"})
+
+
+class TekrarTesti(unittest.TestCase):
+    """Kendini tekrar eden model durdurulur; cevap bağlamın kalanına sığar (context shift olmaz)."""
+
+    def test_tekrar_eden_metin_ilk_kopyada_kesilir(self):
+        metin = "K2 Combo'nun tablası 260 mm.\n\n" + BLOK * 5
+        cut = ag.repeat_cut(metin)
+        self.assertTrue(cut)
+        self.assertEqual(metin[:cut].count("export_stl"), 1)
+        self.assertTrue(metin[:cut].startswith("K2 Combo"))
+
+    def test_uzun_ama_tekrarsiz_metin_kesilmez(self):
+        metin = "".join(f"{i}. adım: {i * 7} mm uzunluğunda {i % 5 + 1} parça kes ve zımparala.\n" for i in range(300))
+        self.assertEqual(ag.repeat_cut(metin), 0)
+        self.assertEqual(ag.repeat_cut(BLOK * 2), 0)  # iki kopya henüz döngü sayılmaz
+
+    def test_akis_tekrarda_durur_ve_cevap_baglama_sigar(self):
+        s = Settings(workspace=str(Path(_GECICI) / "is"), auto_ctx=False, ollama_num_ctx=12288)
+        cb = _Cb()
+        a = ag.Agent(s, cb)
+        parcalar = [BLOK[i:i + 40] for i in range(0, len(BLOK), 40)] * 50  # 50 kopya
+        akis, gonderilen = _Akis(parcalar), {}
+
+        def sahte_stream(method, url, json=None, **kw):
+            gonderilen.update(json)
+            return akis
+
+        uzun = [{"role": "user", "content": "3D model tasarla. " + "ayrıntı " * 3000}]  # ~7K token istem
+        with mock.patch.object(ag.httpx, "stream", sahte_stream), mock.patch.object(ag.sysinfo, "make_room"):
+            content, calls, final = a._ollama_call("http://x/api/chat", {"role": "system", "content": "sen"}, uzun, [])
+        self.assertEqual(final.get("done_reason"), "repeat")
+        self.assertEqual(content.count("export_stl"), 1)
+        self.assertLess(akis.okunan, len(parcalar) // 5)  # 50 kopyanın hepsini beklemedi
+        self.assertIn("tekrar", cb.text)
+        tahmin = ag.estimate_tokens(gonderilen["messages"][1:], len("sen") + 2)
+        self.assertLessEqual(gonderilen["options"]["num_predict"] + tahmin, 12288 + 1)
+        self.assertGreaterEqual(gonderilen["options"]["num_predict"], ag.REPLY_RESERVE)
+
+
 if __name__ == "__main__":
     unittest.main()
