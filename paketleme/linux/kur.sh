@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
-# YENİ NESİL CAFER — Linux kurulumu (internet gerekmez)
-# Paketin içinde her şey var: taşınabilir Python (kütüphaneleri kurulu), Ollama ve temel model.
-# Programı ~/.local/share/yeni-nesil-cafer-app'e kopyalar, uygulama menüsüne ve masaüstüne kısayol ekler, temel modeli kurar.
+# YENİ NESİL CAFER — Linux kurulumu
+# Tam paket: her şey içinde (taşınabilir Python ve kütüphaneleri, Ollama, temel model), internet gerekmez.
+# İnternet paketi (GitHub'daki küçük dosya): Python, kütüphaneler, Ollama ve tarayıcı resmi kaynaklarından indirilir
+# (asistan/bootstrap.py; sürümler sabit, SHA-256 doğrulamalı); modelleri ilk açılıştaki kurulum sihirbazı indirir.
+# Programı ~/.local/share/yeni-nesil-cafer-app'e kopyalar, uygulama menüsüne ve masaüstüne kısayol ekler.
 set -euo pipefail
 KAYNAK="$(cd "$(dirname "$0")" && pwd)/program"
 HEDEF="${XDG_DATA_HOME:-$HOME/.local/share}/yeni-nesil-cafer-app"
@@ -10,17 +12,42 @@ yaz() { printf '  \033[33m%s\033[0m\n' "$*"; }
 hata() { printf '\n  \033[31m%s\033[0m\n' "$*"; exit 1; }
 
 printf '\n  YENİ NESİL CAFER · kurulum\n\n'
-[ -x "$KAYNAK/python/bin/python3" ] || hata "Kurulum dosyaları eksik. Arşivi tamamen çıkarıp kur.sh'ı çıkan klasörden çalıştır."
+[ -f "$KAYNAK/main.py" ] || hata "Kurulum dosyaları eksik. Arşivi tamamen çıkarıp kur.sh'ı çıkan klasörden çalıştır."
+INTERNET=0
+[ -x "$KAYNAK/python/bin/python3" ] || INTERNET=1  # küçük paket: Python ve gerisi indirilecek
+PY_URL="@PY_URL_LINUX@"
+PY_SHA="@PY_SHA_LINUX@"
 
 # eski kurulumdan açık kalan program ya da Ollama varsa kapat
 pkill -f "^$HEDEF/" 2>/dev/null || true
 pkill -f "^$ESKI/" 2>/dev/null || true
 
 yaz "Program kopyalanıyor: $HEDEF"
-rm -rf "$HEDEF/.venv" "$HEDEF/python" "$HEDEF/ollama"  # eski sürümün kalıntıları
+if [ "$INTERNET" = 0 ]; then
+    rm -rf "$HEDEF/.venv" "$HEDEF/python" "$HEDEF/ollama"  # eski sürümün kalıntıları (tam paket yenilerini getirir)
+fi
 mkdir -p "$HEDEF"
 cp -a "$KAYNAK/." "$HEDEF/"
 PY="$HEDEF/python/bin/python3"
+
+if [ "$INTERNET" = 1 ]; then  # önce taşınabilir Python, sonra gerisini o indirir (kurulu olan yeniden inmez)
+    if [ "$(cat "$HEDEF/python/.surum" 2>/dev/null)" != "$PY_URL" ]; then
+        yaz "Python indiriliyor (~35 MB)…"
+        ARSIV="$HEDEF/kurulum/python.tar.gz"
+        mkdir -p "$HEDEF/kurulum"
+        if command -v curl >/dev/null; then
+            curl -fL --retry 5 --retry-delay 3 -C - -o "$ARSIV" "$PY_URL" || hata "Python indirilemedi. İnterneti denetleyip kur.sh'ı yeniden çalıştır."
+        else
+            wget -c -O "$ARSIV" "$PY_URL" || hata "Python indirilemedi. İnterneti denetleyip kur.sh'ı yeniden çalıştır."
+        fi
+        echo "$PY_SHA  $ARSIV" | sha256sum -c --quiet - || { rm -f "$ARSIV"; hata "Python doğrulanamadı (SHA-256); kur.sh'ı yeniden çalıştır."; }
+        rm -rf "$HEDEF/python"
+        tar -xzf "$ARSIV" -C "$HEDEF" && rm -f "$ARSIV"
+        echo "$PY_URL" > "$HEDEF/python/.surum"
+    fi
+    (cd "$HEDEF" && "$PY" -m asistan.bootstrap "$HEDEF") \
+        || hata "Kurulum yarım kaldı. İnterneti denetleyip kur.sh'ı yeniden çalıştır; inenler korunur, kaldığı yerden sürer."
+fi
 
 yaz "Program denetleniyor…"
 QT_QPA_PLATFORM=offscreen "$PY" -c "import PySide6.QtWidgets, httpx, anthropic, ddgs, bs4, keyring, psutil" 2>/dev/null \
@@ -88,4 +115,4 @@ fi
 
 echo
 yaz "Kurulum bitti. Uygulama menüsünden ya da masaüstünden “YENİ NESİL CAFER”i aç."
-yaz "İlk açılışta sistemini tarayıp sana uygun modelleri önerecek."
+yaz "İlk açılışta sistemini tarayıp sana uygun modelleri önerecek (internet paketinde modeller o zaman iner)."

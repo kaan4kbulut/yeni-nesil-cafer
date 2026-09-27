@@ -1,6 +1,8 @@
-﻿# YENİ NESİL CAFER — Windows kurulumu (internet gerekmez)
-# Paketin içinde her şey var: taşınabilir Python (kütüphaneleri kurulu), Ollama ve temel model.
-# Programı %LOCALAPPDATA%\YeniNesilCafer'e kopyalar, masaüstü ve Başlat menüsü kısayolu oluşturur, temel modeli kurar.
+﻿# YENİ NESİL CAFER — Windows kurulumu
+# Tam paket: her şey içinde (taşınabilir Python ve kütüphaneleri, Ollama, temel model), internet gerekmez.
+# İnternet paketi (GitHub'daki küçük dosya): Python, kütüphaneler, Ollama ve tarayıcı resmi kaynaklarından indirilir
+# (asistan\bootstrap.py; sürümler sabit, SHA-256 doğrulamalı); modelleri ilk açılıştaki kurulum sihirbazı indirir.
+# Programı %LOCALAPPDATA%\YeniNesilCafer'e kopyalar, masaüstü ve Başlat menüsü kısayolu oluşturur.
 $ErrorActionPreference = "Stop"
 $Kaynak = Join-Path (Split-Path -Parent $MyInvocation.MyCommand.Path) "program"
 $Hedef = Join-Path $env:LOCALAPPDATA "YeniNesilCafer"
@@ -25,9 +27,12 @@ Write-Host ""
 Write-Host "  YENİ NESİL CAFER · kurulum" -ForegroundColor White
 Write-Host ""
 
-if (-not (Test-Path (Join-Path $Kaynak "python\pythonw.exe"))) {
+if (-not (Test-Path (Join-Path $Kaynak "main.py"))) {
     Hata "Kurulum dosyaları eksik. Zip dosyasını tamamen çıkarıp Kur.bat'ı çıkan klasörden çalıştır."
 }
+$Internet = -not (Test-Path (Join-Path $Kaynak "python\pythonw.exe"))  # küçük paket: Python ve gerisi indirilecek
+$PyUrl = "@PY_URL_WINDOWS@"
+$PySha = "@PY_SHA_WINDOWS@"
 
 # eski kurulumdan açık kalan program ya da Ollama varsa dosyalar kilitli olur: kapat
 Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($_.Path.StartsWith($Hedef, "OrdinalIgnoreCase") -or
@@ -35,10 +40,12 @@ Get-Process -ErrorAction SilentlyContinue | Where-Object { $_.Path -and ($_.Path
 Start-Sleep -Milliseconds 500
 
 Yaz "Program kopyalanıyor: $Hedef"
-Yaz "(yaklaşık 4 GB, diskine göre 1-3 dakika sürebilir)"
-foreach ($eski in @(".venv", "python", "ollama")) {  # eski sürümün kalıntıları
-    $yol = Join-Path $Hedef $eski
-    if (Test-Path $yol) { Remove-Item $yol -Recurse -Force }
+if (-not $Internet) {
+    Yaz "(yaklaşık 4 GB, diskine göre 1-3 dakika sürebilir)"
+    foreach ($eski in @(".venv", "python", "ollama")) {  # eski sürümün kalıntıları (tam paket yenilerini getirir)
+        $yol = Join-Path $Hedef $eski
+        if (Test-Path $yol) { Remove-Item $yol -Recurse -Force }
+    }
 }
 New-Item -ItemType Directory -Force -Path $Hedef | Out-Null
 robocopy $Kaynak $Hedef /E /NFL /NDL /NJH /NJS /NC /NS /NP /R:2 /W:1 | Out-Null
@@ -48,6 +55,36 @@ $pyw = Join-Path $Hedef "python\pythonw.exe"
 $py = Join-Path $Hedef "python\python.exe"
 $ollama = Join-Path $Hedef "ollama\ollama.exe"
 $main = Join-Path $Hedef "main.py"
+
+if ($Internet) {  # önce taşınabilir Python, sonra gerisini o indirir (kurulu olan yeniden inmez)
+    $surum = Join-Path $Hedef "python\.surum"
+    if (-not ((Test-Path $surum) -and ((Get-Content $surum -Raw).Trim() -eq $PyUrl))) {
+        Yaz "Python indiriliyor (~25 MB)…"
+        $klasor = Join-Path $Hedef "kurulum"
+        New-Item -ItemType Directory -Force -Path $klasor | Out-Null
+        $arsiv = Join-Path $klasor "python.tar.gz"
+        $curl = Join-Path $env:SystemRoot "System32\curl.exe"  # Windows 10 (1803) ve 11'de hazır gelir
+        if (Test-Path $curl) { & $curl -fL --retry 5 --retry-delay 3 -C - -o $arsiv $PyUrl }
+        else { Invoke-WebRequest $PyUrl -OutFile $arsiv -UseBasicParsing }
+        if (-not (Test-Path $arsiv) -or (Get-FileHash $arsiv -Algorithm SHA256).Hash.ToLower() -ne $PySha) {
+            Remove-Item $arsiv -ErrorAction SilentlyContinue
+            Hata "Python indirilemedi ya da doğrulanamadı. İnterneti denetleyip Kur.bat'ı yeniden çalıştır."
+        }
+        $eskiPy = Join-Path $Hedef "python"
+        if (Test-Path $eskiPy) { Remove-Item $eskiPy -Recurse -Force }
+        & (Join-Path $env:SystemRoot "System32\tar.exe") -xzf $arsiv -C $Hedef
+        if (-not (Test-Path $py)) { Hata "Python açılamadı (tar.exe). Windows 10 (1803) ya da daha yeni bir sürüm gerekir." }
+        Remove-Item $arsiv -ErrorAction SilentlyContinue
+        Set-Content -Path $surum -Value $PyUrl -Encoding ascii
+    }
+    # indirmeler: çıktı (ilerleme) doğrudan bu pencereye; PowerShell'in stderr işlemesine girmesin diye ayrı süreç
+    $env:PYTHONUTF8 = "1"
+    $p = Start-Process -FilePath $py -ArgumentList @("-m", "asistan.bootstrap", "`"$Hedef`"") -WorkingDirectory $Hedef `
+        -NoNewWindow -Wait -PassThru
+    if ($p.ExitCode -ne 0) {
+        Hata "Kurulum yarım kaldı. İnterneti denetleyip Kur.bat'ı yeniden çalıştır; inenler korunur, kaldığı yerden sürer."
+    }
+}
 
 Yaz "Program denetleniyor…"
 $env:QT_QPA_PLATFORM = "offscreen"
@@ -100,5 +137,5 @@ Write-Host ""
 if (Test-Path $Eski) {  # eski adlı kurulum (Yerel Asistan): ayarlar ve sohbetler program açılınca yeni ada taşınır
     Remove-Item $Eski -Recurse -Force -ErrorAction SilentlyContinue
 }
-Yaz "Kurulum bitti. YENİ NESİL CAFER açılıyor; ilk açılışta sistemini tarayıp sana uygun modelleri önerecek."
+Yaz "Kurulum bitti. YENİ NESİL CAFER açılıyor; ilk açılışta sistemini tarayıp sana uygun modelleri önerecek (internet paketinde modeller o zaman iner)."
 Start-Process $pyw -ArgumentList ('-X utf8 "' + $main + '"') -WorkingDirectory $Hedef

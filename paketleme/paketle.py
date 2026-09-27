@@ -12,19 +12,21 @@ Kurulum hiçbir şey indirmez. Bunlar ilk paketlemede bir kez indirilip ~/.cache
 """
 
 import hashlib
+import io
 import os
 import re
 import shutil
 import subprocess
 import sys
 import tarfile
+import time
 import urllib.request
 import zipfile
 from pathlib import Path
 
 PROJE = Path(__file__).resolve().parent.parent
 PAKET = Path(__file__).resolve().parent
-ATLA = {".venv", "__pycache__", ".git", "paketleme", ".pytest_cache", "modeller", "python", "ollama",
+ATLA = {".venv", "__pycache__", ".git", "paketleme", ".pytest_cache", ".ruff_cache", "modeller", "python", "ollama",
         "ajan-kutuphaneleri", "tarayici", "dist"}  # dist: bulut sunucusu paketi (kuruluma girmez)
 # Playwright'ın Chromium'u hangi sistem için indirileceği (Linux'tan Windows sürümü de indirilebilir)
 PW_PLATFORM = {"windows": "win64", "linux": ""}
@@ -36,7 +38,10 @@ if not ONBELLEK.exists() and (Path.home() / ".cache" / "yerel-asistan-paketleme"
 PY_SURUM, PY_ETIKET = "3.12.14", "20260901"
 PY_URL = ("https://github.com/astral-sh/python-build-standalone/releases/download/{etiket}/"
           "cpython-{surum}+{etiket}-{hedef}-install_only_stripped.tar.gz")
-OLLAMA_SURUM = "v0.34.4"
+# internet paketinin kurucusu Python arşivini bu özetle doğrular (kur.sh / kur.ps1'e paketlemede yazılır)
+PY_SHA = {"windows": "7c45c9622400d578709a9b2cddbe8124cc21d382409d9f13406d706d28e31b14",
+          "linux": "72748da13197c1fb161e3afeef20a6a385ff24f2165e6e2758e47008e7faba4c"}
+OLLAMA_SURUM = "v0.34.4"  # asistan/bootstrap.py'deki sürüm ve özetlerle aynı olmalı
 OLLAMA_URL = "https://github.com/ollama/ollama/releases/download/{surum}/{dosya}"
 PLATFORM = {
     "windows": {"py": "x86_64-pc-windows-msvc", "pip": ["win_amd64"],
@@ -73,7 +78,9 @@ def calisma_zamani(sistem: str) -> Path:
     shutil.rmtree(kok, ignore_errors=True)
     kok.mkdir(parents=True)
 
-    arsiv = indir(PY_URL.format(etiket=PY_ETIKET, surum=PY_SURUM, hedef=ayar["py"]))
+    arsiv = indir(py_url(sistem))
+    if hashlib.sha256(arsiv.read_bytes()).hexdigest() != PY_SHA[sistem]:
+        sys.exit(f"{arsiv.name}: SHA-256 PY_SHA ile tutmuyor (sürüm değiştiyse PY_SHA'yı da güncelle)")
     with tarfile.open(arsiv) as t:
         t.extractall(kok, filter="tar")  # python/ klasörü
 
@@ -159,6 +166,40 @@ def calisma_zamani_dosyalari(sistem: str):
             yield path, Path("program") / path.relative_to(kok)
 
 
+def py_url(sistem: str) -> str:
+    return PY_URL.format(etiket=PY_ETIKET, surum=PY_SURUM, hedef=PLATFORM[sistem]["py"])
+
+
+def betik(path: Path) -> bytes:
+    """Kurulum betiği; internet kurulumunun Python adresi ve SHA-256 yer tutucuları doldurulur."""
+    ps1 = path.suffix == ".ps1"
+    text = path.read_text(encoding="utf-8-sig" if ps1 else "utf-8")
+    for sistem in ("linux", "windows"):
+        text = text.replace(f"@PY_URL_{sistem.upper()}@", py_url(sistem)).replace(f"@PY_SHA_{sistem.upper()}@",
+                                                                                   PY_SHA[sistem])
+    return text.encode("utf-8-sig" if ps1 else "utf-8")  # PowerShell 5.1 BOM'suz dosyayı ANSI sanar
+
+
+def kilit(sistem: str) -> dict[str, bytes]:
+    """İnternet kurulumunun indireceği kütüphane listeleri: tam paketteki kurulu sürümler birebir (denenmiş bileşim)."""
+    import importlib.metadata as md
+
+    def liste(klasor: Path) -> bytes:
+        surumler: dict[str, tuple] = {}
+        for d in md.distributions(path=[str(klasor)]):
+            ad = d.metadata["Name"] or ""
+            if not ad or ad.lower() in ("pip", "setuptools", "wheel"):
+                continue
+            anahtar = tuple(int(x) if x.isdigit() else 0 for x in d.version.replace("-", ".").split("."))
+            if ad.lower() not in surumler or anahtar > surumler[ad.lower()][0]:  # aynı paketin eski izi kalmışsa yenisi
+                surumler[ad.lower()] = (anahtar, f"{ad}=={d.version}")
+        return ("\n".join(v[1] for _, v in sorted(surumler.items())) + "\n").encode()
+
+    kok = calisma_zamani(sistem)
+    return {"program-kutuphaneleri.txt": liste(kok / "python" / PLATFORM[sistem]["site"]),
+            "ajan-kutuphaneleri.txt": liste(ajan_kutuphaneleri(sistem))}
+
+
 def paket_klasoru() -> Path:
     """Paketler masaüstünde tek klasörde toplanır (kullanıcı masaüstünün dağılmasını istemedi, 2026-09-27)."""
     return masaustu() / "YENİ NESİL CAFER" / "Kurulum Paketleri"
@@ -226,17 +267,51 @@ def dikte_modeli() -> list[tuple[Path, Path]]:
             for f in sorted(MODEL_DIR.rglob("*")) if f.is_file() and ".cache" not in f.parts]
 
 
+def internet_paketleri(cikti: Path, kok: str, benioku: Path, surum_adi: str) -> list[Path]:
+    """GitHub'daki küçük kurulum dosyaları (birkaç MB): yalnızca kod, kurulum betikleri ve kütüphane listeleri; Python,
+    kütüphaneler, Ollama ve tarayıcıyı kurucu indirir (asistan/bootstrap.py). Kullanıcının isteği: tek dosya, 2 GB'ın
+    çok altında, gereken her şey kurulumda internetten (2026-09-27)."""
+    zip_yolu = cikti / f"{surum_adi}-Windows-internet.zip"
+    with zipfile.ZipFile(zip_yolu, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for src, rel in program_dosyalari():
+            z.write(src, f"{kok}/{rel.as_posix()}")
+        for ad, veri in kilit("windows").items():
+            z.writestr(f"{kok}/program/kurulum/{ad}", veri)
+        for name in ("Kur.bat", "Kaldir.bat", "kur.ps1"):
+            z.writestr(f"{kok}/{name}", betik(PAKET / "windows" / name))
+        z.write(benioku, f"{kok}/BENIOKU.txt")
+    tar_yolu = cikti / f"{surum_adi}-Linux-internet.tar.gz"
+    with tarfile.open(tar_yolu, "w:gz", compresslevel=9) as t:
+        for src, rel in program_dosyalari():
+            t.add(src, f"{kok}/{rel.as_posix()}", recursive=False)
+        ekler = {f"program/kurulum/{ad}": (veri, 0o644) for ad, veri in kilit("linux").items()}
+        ekler.update({name: (betik(PAKET / "linux" / name), 0o755) for name in ("kur.sh", "kaldir.sh")})
+        for ad, (veri, kip) in ekler.items():
+            bilgi = tarfile.TarInfo(f"{kok}/{ad}")
+            bilgi.size, bilgi.mode, bilgi.mtime = len(veri), kip, int(time.time())
+            t.addfile(bilgi, io.BytesIO(veri))
+        t.add(benioku, f"{kok}/BENIOKU.txt")
+    return [zip_yolu, tar_yolu]
+
+
 def main():
+    """Varsayılan: tam paketler + internet paketleri. --internet: yalnızca internet paketleri (saniyeler);
+    --tam: yalnızca tam paketler; --modelsiz: tam paket temel model ve dikte modeli olmadan."""
     sys.path.insert(0, str(PROJE))
     from asistan import SURUM_ADI, __version__
 
-    model_dosyalari = [] if "--modelsiz" in sys.argv else gomulu_model() + dikte_modeli()
     cikti = paket_klasoru() / SURUM_ADI
     cikti.mkdir(parents=True, exist_ok=True)
     kok = SURUM_ADI
     benioku = cikti / "BENIOKU.txt"  # dosya adları ve sürüm her pakette doğru yazsın
     benioku.write_text((PAKET / "BENIOKU.txt").read_text(encoding="utf-8").replace("@PAKET@", SURUM_ADI)
                        .replace("@SURUM@", __version__), encoding="utf-8")
+    uretilen = [] if "--tam" in sys.argv else internet_paketleri(cikti, kok, benioku, SURUM_ADI)
+    if "--internet" in sys.argv:
+        for p in uretilen:
+            print(f"{p}  ({p.stat().st_size / 1e6:.1f} MB)")
+        return
+    model_dosyalari = [] if "--modelsiz" in sys.argv else gomulu_model() + dikte_modeli()
 
     zip_yolu = cikti / f"{SURUM_ADI}-Windows.zip"
     with zipfile.ZipFile(zip_yolu, "w", zipfile.ZIP_DEFLATED, compresslevel=1) as z:
@@ -245,7 +320,7 @@ def main():
         for src, rel in model_dosyalari:  # model dosyası zaten sıkıştırılmış: olduğu gibi (hızlı)
             z.write(src, f"{kok}/{rel.as_posix()}", compress_type=zipfile.ZIP_STORED)
         for name in ("Kur.bat", "Kaldir.bat", "kur.ps1"):
-            z.write(PAKET / "windows" / name, f"{kok}/{name}")
+            z.writestr(f"{kok}/{name}", betik(PAKET / "windows" / name))
         z.write(benioku, f"{kok}/BENIOKU.txt")
 
     tar_yolu = cikti / f"{SURUM_ADI}-Linux.tar.gz"
@@ -253,11 +328,16 @@ def main():
         for src, rel in [*program_dosyalari(), *calisma_zamani_dosyalari("linux"), *model_dosyalari]:
             t.add(src, f"{kok}/{rel.as_posix()}", recursive=False)
         for name in ("kur.sh", "kaldir.sh"):
-            t.add(PAKET / "linux" / name, f"{kok}/{name}")
+            veri = betik(PAKET / "linux" / name)
+            bilgi = tarfile.TarInfo(f"{kok}/{name}")
+            bilgi.size, bilgi.mode, bilgi.mtime = len(veri), 0o755, int(time.time())
+            t.addfile(bilgi, io.BytesIO(veri))
         t.add(benioku, f"{kok}/BENIOKU.txt")
 
     for p in (zip_yolu, tar_yolu):
         print(f"{p}  ({p.stat().st_size / 1e9:.2f} GB)")
+    for p in uretilen:
+        print(f"{p}  ({p.stat().st_size / 1e6:.1f} MB)")
 
 
 if __name__ == "__main__":
