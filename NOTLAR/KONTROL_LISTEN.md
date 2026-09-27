@@ -5,3 +5,8 @@
 ## K1 — Çekirdek / arayüz ayrımı (2026-09-28 00:08)
 - [ ] Masaüstü uygulamasını aç: sohbet, dosya aracı, komut çalıştırma eskisi gibi mi?
 - [ ] K2: 7 madde açık kaldı; NOTLAR/ altındaki K2 notunu oku, gerekirse `/asama K2` ile bitirt.
+
+## K2 — Donanım profili ve kademe (2026-09-28 00:09)
+- [ ] Durum çubuğundaki kademe laptop'unla uyuşuyor mu? (NOTLAR/<tarih>-K2.md ve .cafer/profil.json)
+- [ ] NOTLAR/MODELLER_ONERI.md'ye bak, ayar/modeller.json'daki geçici seçimleri beğenmediysen değiştir, "gecici" alanını sil.
+- [ ] K3: 8 madde açık kaldı; NOTLAR/ altındaki K3 notunu oku, gerekirse `/asama K3` ile bitirt.
