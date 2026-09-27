@@ -35,3 +35,8 @@
 ## K7 — Ölçüm ve sınav (2026-09-28 00:09)
 - [ ] Modeller sekmesinde tok/sn ve başarı oranları var mı? 'Listeyi yenile' modeller.json'u güncelliyor mu?
 - [ ] K8: 8 madde açık kaldı; NOTLAR/ altındaki K8 notunu oku, gerekirse `/asama K8` ile bitirt.
+
+## K8 — Sunucu modu (2026-09-28 00:10)
+- [ ] Telefonu aynı Wi-Fi'ye bağla, NOTLAR/<tarih>-K8.md'deki adresi aç, token'ı gir, görev başlat.
+- [ ] VPS'e SSH ile gir, docs/SUNUCU_KURULUM.md başındaki tek satırı çalıştır.
+- [ ] K9: 6 madde açık kaldı; NOTLAR/ altındaki K9 notunu oku, gerekirse `/asama K9` ile bitirt.
