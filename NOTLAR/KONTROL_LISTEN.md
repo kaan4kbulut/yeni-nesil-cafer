@@ -21,3 +21,8 @@
 - [ ] Programa yaz: 'Çalışma klasöründeki .txt dosyalarını say, en büyüğünü özetle.' Plan görünüyor mu?
 - [ ] Adım 1 bitince programı kapat/aç, 'devam et' de → kaldığı yerden sürüyor mu?
 - [ ] K5: 9 madde açık kaldı; NOTLAR/ altındaki K5 notunu oku, gerekirse `/asama K5` ile bitirt.
+
+## K5 — Yetenek kayıt defteri (2026-09-28 00:09)
+- [ ] Yetenekler sekmesinde saat_dilimi aktif mi? 'İstanbul'da saat kaç?' deyince planlayıcı onu seçiyor mu?
+- [ ] K4'teki .txt görevini tekrar ver → adımlarda yetenek adları görünüyor mu?
+- [ ] K6: 9 madde açık kaldı; NOTLAR/ altındaki K6 notunu oku, gerekirse `/asama K6` ile bitirt.
