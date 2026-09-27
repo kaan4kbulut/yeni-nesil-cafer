@@ -685,6 +685,25 @@ class ToolError(Exception):
     pass
 
 
+def unescape_code(code: str) -> str:
+    """Bazı yerel modeller (qwen2.5:14b) kodu gerçek satır sonu yerine düz metin "\\n" ile gönderir: kod tek satır
+    olur ve her denemede SyntaxError verir (bir grup görevi bu yüzden hiçbir şey üretemedi, 2026-09-27). Kod
+    tek satırsa, olduğu gibi derlenmiyorsa ve kaçışlar çözülünce derleniyorsa çözülmüş hali döner; yoksa aynen."""
+    if "\n" in code or "\\n" not in code:
+        return code
+    try:
+        compile(code, "<kod>", "exec")
+        return code  # zaten geçerli (ör. print("a\\nb"))
+    except (SyntaxError, ValueError):
+        pass
+    try:  # Türkçe harfler latin-1'e sığmaz: önce \\uXXXX olur, çözümde geri gelir
+        fixed = code.encode("latin-1", "backslashreplace").decode("unicode_escape")
+        compile(fixed, "<kod>", "exec")
+    except (SyntaxError, ValueError, UnicodeError):
+        return code
+    return fixed
+
+
 def _fit_args(handler, args) -> dict:
     """Küçük modellerin hatalı çağrılarını düzeltir: bilinmeyen argümanları atar, "5" → 5 çevirir."""
     import inspect
@@ -1058,7 +1077,7 @@ class Toolbox:
 
     def _tool_run_python(self, code: str, purpose: str = "") -> str:
         with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
-            f.write(code)
+            f.write(unescape_code(code))
             script = f.name
         try:
             return self._run_process([python_exe(), script], python=True)

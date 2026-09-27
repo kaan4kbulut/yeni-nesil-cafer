@@ -37,7 +37,9 @@ class TanitimTesti(unittest.TestCase):
 
     def test_dugme_ozelligi_acar(self):
         acilan = []
-        dlg = tour.TourDialog(tour.NEWS[tour.__version__], acilan.append)
+        # hata düzeltme sürümünün (ör. 2.3.1) kendi tanıtımı yok: bu sürüme kadarki en yeni tanıtım
+        son = max((v for v in tour.NEWS if tour._key(v) <= tour._key(tour.__version__)), key=tour._key)
+        dlg = tour.TourDialog(tour.NEWS[son], acilan.append)
         next(b for b in dlg.findChildren(QPushButton) if b.text() == "göster").click()
         self.assertEqual(acilan, ["_tour_media"])
 

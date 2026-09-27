@@ -132,6 +132,26 @@ class Mcp(unittest.TestCase):
         self.assertEqual(len([t for t in REGISTRY.external() if t.source == "mcp:ornek"]), 3)
 
 
+class KacisliKod(unittest.TestCase):
+    """run_python'a düz metin "\\n" ile gelen tek satırlık kod çözülür; geçerli kod olduğu gibi kalır."""
+
+    def test_cift_kacisli_kod_cozulur(self):
+        # qwen2.5:14b'nin gerçek çağrısından (2026-09-27): satır sonu yok, 'nun kesme işareti kaçışlı
+        kod = (r"import math\n\n# Tabla sınırları\nhacim = (260, 260, 260)\n"
+               r"print(\'tabla\', hacim, math.pi)  # Build volume\'nun ortası\n" + r'print(\"a\\nb\")')
+        cozulmus = tools.unescape_code(kod)
+        self.assertIn("\n# Tabla sınırları\n", cozulmus)  # Türkçe harfler bozulmaz
+        self.assertIn('print("a\\nb")', cozulmus)  # dizgi içindeki \\n dizgide kalır
+        compile(cozulmus, "<t>", "exec")
+        box = tools.Toolbox(tempfile.mkdtemp())
+        sonuc = box.run("run_python", {"code": kod})
+        self.assertIn("tabla (260, 260, 260) 3.14", sonuc)
+
+    def test_gecerli_kod_degismez(self):
+        for kod in ('print("a\\nb")', "x = 1\nprint(x)", "print(1)", "bozuk kod \\n ("):
+            self.assertEqual(tools.unescape_code(kod), kod)
+
+
 class CagriIpucu(unittest.TestCase):
     def test_api_404_dogru_kullanimi_gosterir(self):
         from unittest import mock

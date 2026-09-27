@@ -38,6 +38,8 @@ SÜRÜM 2.3.1'DE DÜZELTİLDİ
   - Grup çalışması takılmıyor: yerel model aynı metni tekrar tekrar yazmaya başlarsa (bir görevde aynı
     kodu 20 kez yazıp dakikalarca sürdürmüştü) program bunu fark edip hemen durdurur ve modeli işe
     döndürür. Bu yüzden sohbet de dakikalarca bekliyordu; artık beklemez.
+  - Bazı yerel modeller Python kodunu tek satırda, satır sonlarını "\n" yazısıyla gönderiyordu; kod her
+    seferinde hata verdiği için grup görevi hiçbir şey üretemiyordu. Program artık bunu düzeltip çalıştırır.
   - Cevap modelin bağlamına sığacak kadar uzun tutulur; bağlam taşınca modelin talimatını unutup
     anlamsız yazması engellendi.
   - Yanlış "model ekran kartına sığmadı" uyarısı giderildi: küçük hafıza (gömme) modelinin bir kısmının
