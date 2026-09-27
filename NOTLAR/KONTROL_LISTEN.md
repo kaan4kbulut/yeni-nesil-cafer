@@ -26,3 +26,8 @@
 - [ ] Yetenekler sekmesinde saat_dilimi aktif mi? 'İstanbul'da saat kaç?' deyince planlayıcı onu seçiyor mu?
 - [ ] K4'teki .txt görevini tekrar ver → adımlarda yetenek adları görünüyor mu?
 - [ ] K6: 9 madde açık kaldı; NOTLAR/ altındaki K6 notunu oku, gerekirse `/asama K6` ile bitirt.
+
+## K6 — Hata analizi ve kendini genişletme (2026-09-28 00:09)
+- [ ] Bir yeteneğin pip paketini kaldır, o yeteneği kullan → 'eksik bağımlılık, kurayım mı?' sormalı; onaylayınca kurup devam etmeli.
+- [ ] Yeteneği olmayan bir iş iste ('şu PDF'in tablolarını Excel'e çıkar') → eksik yeteneği söyleyip üretme onayı istiyor mu? Üretip görevi bitiriyor mu?
+- [ ] K7: 6 madde açık kaldı; NOTLAR/ altındaki K7 notunu oku, gerekirse `/asama K7` ile bitirt.
