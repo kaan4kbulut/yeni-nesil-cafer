@@ -382,11 +382,11 @@ class ChatsMixin:
             self.agent_panel.refresh()
         if index == 4:
             self.library_panel.refresh()  # ajanlar iş sırasında kütüphane kurmuş olabilir
-        if index == 0:
-            self.center_stack.setCurrentIndex(0)
-        elif index == 1:
+        if index == 1:
             self.center_stack.setCurrentIndex(1)
             self._refresh_tasks()
+        else:  # sohbet, ajanlar, API'ler, kütüphaneler: ortada sohbet (grup sayfası takılı kalmasın)
+            self.center_stack.setCurrentIndex(0)
 
     def _open_item(self, conv_id: str):
         if self.worker or not conv_id:

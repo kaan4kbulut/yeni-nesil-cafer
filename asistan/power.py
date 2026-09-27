@@ -128,8 +128,12 @@ def saving(settings) -> bool:
 
 
 def num_ctx(settings) -> int:
-    """Ollama'ya gönderilecek bağlam: hafif modda en çok 8K (uzun geçmiş pilde her adımı dakikalarca bekletir)."""
-    return min(settings.ollama_num_ctx, BATTERY_CTX) if saving(settings) else settings.ollama_num_ctx
+    """Ollama'ya gönderilecek bağlam: hafif modda en çok 8K (uzun geçmiş pilde her adımı dakikalarca bekletir),
+    hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
+    from .ctxprobe import FLOOR_CTX
+
+    ctx = min(settings.ollama_num_ctx, BATTERY_CTX) if saving(settings) else settings.ollama_num_ctx
+    return max(ctx, FLOOR_CTX)
 
 
 def label(settings) -> str:

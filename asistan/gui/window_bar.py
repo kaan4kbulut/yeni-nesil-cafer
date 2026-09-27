@@ -125,7 +125,8 @@ class BarMixin:
         used = f"{self.last_context / 1000:.1f}K" if self.last_context else "0"
         if self.provider == "ollama":
             report = getattr(getattr(self, "right", None), "models", None) and self.right.models.gpu_report
-            where = "" if report is None else f" · {'' if report.ok else '⚠ '}{report.card or report.text}"
+            where = "" if report is None else f" · {'' if report.ok or report.card.startswith('⚠') else '⚠ '}" \
+                                              f"{report.card or report.text}"
             self.context_label.setToolTip("" if report is None or report.ok else f"{report.text}\n{report.fix}")
             self.context_label.setText(f"bağlam {used} / {power.num_ctx(self.settings) // 1024}K{where}")
         else:
@@ -239,9 +240,9 @@ class BarMixin:
         free = self._free_model()
         if kind == "offline" and free:
             return f"🔓 {free.split('/')[-1]}"
-        chosen = s.defaults.get(kind, "")
-        if "|" in chosen:
-            return chosen.split("|", 1)[1].split("/")[-1]
+        chosen = roster.default(s, kind)  # anahtarsız bağlantı ya da hafif modda büyük model: geçersiz, otomatiğe düşer
+        if chosen is not None:
+            return chosen.model.split("/")[-1]
         pool = [c for c in roster.candidates(s) if c.local == (kind == "offline") and "tools" in c.caps
                 and not model_updates.is_uncensored(c.model)]
         if pool:

@@ -358,11 +358,17 @@ class RunMixin:
         model = self.settings.ollama_model
         if self.worker or (self.task_worker and self.task_worker.isRunning()):
             return  # çalışan bir iş bitince yeniden denenir
+        from .. import gpu
+
+        if gpu.fault():
+            return  # bozuk kartta ölçülmez (ölçüm yanıltır); bilgisayar yeniden başlayınca ölçülür
         vram = ctxprobe.gpu_total_mib()
         key = ctxprobe.probe_key(model, vram)
-        if key in self.settings.ctx_probe:
-            self._apply_context(self.settings.ctx_probe[key], measured=False)
+        cached = self.settings.ctx_probe.get(key)
+        if cached and cached.get("ctx", 0) >= min(ctxprobe.FLOOR_CTX, cached.get("max") or ctxprobe.FLOOR_CTX):
+            self._apply_context(cached, measured=False)
             return
+        self.settings.ctx_probe.pop(key, None)  # eski, talimatın sığmadığı ölçüm (ör. bozuk kartta 2048): yeniden
         self.probing = True
         self.ctx_label.setText("bağlam ölçülüyor…")
         self.ctx_label.show()
@@ -385,7 +391,7 @@ class RunMixin:
     def _apply_context(self, result: dict, measured: bool):
         # en fazla 32K: daha büyüğü uzun sohbetlerde her adımı yavaşlatıyor ve ekran kartında uzman modellere
         # (görme, kod) yer bırakmıyordu; model geçişlerinde yeniden yükleme gerekiyordu
-        old, new = self.settings.ollama_num_ctx, min(result["ctx"], CTX_CAP)
+        old, new = self.settings.ollama_num_ctx, max(min(result["ctx"], CTX_CAP), ctxprobe.FLOOR_CTX)
         self.settings.ollama_num_ctx = new
         self.settings.save()
         self._update_context_label()

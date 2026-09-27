@@ -281,8 +281,9 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         bl.setContentsMargins(14, 8, 8, 8)
         self.banner_text = QLabel()
         self.banner_text.setWordWrap(True)
-        copy = QPushButton("komutu kopyala", objectName="smallButton")
-        copy.clicked.connect(lambda: QApplication.clipboard().setText(FIX_COMMAND))
+        self.banner_fix = FIX_COMMAND  # gpu.Report.fix: komutsa kopyalanır
+        self.banner_copy = copy = QPushButton("komutu kopyala", objectName="smallButton")
+        copy.clicked.connect(lambda: QApplication.clipboard().setText(self.banner_fix))
         close = QPushButton("✕", objectName="iconButton")
         close.clicked.connect(lambda: (self.banner.hide(), setattr(self, "banner_dismissed", True)))
         bl.addWidget(self.banner_text, 1)

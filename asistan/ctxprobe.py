@@ -11,6 +11,10 @@ import httpx
 
 STEP = 1024  # bağlam ölçüm hassasiyeti (token)
 MIN_CTX = 2048
+# Hiçbir zaman bunun altına inilmez: sistem talimatı + araç tanımları ~4.1–5.6K token (agent.lean). 2026-09-26:
+# ekran kartı bozukken ölçülen 2048 kalıcı ayar olmuştu; model talimatın yarısını göremiyordu. Karta tam sığmayan
+# model bir kısmıyla işlemciye taşar: yavaşlar ama doğru çalışır.
+FLOOR_CTX = 8192
 
 
 def gpu_total_mib() -> int | None:
@@ -51,18 +55,23 @@ def _fits(base_url: str, model: str, ctx: int, keep_alive: str = "2m") -> bool:
 
 def probe(base_url: str, model: str, progress=None) -> dict:
     """{"ctx": önerilen bağlam, "max": modelin sınırı, "gpu": tamamen GPU'ya sığıyor mu, "vram": MiB}."""
+    from .gpu import fault
+
+    broken = fault()
+    if broken:  # bozuk kartta ölçüm yanıltır ve kalıcı ayar olurdu
+        raise RuntimeError(f"ekran kartı {broken}; bağlam ölçümü bilgisayar yeniden başlayınca yapılır")
     vram = gpu_total_mib()
     limit = model_max_context(base_url, model)
     if vram is None:  # ekran kartı yok: ölçülecek bir şey yok
-        return {"ctx": min(8192, limit), "max": limit, "gpu": False, "vram": None}
+        return {"ctx": min(FLOOR_CTX, limit), "max": limit, "gpu": False, "vram": None}
 
     def say(text):
         if progress:
             progress(text)
 
     say(f"{MIN_CTX // 1024}K deneniyor")
-    if not _fits(base_url, model, MIN_CTX):
-        return {"ctx": MIN_CTX, "max": limit, "gpu": False, "vram": vram}
+    if not _fits(base_url, model, MIN_CTX):  # model karta hiç sığmıyor: en az talimatın sığacağı bağlam
+        return {"ctx": min(FLOOR_CTX, limit), "max": limit, "gpu": False, "vram": vram}
     lo, hi = MIN_CTX // STEP, limit // STEP  # lo sığıyor; hi'nin sığıp sığmadığı bilinmiyor
     if _fits(base_url, model, hi * STEP):
         lo = hi
@@ -74,6 +83,6 @@ def probe(base_url: str, model: str, progress=None) -> dict:
                 lo = mid
             else:
                 hi = mid
-    ctx = lo * STEP
+    ctx = max(lo * STEP, min(FLOOR_CTX, limit))
     _fits(base_url, model, ctx, keep_alive="30m")  # sohbet bu bağlamla başlasın, yeniden yükleme olmasın
     return {"ctx": ctx, "max": limit, "gpu": True, "vram": vram}

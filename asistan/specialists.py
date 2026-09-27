@@ -113,6 +113,12 @@ def _claude_available() -> bool:
     return bool(get_secret(ANTHROPIC_KEY) or os.environ.get("ANTHROPIC_API_KEY"))
 
 
+def _usable_connection(conn_id: str) -> bool:
+    from .connections import load_connections
+
+    return any(c.id == conn_id and c.usable for c in load_connections())
+
+
 def _cloud_fallback(role: str) -> tuple[str, str] | None:
     """Bağlı bulut sağlayıcılarından role uygun bir model (Gemini > OpenAI > diğer)."""
     from .connections import load_connections
@@ -120,7 +126,7 @@ def _cloud_fallback(role: str) -> tuple[str, str] | None:
     from . import catalog
 
     for c in load_connections():
-        if c.kind != "llm" or not c.enabled:
+        if c.kind != "llm" or not c.usable:  # anahtarsız / anahtarı reddedilmiş bağlantı uzman olamaz
             continue
         provider = catalog.by_host(c.base_url)
         if provider is None:
@@ -140,7 +146,8 @@ def resolve(settings: Settings, role: str) -> tuple[str, str] | None:
     chosen = settings.specialists.get(role) or (settings.defaults.get("code") if role == "code" else "")
     if chosen and "|" in chosen:
         provider, model = chosen.split("|", 1)
-        return provider, model
+        if not provider.startswith("api:") or _usable_connection(provider[4:]):
+            return provider, model  # seçilen bağlantı kullanılamıyorsa (anahtarsız) otomatiğe düşer
     local = ollama_models(settings)
     if role == "vision":
         found = [m for m in local if "vision" in _capabilities(settings.ollama_url, m)]
@@ -150,9 +157,15 @@ def resolve(settings: Settings, role: str) -> tuple[str, str] | None:
 
         from .model_updates import is_uncensored
 
+        from . import power
+
+        light = power.saving(settings)  # pil ya da ekran kartı hatası: küçük görme modeli (işlemcide büyük çok yavaş)
+
         def rank(m):  # sansürsüz modeller sona: kart yokken (yeni kurulum) adı önce gelen seçilmesin
-            size = re.search(r":(\d+(?:\.\d+)?)b", m)
-            return ("ocr" in m, is_uncensored(m), -(cards.tools_level(m) or 0), -(float(size.group(1)) if size else 0))
+            size = re.search(r":(?:e)?(\d+(?:\.\d+)?)b", m)
+            params = float(size.group(1)) if size else 0
+            big = light and params > power.BATTERY_MAX_PARAMS
+            return ("ocr" in m, is_uncensored(m), big, -(cards.tools_level(m) or 0), -params)
         found.sort(key=rank)
         if found:
             return "ollama", found[0]

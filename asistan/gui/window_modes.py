@@ -10,7 +10,6 @@ from ..agent import describe_error, list_ollama_models, settings_for
 
 from .dialogs import SettingsDialog
 from .icons import pixmap
-from .panels import FIX_COMMAND
 from .sidebar import run_in_background
 from .theme import C
 from .work import open_folder
@@ -161,13 +160,15 @@ class ModesMixin:
             self._set_conn(False, "ollama bağlı değil")
             return
         self._set_conn(True, "ollama bağlı")
-        slow = share is not None and share < 0.9
-        if slow and not self.banner_dismissed:
-            self.banner_text.setText(
-                f"⚠  Model işlemcide çalışıyor (%{share * 100:.0f} GPU), bu yüzden yanıtlar çok yavaş. "
-                f"Düzeltmek için terminalde:  {FIX_COMMAND}")
+        # ekran kartı sorunu: model paneliyle aynı teşhis (gpu.check) — sebep ve gerçekten işe yarayan çözüm
+        report = self.right.models.gpu_report
+        if report is not None and not report.ok and not self.banner_dismissed:
+            command = report.fix if report.fix.startswith("sudo ") else ""
+            self.banner_fix = command
+            self.banner_copy.setVisible(bool(command))
+            self.banner_text.setText(f"⚠  {report.text}" + (f"  Çözüm: {report.fix}" if report.fix else ""))
             self.banner.show()
-        elif not slow:
+        elif report is None or report.ok:
             self.banner.hide()
 
     # ---- güç: pildeyken hafif mod (power.py)

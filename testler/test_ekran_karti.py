@@ -142,6 +142,29 @@ class SurucuHatasi(unittest.TestCase):
             self.assertIn("ekran kartı hatası", power.label(s))
 
 
+class BaglamAltSiniri(unittest.TestCase):
+    """2026-09-26: bozuk kartta ölçülen 2048 kalıcı ayar olmuştu; talimat (~4–5.6K token) sığmıyordu."""
+
+    def test_bagllam_talimatin_sigacagi_kadardan_kucuk_olmaz(self):
+        from asistan import ctxprobe, power
+
+        with mock.patch.object(gpu, "fault", return_value=""), \
+                mock.patch.object(power, "state", return_value=power.PowerState()):
+            s = SimpleNamespace(power_mode="performans", ollama_num_ctx=2048)
+            self.assertEqual(power.num_ctx(s), ctxprobe.FLOOR_CTX)
+            s.ollama_num_ctx = 32768
+            self.assertEqual(power.num_ctx(s), 32768)
+
+    def test_bozuk_kartta_olcum_yapilmaz(self):
+        from asistan import ctxprobe
+
+        with mock.patch.object(gpu, "fault", return_value="sürücü sıfırlama istiyor"), \
+                mock.patch.object(ctxprobe, "_fits") as dene:
+            with self.assertRaises(RuntimeError):
+                ctxprobe.probe("http://localhost:11434", "gemma4:e2b")
+        dene.assert_not_called()
+
+
 class NvidiaCiktisi(unittest.TestCase):
     def test_kartlar_ve_surecler_okunur(self):
         kartlar = "NVIDIA GeForce RTX 5070 Ti Laptop GPU, 12227, GPU-a\n"
