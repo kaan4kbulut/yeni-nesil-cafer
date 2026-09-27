@@ -14,6 +14,12 @@ from .theme import C
 
 # sürüm → (başlık, açıklama, düğme yazısı, pencerede yapılacak iş: MainWindow metodu adı ya da "")
 NEWS = {
+    "2.4": [
+        ("3D yazıcı için süsler", "\"3D yazıcım için burgulu bir vazo yap\", \"girdaplı gece lambası\", \"yılbaşı süs "
+         "topu\", \"oturan kedi figürü\" gibi iste: vazo, abajur, lamba, süs topu, yıldız, kafes küre, resimden "
+         "kabartma ve litofan, siluet figür baskıya hazır STL/3MF olarak hazırlanır ve burada döndürüp incelenir.",
+         "göster", "_tour_media"),
+    ],
     "2.3": [
         ("Canlı önizleme", "Resim, video ya da 3D model hazırlanırken sağ panelde adımların altında canlı "
          "önizleme açılır; görsel iş yokken yer kaplamaz. Adımlar iş sürerken kendiliğinden aşağı kayar.", "göster", "_tour_media"),

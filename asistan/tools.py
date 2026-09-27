@@ -23,6 +23,7 @@ BUNDLED_LIBS = Path(__file__).resolve().parent.parent / "ajan-kutuphaneleri"
 PROGRAM_DIR = Path(__file__).resolve().parent.parent  # programın kurulu olduğu klasör (kodu burada)
 SECRET_FILES = {"anahtarlar.json"}  # API anahtarları: asistan bunları okuyamaz
 USER_LIBS = DATA_DIR / "python-kutuphaneleri"
+DECOR_SCRIPT = Path(__file__).resolve().parent / "decor3d.py"  # süs modelleri: ajan Python'unda ayrı süreçte
 AGENT_LIBRARIES = ("pandas, numpy, matplotlib (save charts to files), openpyxl (Excel), python-docx (Word), "
                    "python-pptx (PowerPoint), pypdf (PDF read), reportlab (PDF create), Pillow (images), "
                    "requests, httpx, beautifulsoup4, PyYAML, faster-whisper (speech to text), build123d (CAD: exact-size "
@@ -263,6 +264,50 @@ print(json.dumps({"size_mm": size, "volume_cm3": round(float(mesh.volume) / 1000
                   "triangles": len(mesh.faces), "bodies": bodies, "watertight": bool(mesh.is_watertight),
                   "fits_bed": fits, "problems": problems}))
 """
+
+# 3D süs modeli (decor3d.py): vazo, lamba, süs, kabartma, litofan, siluet — geometri test edilmiş koddan gelir,
+# model yalnızca şekli ve ölçüleri seçer. Yalnızca 3D / süs konuşulan sohbette ajana verilir (agent.run).
+DECOR_SPEC = REGISTRY.add({
+    "name": "make_decor_model",
+    "description": (
+        "Create a decorative 3D-printable model from tested geometry, without writing code. Use it for vases, lamps, "
+        "lampshades, ornaments, figurines and decorations instead of build123d; use exact-size CAD (use_skill "
+        "3d-baski) only for functional parts. Shapes: vazo (vase), abajur (lampshade with LED hole), girdap_lamba "
+        "(sphere lamp of spiral petals, LED hole), sus_topu (ornament ball with hanging loop), burgulu_kule (twisted "
+        "polygon tower), yildiz (star ornament), kafes_kure (lattice sphere), kabartma (relief plaque from an image), "
+        "litofan (lithophane panel from an image; the picture shows when lit from behind), litofan_lamba (image "
+        "wrapped around a cylinder lampshade), siluet (standing figure from a silhouette image; for an animal, person "
+        "or character first make the image with generate_image, prompt like 'solid black silhouette of a sitting "
+        "cat, side view, plain white background, simple shape'; if no image can be made, ask the user to attach a "
+        "picture — never write geometry code for a figure). Saves 3D/<name>.stl and .3mf, watertight, scaled down if "
+        "it does not fit the bed. To change the look, call again with other profile/pattern/sides/twist."),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "shape": {"type": "string", "enum": ["vazo", "abajur", "girdap_lamba", "sus_topu", "burgulu_kule", "yildiz",
+                                                 "kafes_kure", "kabartma", "litofan", "litofan_lamba", "siluet"]},
+            "name": {"type": "string", "description": "File name without extension, e.g. mavi_vazo"},
+            "height": {"type": "number", "description": "Height in mm (optional; good defaults per shape)"},
+            "width": {"type": "number", "description": "Largest diameter or width in mm (optional)"},
+            "profile": {"type": "string", "enum": ["klasik", "lale", "silindir", "koni", "kum_saati", "top", "sise"],
+                        "description": "Side curve of vazo/abajur: classic, tulip, cylinder, cone, hourglass, globe, bottle"},
+            "pattern": {"type": "string", "enum": ["yuvarlak", "yivli", "yildiz", "cokgen"],
+                        "description": "Cross-section of vazo/abajur: round, fluted, star, polygon"},
+            "sides": {"type": "integer", "description": "Number of flutes, star points, polygon corners or petals"},
+            "twist": {"type": "number", "description": "Twist in degrees from bottom to top, e.g. 90 (0 = straight)"},
+            "wall": {"type": "number", "description": "Wall thickness in mm (default 2, lamps 1.6); 0 = solid body "
+                     "for the slicer's vase mode"},
+            "hole": {"type": "number", "description": "LED / cable hole in the bottom in mm (lamps 40 by default; 0 = none)"},
+            "thickness": {"type": "number", "description": "siluet: figure thickness; kabartma: relief depth; "
+                          "litofan: maximum thickness; kafes_kure: strut size (mm)"},
+            "image": {"type": "string", "description": "Image file in the workspace (kabartma, litofan, litofan_lamba, siluet)"},
+            "invert": {"type": "boolean", "description": "Swap light and dark (kabartma: dark parts raised; siluet: "
+                       "light figure on a dark background)"},
+            "bed": {"type": "string", "description": "Printer build volume WxDxH in mm from memory, e.g. 260x260x260"},
+        },
+        "required": ["shape"],
+    },
+}, "yazar", ("süs modeli yap", "model hazır"), group="ozel")
 
 # Kurulum / kaldırma öncesi: sistemde zaten var mı? (salt okunur, onay gerekmez)
 CHECK_SPEC = REGISTRY.add({
@@ -813,6 +858,40 @@ class Toolbox:
                  f"Size: {x} × {y} × {z} mm; triangles: {r['triangles']}; bodies: {r['bodies']}"]
         lines += ["PROBLEMS:"] + [f"- {p}" for p in r["problems"]] if r["problems"] else \
             [f"OK: watertight, fits the {bed} mm bed; ready to slice."]
+        return "\n".join(lines)
+
+    def _tool_make_decor_model(self, shape: str, name: str = "", height=None, width=None, profile: str = "",
+                               pattern: str = "", sides=None, twist=None, wall=None, hole=None, thickness=None,
+                               image: str = "", invert=False, bed: str = "220x220x250") -> str:
+        table = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
+        stem = re.sub(r"[^a-z0-9_-]+", "_", (name or shape).translate(table).lower()).strip("_-")[:50] or "sus"
+        target = self._resolve(f"3D/{stem}")
+        args = {"shape": shape, "height": height, "width": width, "profile": profile, "pattern": pattern,
+                "sides": sides, "twist": twist, "wall": wall, "hole": hole, "thickness": thickness, "bed": bed,
+                "invert": invert is True or str(invert).lower() in ("true", "1", "evet"), "out": str(target)}
+        if image:
+            picture = self._resolve(image, read=True)
+            if not picture.is_file():
+                raise ToolError(f"No such image: {image}")
+            args["image"] = str(picture)
+        out = subprocess.run([python_exe(), str(DECOR_SCRIPT), json.dumps(args)], capture_output=True, text=True,
+                             encoding="utf-8", errors="replace", timeout=300, env=agent_env(), creationflags=NO_WINDOW)
+        if out.returncode != 0:
+            last = (out.stderr.strip().splitlines() or ["?"])[-1]
+            if "No module named" in last:
+                raise ToolError(f"A 3D library is missing ({last}); install it with install_python_package "
+                                "(manifold3d trimesh), then try again.")
+            raise ToolError("Model could not be built: " + last)
+        r = json.loads(out.stdout.strip().splitlines()[-1])
+        if r.get("error"):
+            raise ToolError(r["error"])
+        files = ", ".join(str(Path(f).relative_to(self.root)) for f in r["files"])
+        x, y, z = r["size_mm"]
+        lines = [f"Created {files}: {x} × {y} × {z} mm, {r['bodies']} body, "
+                 + ("watertight (ready to slice)" if r["watertight"] else "NOT watertight")
+                 + (f", about {r['filament_g']} g PLA" if r.get("filament_g") else "") + "."]
+        lines += ["Print notes (tell the user):"] + [f"- {n}" for n in r["notes"]]
+        lines.append("Next: check it with inspect_output (a yes/no question describing the request) before answering.")
         return "\n".join(lines)
 
     def _tool_check_installed(self, name: str) -> str:

@@ -24,7 +24,10 @@ import trimesh
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 mesh = trimesh.load(sys.argv[1], force="mesh")
 if len(mesh.faces) > 60000:
-    mesh = mesh.simplify_quadric_decimation(face_count=60000) if hasattr(mesh, "simplify_quadric_decimation") else mesh
+    try:  # sadeleştirme pakette olmayan fast_simplification ister: yoksa model olduğu gibi çizilir (birkaç sn uzar)
+        mesh = mesh.simplify_quadric_decimation(face_count=60000)
+    except Exception:
+        pass
 tri = mesh.vertices[mesh.faces]
 light = np.array([0.4, -0.5, 0.8]); light /= np.linalg.norm(light)
 shade = 0.35 + 0.65 * np.clip(mesh.face_normals @ light, 0, 1)

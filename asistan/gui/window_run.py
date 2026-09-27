@@ -46,6 +46,8 @@ def visual_note(name: str, args: dict) -> str:
         return "Resim hazırlanıyor…"
     if name == "check_3d_model":
         return "3D model denetleniyor…"
+    if name == "make_decor_model":
+        return "3D model hazırlanıyor… kaydedilince burada döndürüp inceleyebilirsin."
     if name in ("run_python", "run_command", "write_file"):
         text = " ".join(str(args.get(k, "")) for k in ("code", "command", "path"))
         m = _VISUAL.search(text)

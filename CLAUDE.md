@@ -263,6 +263,23 @@ sürümün bu mimariye uygun AppImage'ı; ya da https .AppImage adresi) → `~/A
 reddedilir; FUSE yoksa `--appimage-extract-and-run`. Windows winget --scope user, macOS brew --cask. security:
 GitHub/paket yöneticisi orta, rastgele https adresi yüksek risk. Geliştirme bilgisayarında Flatpak yoktu: AppImage yolu gerçek kurulumla denendi.
 
+## Süs modelleri (2026-09-27)
+
+Kullanıcı süs ve figür modellerini programın kendisinin yapmasını istedi. Yerel modeller süs geometrisini kodlayamıyor
+("girdaplı lamba" → düz küre, "gerçekçi ateş" → açık yüzeyli, tablaya sığmayan ağ). `decor3d.py`: test edilmiş
+üreticiler (vazo/abajur: profil × kesit × burgu halka örgüsü; girdap küre; süs topu; burgulu kule; yıldız; kafes küre;
+kabartma/litofan yükseklik haritası; litofan silindiri; siluet: resim → Otsu eşiği → contourpy dış hat →
+`CrossSection` → kalınlık + oval taban). Hepsi manifold3d ile kapalı; tablaya sığmazsa orantılı küçültülür; kapalılık
+YAZILAN STL'de denetlenir; 3MF kendi yazıcımızla (trimesh'inki networkx ister). Ajan Python'unda ayrı süreçte çalışır
+(`tools.make_decor_model`, risk "yazar", grup "ozel"): araç yalnızca son kullanıcı mesajlarında 3D/süs geçince eklenir
+(`Agent._offer_decor`; bulut kopyasında ve dosya yazamayan ajanda yok). `PRINT3D_NOTE` süsleri araca, işlevsel parçaları
+`3d-baski` becerisine yönlendirir. Tuzaklar: eklenen silindir/halka gövdenin açı ızgarasıyla aynı açılara denk gelirse
+birleşim aynı konumda iki nokta bırakıyor, STL açık çıkıyordu → `_cylinder` 3.7° döndürür; `simplify(0.01)` hacimsiz
+parça bırakıyordu → 0.001. Canlı deneme (qwen2.5:14b): "spiral dilimli gece lambası" → kod yazmadan `girdap_lamba`, kapalı
+STL, görme modeli onayı (197 sn). Kedi figüründe model doğru yolu seçti (generate_image → siluet) ama resim üretimine
+bellek yetmedi (açık programın işi ekran kartını tutuyordu); `imagegen.generate` artık bir kez boşaltıp yeniden dener.
+Sonraki aşama (kullanıcıyla konuşuldu, yapılmadı): resimden gerçek 3D figür (TripoSR, ~1,7 GB, düğmeyle kurulur).
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

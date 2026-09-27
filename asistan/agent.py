@@ -24,7 +24,7 @@ from .profiles import AgentProfile
 from . import api_catalog, cli_agents, hooks, learning, power, security, specialists, sysinfo
 from .tools import (
     program_roots,
-    CALL_API_SPEC, DELEGATE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
+    CALL_API_SPEC, DECOR_SPEC, DELEGATE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
     TEAM_TASK_SPEC, Toolbox, ToolError,
     validate_input,
 )
@@ -230,10 +230,15 @@ def transcript(messages: list, limit: int) -> str:
 # 3D baskı istekleri: ölçülü CAD modeli, dışa aktarma ve denetim (yalnızca istek 3D'yle ilgiliyse talimata girer)
 _PRINT3D = re.compile(r"\b3\s?d\b|\bstl\b|\b3mf\b|\bstep\b dosya|yazıcı|baskı|bastır|printer|print", re.I)
 PRINT3D_NOTE = (
-    "\n\n## 3D printable models\nBuild real geometry with exact sizes in millimetres, never a picture. FIRST call "
-    "use_skill with name '3d-baski': it has a tested build123d template and the API you need (guessing the API wastes "
-    "many attempts). Then export to the 3D/ folder and call check_3d_model before answering. If build123d is "
-    "missing, install it with install_python_package.")
+    "\n\n## 3D printable models\nBuild real geometry in millimetres, never a picture. Decorative objects (vase, "
+    "lamp, lampshade, ornament, star, figurine, animal or character figure, relief, lithophane): call "
+    "make_decor_model directly and pick shape and sizes; do not write geometry code for these (a figure comes from "
+    "a silhouette image: if generate_image fails, ask the user for a picture). Functional parts "
+    "with exact sizes (box, holder, bracket, lid): FIRST call use_skill with name '3d-baski' (tested build123d "
+    "template; guessing the API wastes many attempts), export to the 3D/ folder and call check_3d_model. Use the "
+    "printer's bed size from memory. If build123d is missing, install it with install_python_package.")
+# süs isteği: 3D kelimesi geçmese de (ör. "vazo tasarla") süs aracı verilir; takip mesajları için geçmişe de bakılır
+_DECOR = re.compile(r"vazo|abajur|lamba|süs|heykel|figür|biblo|litofan|kabartma|siluet|silüet", re.I)
 
 # programın modele hatırlatmaları: model bunları kullanıcıya anlatmasın (canlı denemede "ben bir modelim, bu
 # mesajdaki talimata göre…" diye cevaba sızdı)
@@ -691,6 +696,18 @@ class Agent:
         self.run_started = time.time()  # tur başında yenilenir (run): bu turda üretilen dosyalar
         self.tools_used: set[str] = set()
         self.tool_errors = 0
+
+    def _offer_decor(self, messages: list) -> None:
+        """Sohbet 3D baskı ya da süs üzerineyse süs modeli aracını ekler (her sohbette talimatı büyütmesin diye
+        yalnızca o zaman). Son birkaç kullanıcı mesajına bakılır: "daha burgulu yap" gibi takipte araç kaybolmasın."""
+        if self.base_system or any(s["name"] == DECOR_SPEC["name"] for s in self.tool_specs):
+            return  # bulut kopyasının dosya yazan aracı yok (cloud_server.CLOUD_TOOLS)
+        allowed = None if self.profile is None or self.profile.tools is None else set(self.profile.tools)
+        if allowed is not None and not allowed & {"write_file", "run_python"}:
+            return  # dosya yazamayan ajan (ör. yönetici, araştırmacı)
+        recent = [m.get("content") for m in messages[-12:] if m.get("role") == "user"]
+        if any(isinstance(c, str) and (_PRINT3D.search(c) or _DECOR.search(c)) for c in recent):
+            self.tool_specs.append(DECOR_SPEC)
 
     def _system(self) -> str:
         # base_system: yerel programı anlatan uzun talimatın yerine (bulut kopyası kısa, kendine özgü talimat kullanır)
@@ -1211,6 +1228,7 @@ class Agent:
             messages.append({"role": "user", "content": user_text})
         self.user_text = user_text
         self._provider = provider
+        self._offer_decor(messages)
         self.run_started = time.time()  # bu turda üretilen dosyalar (görsel denetim hatırlatması)
         self.tools_used: set[str] = set()
         self.tool_errors = 0  # başarısız araç denemeleri (çok denemeden sonra başarı → öğrenme hatırlatması)

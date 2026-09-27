@@ -34,6 +34,18 @@ KURULUM · LINUX
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
+SÜRÜM 2.4'TE YENİ
+  - 3D yazıcı için süs modelleri: "3D yazıcım için burgulu bir vazo yap", "üstten bakınca spiral dilimli
+    gece lambası", "yılbaşı süs topu", "oturan kedi figürü" gibi iste. Hazırlananlar:
+      · vazo (klasik, lale, silindir, koni, kum saati, top, şişe; yivli, yıldız, çokgen kesit; burgulu)
+      · abajur ve girdaplı küre lamba (içine LED koymak için tabanda delik)
+      · süs topu (askı halkalı), yıldız, kafes küre, burgulu kule
+      · resimden kabartma pano, litofan (ışık tutunca resim görünür) ve litofan lamba
+      · siluet figür: program önce resmi üretir, sonra ayaklı, ayakta duran figür yapar
+    Hepsi baskıya uygun (kapalı yüzey, tek parça), yazıcının tablasına sığacak şekilde; dosyalar STL ve 3MF.
+    Vazo modu (tek duvar) için dolu gövde seçeneği ve baskı önerileri (destek, dolgu, filament) de verilir.
+  - Resim üretimine ekran kartı belleği yetmezse program modelleri yeniden boşaltıp bir kez daha dener.
+
 SÜRÜM 2.3.1'DE DÜZELTİLDİ
   - Grup çalışması takılmıyor: yerel model aynı metni tekrar tekrar yazmaya başlarsa (bir görevde aynı
     kodu 20 kez yazıp dakikalarca sürdürmüştü) program bunu fark edip hemen durdurur ve modeli işe

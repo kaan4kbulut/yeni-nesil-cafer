@@ -104,7 +104,8 @@ CATEGORIES = [
                 Extra("trimesh", "3D modelin baskıya uygunluğunu denetleme")],
         limits="Görseller yerel SDXL modeliyle üretilir (Yardım → Resim üretimi). 12 GB'ta video üretimi çok "
                "yavaş ve düşük kaliteli. 3D baskı parçaları ölçülü CAD (build123d) ile yapılır; karmaşık "
-               "parçalarda bulut modelleri daha iyidir. Gerçek kişilerin sahte "
+               "parçalarda bulut modelleri daha iyidir. Süsler (vazo, lamba, süs topu, kabartma, litofan, siluet "
+               "figür) hazır süs modeli aracıyla yapılır; gerçek 3D heykelcik henüz yok. Gerçek kişilerin sahte "
                "görüntüleri ve reşit olmayanları çağrıştıran içerik üretilmez."),
 ]
 BY_ID = {c.id: c for c in CATEGORIES}
@@ -153,11 +154,13 @@ NEW_AGENTS = [
         tools=_WORK + ["edit_file", "web_search", "fetch_url"]),
     AgentProfile(
         id="uretken", name="Üretken Yaratıcılık", icon="image", category="uretken",
-        description="Metinden görsel, dijital sanat; video ve 3D için senaryo ve istem",
+        description="Metinden görsel, dijital sanat; 3D yazıcı için süs modelleri; video için senaryo ve istem",
         prompt=("You are a digital artist and creative director. Turn the user's idea into strong visual prompts "
                 "(subject, composition, lighting, style, lens, colour) and create images with generate_image; offer "
-                "variations. For video or 3D requests, write the storyboard, shot list and prompts, and say plainly "
-                "that local video/3D generation is not available yet. Never depict real people in fake situations."),
+                "variations. For 3D-printable decorations (vase, lamp, ornament, figurine, relief, lithophane) use "
+                "make_decor_model; for a figure, first generate a black silhouette image, then shape 'siluet'. For "
+                "video requests, write the storyboard, shot list and prompts, and say plainly that local video "
+                "generation is not available yet. Never depict real people in fake situations."),
         tools=["list_files", "read_file", "write_file", "look_at_image", "web_search"]),
 ]
 # BrowserAgent: gerçek tarayıcıda çalışan ajan (kategorisiz; yönetici tarayıcı işlerini ona verir)

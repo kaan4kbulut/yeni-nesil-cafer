@@ -1,7 +1,10 @@
 ---
 name: 3d-baski
-description: 3D yazıcıda basılacak ölçülü parça (kutu, tutucu, braket, kapak…): build123d ile model, STL/3MF/STEP, denetim
+description: 3D yazıcıda basılacak ölçülü işlevsel parça (kutu, tutucu, braket, kapak…): build123d ile model, STL/3MF/STEP, denetim
 ---
+Decorative objects (vase, lamp, lampshade, ornament, star, figurine, relief, lithophane) are NOT made with this
+recipe: call the make_decor_model tool instead, it builds them from tested geometry.
+
 # 3D printable part with build123d (tested with build123d 0.13)
 
 Units are millimetres. Use the user's sizes exactly; if a size that decides fit is missing (inner diameter, screw

@@ -227,37 +227,45 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
     if os.name != "nt":
         env["LD_LIBRARY_PATH"] = os.pathsep.join(filter(None, [str(exe.parent), env.get("LD_LIBRARY_PATH", "")]))
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
-    proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
-                            env=env, cwd=str(exe.parent), creationflags=flags)
-    tail: list[str] = []
-    step_re = re.compile(r"\|\s*(\d+)/(\d+) - [\d.]+(?:s/it|it/s)")  # yalnızca örnekleme adımları (yükleme değil)
-    buf = ""
-    while True:
-        ch = proc.stdout.read(1)
-        if not ch:
-            break
-        if cancelled():
-            proc.kill()
-            proc.wait()
-            raise InterruptedError("resim üretimi durduruldu")
-        if ch in "\r\n":
-            line, buf = buf.strip(), ""
-            if not line:
-                continue
-            tail = (tail + [line])[-15:]
-            if line.startswith("ggml_vulkan: 0 = "):  # motorun seçtiği kart: en güçlüsü mü? (gpu.image_report)
-                from . import gpu
+    for attempt in range(2):
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace",
+                                env=env, cwd=str(exe.parent), creationflags=flags)
+        tail: list[str] = []
+        step_re = re.compile(r"\|\s*(\d+)/(\d+) - [\d.]+(?:s/it|it/s)")  # yalnızca örnekleme adımları (yükleme değil)
+        buf = ""
+        while True:
+            ch = proc.stdout.read(1)
+            if not ch:
+                break
+            if cancelled():
+                proc.kill()
+                proc.wait()
+                raise InterruptedError("resim üretimi durduruldu")
+            if ch in "\r\n":
+                line, buf = buf.strip(), ""
+                if not line:
+                    continue
+                tail = (tail + [line])[-15:]
+                if line.startswith("ggml_vulkan: 0 = "):  # motorun seçtiği kart: en güçlüsü mü? (gpu.image_report)
+                    from . import gpu
 
-                gpu.note_device(line.split("=", 1)[1].split("(")[0])
-            m = step_re.search(line)
-            if m and progress:
-                done, total = int(m.group(1)), int(m.group(2))
-                progress(int(done * 100 / max(total, 1)), f"adım {done}/{total}")
-        else:
-            buf += ch
-    proc.wait()
-    files = sorted(out_dir.glob(f"resim-{stamp}-*.png"))
-    if proc.returncode != 0 or not files:
+                    gpu.note_device(line.split("=", 1)[1].split("(")[0])
+                m = step_re.search(line)
+                if m and progress:
+                    done, total = int(m.group(1)), int(m.group(2))
+                    progress(int(done * 100 / max(total, 1)), f"adım {done}/{total}")
+            else:
+                buf += ch
+        proc.wait()
+        files = sorted(out_dir.glob(f"resim-{stamp}-*.png"))
+        if proc.returncode == 0 and files:
+            break
+        if attempt == 0 and ollama_url and "memory" in "\n".join(tail).lower():
+            # boşaltmadan sonra başka bir istek (arka plan işi, açık program) Ollama modelini karta yeniden yükledi:
+            # bir kez daha boşalt ve dene (2026-09-27: "cannot make enough memory available", 695 MB boş kalmıştı)
+            free_gpu(ollama_url)
+            time.sleep(2)
+            continue
         raise RuntimeError("Resim üretilemedi:\n" + "\n".join(tail[-6:]))
     meta = {"prompt": prompt, "negative": negative, "seed": seed, "steps": steps, "size": f"{width}x{height}",
             "model": info["title"]}
