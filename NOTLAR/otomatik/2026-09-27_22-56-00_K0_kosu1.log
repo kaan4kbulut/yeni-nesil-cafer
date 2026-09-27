@@ -1,0 +1,91 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+
+Aşama: K0 onaysız
+
+Sıra şu, atlama yok:
+
+1. **Aşamayı bul.** `YAPILACAKLAR.md`'yi oku. "K0 onaysız" ile başlayan aşamayı bul. Kod verilmemişse ilk tamamlanmamış aşamayı seç ve seçtiğini bana söyle. Aşamanın "Bitti sayılır" maddelerini kendi kontrol listen olarak al.
+
+2. **Bağlamı yükle.** `docs/MIMARI.md` ve `docs/SEMALAR.md`'de bu aşamayla ilgili bölümleri oku. `NOTLAR/MEVCUT_DURUM.md` varsa oku (K0'da üretilir). Mevcut kodda etkilenecek dosyaları Grep/Glob ile bul; tahmin etme, bak.
+
+2b. **Görev listesini kur.** Aşamanın her maddesi için `TaskCreate` ile bir görev aç; ilk görevin başlığı aşama koduyla başlasın (ör. `K3: yonlendirici.py iskeleti`). Son görev her zaman `K<n>: /kontrol + NOTLAR` olsun. Bir maddeye başlarken onu `in_progress`, bitirince `completed` yap — **atlamadan, sırayla**. Bu liste terminaldeki ilerleme çubuğunu besler; güncellemezsen kullanıcı nerede olduğunu göremez. Çalışırken bir madde daha ortaya çıkarsa `TaskCreate` ile ekle (çubuk kendini ayarlar).
+
+3. **Kısa plan yaz.** Şu başlıklarla, en fazla 25 satır:
+   - Değişecek / eklenecek dosyalar
+   - Korunacak mevcut davranış (kırılmaması gerekenler)
+   - Riskler ve geri dönüş yolu
+   - Test stratejisi
+   
+   Plan **geri alınması zor** bir iş içeriyorsa (dosya/klasör taşıma, veri şeması değişikliği, mevcut ayar dosyasının biçimini değiştirme) burada dur ve onayımı bekle. Argümanda "onaysız" varsa ya da plan sadece ekleme/yeni modül ise durmadan devam et.
+
+4. **Uygula.** Kurallar:
+   - Çalışan davranışı bozma. Refaktör = yenisini yanına kur, eskiyi çalışır tut, sonra taşı.
+   - `asistan/cekirdek/` içine PySide6/Qt/fastapi import'u koyma.
+   - Model adı kodda sabitleme; `modeller.json`'dan oku.
+   - Her yeni modül için `testler/` altına en az bir test.
+   - Yeni bağımlılık eklemen gerekirse önce nedenini söyle; ağır bağımlılık (torch, transformers, tarayıcı motoru) çekirdeğe giremez.
+   - Türkçe adlandırma; docstring'ler Türkçe ve kısa.
+
+5. **Doğrula.** `/kontrol` komutunun yaptığı kontrolleri çalıştır (test, import dumanı, çekirdek-arayüz ayrımı, manifest doğrulama). Kırmızı varsa düzelt; düzeltemiyorsan neden düzeltemediğini yaz, aşamayı "tamamlandı" işaretleme.
+
+6. **Kaydet.**
+   - `YAPILACAKLAR.md`'de biten maddeleri `[x]` yap; yarım kalanları `[ ]` bırak ve yanına kısa not düş.
+   - `NOTLAR/` altına `YYYY-AA-GG-<aşama-kodu>.md` yaz: ne yapıldı, ne kaldı, karşılaşılan sorunlar, sonraki aşamaya öneri. Dosya varsa üstüne ekle.
+
+7. **Bana rapor ver.** Değişen dosya listesi, test sonucu (kaç geçti/kaç kaldı), açık sorular, önerdiğin commit mesajı. Ben "commitle" demeden commit atma.
+
+
+### ÇIKTI (kod 0)
+K0 bitti. Kod değişmedi; mevcut durum haritası yazıldı ve `/kontrol hizli` sonucu kayda geçti. Görev araçları (`TaskCreate`/`TaskUpdate`) bu oturumda da yoktu, bu yüzden ilerleme çubuğunu `.cafer/ilerleme.json` üzerinden elle güncelledim (6/6).
+
+**Değişen dosyalar (4)**
+- `NOTLAR/MEVCUT_DURUM.md` (yeni): giriş noktaları, modüller, araçlar, sağlayıcılar, ayar dosyaları, test durumu. Hedef yapıyla fark tablosu §8'de, mimari ihlaller §9'da, K1 için öneri sırası §10'da.
+- `NOTLAR/2026-09-27-K0.md` (yeni): aşama notu ve `/kontrol hizli` tablosu.
+- `YAPILACAKLAR.md`: K0'ın kalan 3 kutusu `[x]`, ölçüm defterine K0 satırı eklendi.
+- `NOTLAR/SORULAR.md`: 4 yeni soru, her birinde geçici karar var.
+
+**Test sonuçları**
+- Birim testleri (`.venv` pytest): 249 geçti, 21 atlandı, 0 kaldı. Atlananların hepsi `.venv`'de olmayan 3D ve belge kütüphanelerinden.
+- Arayüz denetimi: 714 eylem denendi, 0 hata.
+- `import asistan.cekirdek` ve `import asistan.arayuz.masaustu` kırmızı, çünkü bu klasörler K1'de kurulacak. K0'da bu bekleniyor ve ölçüt "kırmızı olabilir, kayıtta olsun yeter" diyor.
+- Kurulu programın Python'uyla test koşamadım: bu otomatik oturumda onay istedi ve reddedildi. CLAUDE.md'nin istediği "atlanan 0" koşusu bu yüzden yapılmadı.
+
+**Öne çıkan bulgular**
+- Arayüz dışındaki 50 modülün 47'si Qt olmadan yükleniyor. Qt'ye gerçekten bağlı tek modül `dictation.py`; bu, K1'i beklenenden kolaylaştırıyor.
+- Dört sağlayıcı (Ollama, Claude, OpenAI uyumlu, CLI) ortak bir arayüz olmadan `agent.py` içinde duruyor.
+- Model adları kodda 20 dosyaya dağılmış durumda.
+- Araç fabrikası paket kurma onayını `permissions.py`'den geçirmeden doğrudan kullanıcıya soruyor. Güvenliği gevşetmiyor ama "tek izin hattı" kuralına aykırı.
+- `web_search` ve `fetch_url` gibi araçlar dışarıya onaysız veri gönderiyor. Kayıtta CLAUDE.md'deki "siler" ve "internete gönderir" risk sınıfları yok.
+- Üç yerde kullanıcıya komut yazdırılıyor (`manager.py:232`, `agent.py:1114`, `sysinfo.install_hint`), bu CLAUDE.md'de yasak. K0 kod değiştirmediği için düzeltmedim, sadece listeledim.
+
+**Açık sorular** (hepsi `NOTLAR/SORULAR.md`'de, geçici kararla ilerledim)
+1. Testler hangi Python'la koşulsun? Geçici kararım: aşamalarda `.venv`, "atlanan 0" şartı yayın kapısında kalır. Kalıcı çözüm için kurulu Python'un yolunun `settings.json` izin listesine eklenmesi gerekiyor.
+2. Mimari belgedeki `.cafer/profil.json` ve `.cafer/gorevler.db` nerede dursun? Geçici kararım: programın veri klasöründe (`config.DATA_DIR`), depodaki `.cafer/` değil.
+3. Ağa onaysız gönderme ve eksik risk sınıfları: K6'ya bırakıldı.
+4. Kullanıcıya komut yazdırılan yerler: K2 ve K10'a bırakıldı.
+
+**Önerilen commit mesajı**
+```
+K0: mevcut durum haritası (NOTLAR/MEVCUT_DURUM.md), fark tablosu ve mimari ihlaller
+
+Kod değişmedi. /kontrol hizli: pytest 249 geçti / 21 atlandı; cekirdek ve arayuz
+henüz yok (K1). Arayüz denetimi 714 eylem, 0 hata. Açık sorular NOTLAR/SORULAR.md'de.
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+```
+
+SONUÇ: TAMAM
+DEĞİŞEN: 4
+TEST: geçti (249 geçti / 21 atlandı / 0 kaldı; cekirdek import K1'e kadar yok)
+NOT: MEVCUT_DURUM.md yazıldı; 50 modülün 47'si zaten Qt'siz, K1'in ilk işi dictation.py'yi bölmek ve sağlayıcı arayüzü.

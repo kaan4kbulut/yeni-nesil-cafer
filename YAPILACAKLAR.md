@@ -57,9 +57,9 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 
 - [x] `cafer-plan` paketi repoya kuruldu (`docs/`, `.claude/`, bu dosya)
 - [x] `CLAUDE_EKLENTI.md` içeriği `CLAUDE.md`'ye işlendi, `CLAUDE_EKLENTI.md` silindi
-- [ ] `NOTLAR/MEVCUT_DURUM.md` yazıldı: mevcut modüller, giriş noktaları, mevcut araçlar (dosya/komut/python/web/tarayıcı), sağlayıcılar, ayar mekanizması, test durumu
-- [ ] `docs/MIMARI.md` §2 hedef yapısı ile mevcut yapı arasındaki fark tablosu (`MEVCUT_DURUM.md` içinde)
-- [ ] Mimari ihlaller listelendi (çekirdek/arayüz karışıklığı, gömülü model adları, onaysız kurulum/silme)
+- [x] `NOTLAR/MEVCUT_DURUM.md` yazıldı: mevcut modüller, giriş noktaları, mevcut araçlar (dosya/komut/python/web/tarayıcı), sağlayıcılar, ayar mekanizması, test durumu
+- [x] `docs/MIMARI.md` §2 hedef yapısı ile mevcut yapı arasındaki fark tablosu (`MEVCUT_DURUM.md` içinde)
+- [x] Mimari ihlaller listelendi (çekirdek/arayüz karışıklığı, gömülü model adları, onaysız kurulum/silme)
 - [x] `git tag v-k0-baslangic` atıldı (geri dönüş noktası)
 
 **Bitti sayılır:** `MEVCUT_DURUM.md` var, hiçbir kod değişmedi, `/kontrol hizli` mevcut durumu raporladı (kırmızı olabilir — kayıt altında olması yeter).
@@ -402,6 +402,7 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 | Tarih | Aşama | Yönetici | İşçi | Sınav (hizli) | Süre | Not |
 |---|---|---|---|---|---|---|
 | 2026-09-27 | 1 (taban) | sohbet modeli (otomatik: qwen2.5:14b) | — | 15/30 (15 görev ×2, %50) | 7,7 + 7,9 dk | ilk ölçüm; süre sınırı olmasa 19/30; hep ✓ 5, hep ✗ 5, kararsız 5; --hepsi 9/20 |
+| 2026-09-27 | K0 | — | — | koşulmadı (kod değişmedi) | — | birim 249 ✓ / 21 atlandı (`.venv`); arayüz denetimi 714 eylem, 0 hata |
 
 ## Sonraya (aşamaları bölmemek için buraya)
 
