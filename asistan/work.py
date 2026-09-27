@@ -310,7 +310,9 @@ class TeamRunner:
 
     def _manager(self, relay: _Relay) -> tuple[Agent, str]:
         profile = AgentProfile(id=MANAGER_ID, name="Yönetici", icon="briefcase", prompt=MANAGER_PROMPT, tools=[])
-        return self._agent(profile, relay)
+        agent, provider = self._agent(profile, relay)
+        agent.nudges = False  # plan, kontrol ve rapor yazar; "iş bitmedi, araçla yap" dürtmesi onu döngüye sokar
+        return agent, provider
 
     def ask_json(self, prompt: str, schema: dict) -> dict | None:
         for attempt in range(2):

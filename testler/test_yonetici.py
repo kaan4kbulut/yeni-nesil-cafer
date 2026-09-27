@@ -156,5 +156,31 @@ class YoneticiDongusu(unittest.TestCase):
         self.assertEqual(ajan.cb.plans, [])
 
 
+class GrupYoneticisi(unittest.TestCase):
+    """Grup çalışmasında (work.py) yönetici plan, kontrol ve rapor yazar: "iş bitmedi, araçla yap" dürtülmez."""
+
+    def test_yonetici_durtulmez_isci_durtulur(self):
+        from asistan.agent import Agent
+        from asistan.config import Settings
+        from asistan.work import Task, TeamRunner
+
+        s = Settings(workspace=str(Path(_GECICI) / "is"))
+        task = Task(title="Kareler", goal="kareler.txt dosyasına 1-10 karelerini yaz", provider="ollama",
+                    model="qwen2.5:14b", folder=str(Path(_GECICI) / "is" / "kareler"))
+        runner = TeamRunner(task, s, [], [], mock.MagicMock())
+        yonetici, _ = runner._manager(mock.MagicMock())
+        self.assertFalse(yonetici.nudges)
+        yonetici.user_text = "Write the final report. 1. Sonuç 2. Önerim"
+        rapor = "## Sonuç\n1. kareler.txt oluşturuldu\n2. Dosyayı aç"
+        self.assertIsNone(yonetici._unfinished_nudge([], rapor, True, 1, {}))
+        isci = Agent(s, mock.MagicMock())
+        self.assertTrue(isci.nudges)
+        # olmayan araç: hata, elindeki araçları söyler (aynı aracı tekrar tekrar denemesin)
+        hata, is_error = yonetici._execute_tool("1", "run_python", {"code": "print(1)"})
+        self.assertTrue(is_error)
+        self.assertIn("Do not call it again", hata)
+        self.assertIn("ask_specialist", hata)
+
+
 if __name__ == "__main__":
     unittest.main()

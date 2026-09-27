@@ -682,6 +682,9 @@ class Agent:
         self.found_installed = False  # check_installed "zaten var" dedi (kurulum isteğinde ✓ gereksiz)
         self.cli_model = ""  # Claude Code ile çalışırken model (opus, sonnet…; boş: Claude Code'un varsayılanı)
         self.must_act = False  # "uygula" istendi: komutları yazıp geçmesin, araçlarla gerçekten yapsın
+        # "iş bitmedi" dürtmeleri; grup yöneticisinde kapalı: plan, kontrol ve raporda işi kendisi yapmaz, dürtülünce
+        # sahip olmadığı run_python'u tekrar tekrar çağırıp görevi bitirmiyordu (2026-09-27)
+        self.nudges = True
         self.focus = ""  # yönetici adımı: "iş bitti mi" denetimi tüm isteğe değil bu adıma bakar
         self.base_system = ""  # verilirse system_prompt + program_prompt yerine kullanılır (bulut kopyası)
         self.lean = False  # küçük bağlamlı yerel model: talimat ve araç tanımları kısaltılır (run() belirler)
@@ -716,7 +719,9 @@ class Agent:
         error = validate_input(name, args)
         self.cb.on_tool_start(call_id, name, args if isinstance(args, dict) else {"raw": args})
         if error is None and not any(s["name"] == name for s in self.tool_specs):
-            error = f"Tool '{name}' is not available to this agent."
+            # yalnızca "yok" demek yetmiyor: küçük model aynı aracı tekrar tekrar deniyordu; elindekileri söyle
+            error = (f"Tool '{name}' is not available to this agent. Do not call it again. Your tools: "
+                     + (", ".join(s["name"] for s in self.tool_specs) or "none") + ".")
         if error:
             self.cb.on_tool_end(call_id, error, True)
             return error, True
@@ -1311,6 +1316,8 @@ class Agent:
         Cevap bir soruyla bitiyorsa model kullanıcıya sonucu belirleyen bir şey soruyor: dürtülmez (▶ turu hariç).
         Ondan önce, yöntemin küçük modellerin atladığı iki adımı program takip eder: görsel çıktıyı gözle denetleme
         ve çok denemeden sonra bulunan yolu beceri olarak kaydetme (her biri turda bir kez)."""
+        if not self.nudges:
+            return None
         names = {s["name"] for s in self.tool_specs}
         if not self.gate_actions and "inspect_output" in names and "inspect_output" not in self.tools_used \
                 and not state.get("inspect"):
