@@ -13,7 +13,7 @@ from dataclasses import dataclass, field
 METIN = "metin"  # cevabın bir parçası
 DUSUNCE = "dusunce"  # modelin gizli düşünmesi (arayüzde ayrı gösterilir)
 ARAC = "arac"  # araç çağrıları geldi (bilgi için; hepsi SON'da da toplu verilir)
-NABIZ = "nabiz"  # içi boş satır geldi: çağıran her satırda iptali (■ / Esc) denetleyebilsin
+NABIZ = "nabiz"  # içi boş satır / olay geldi: çağıran her birinde iptali (■ / Esc) denetleyebilsin
 SON = "son"  # çağrı bitti: istatistik, araç çağrıları, sağlayıcıya özgü son bilgi
 
 
@@ -59,7 +59,7 @@ class Saglayici(ABC):
 
     @abstractmethod
     def akis(self, mesajlar: list, sistem: str = "", araclar: list | None = None, **secenek) -> Iterator[Parca]:
-        """Tek model çağrısı, akışlı. Son parça her zaman `SON` türündedir; içi boş her satır için `NABIZ` gelir.
+        """Tek model çağrısı, akışlı. Son parça her zaman `SON` türündedir; içi boş her satır ya da olay için `NABIZ` gelir.
 
         Çağıran akışı yarıda bırakacaksa üreteci kapatmalı (`contextlib.closing`): bağlantı kapanır, üretim durur."""
 

@@ -198,14 +198,16 @@ class ClaudeTesti(unittest.TestCase):
         self.assertNotIn("tools", s.parametreler("sistem"))
 
     def test_akis_ve_son_yanit(self):
-        olaylar = [mock.Mock(type="thinking", thinking="dü"), mock.Mock(type="text", text="selam")]
+        olaylar = [mock.Mock(type="thinking", thinking="dü"), mock.Mock(type="input_json", partial_json="{"),
+                   mock.Mock(type="text", text="selam")]
         akim = mock.MagicMock()
         akim.__enter__.return_value = akim
-        akim.__iter__.return_value = iter(olaylar)
+        akim.__iter__.side_effect = lambda: iter(olaylar)
         akim.get_final_message.return_value = "SON"
         istemci = mock.Mock()
         istemci.beta.messages.stream.return_value = akim
         s = sg_claude.ClaudeSaglayici(lambda: istemci, "m")
+        self.assertEqual([p.tur for p in s.akis([], "sistem")], [sg.DUSUNCE, sg.NABIZ, sg.METIN, sg.SON])
         yanit = s.sohbet([{"role": "user", "content": "?"}], "sistem")
         self.assertEqual((yanit.metin, yanit.dusunce, yanit.son["yanit"]), ("selam", "dü", "SON"))
         self.assertEqual(istemci.beta.messages.stream.call_args.kwargs["system"], "sistem")
@@ -287,6 +289,55 @@ class AjanDuzeyiTesti(unittest.TestCase):
             with self.assertRaises(ag.Cancelled):
                 a._run_openai([{"role": "user", "content": "?"}], conn)
         self.assertLess(akim.okunan, 10)
+
+    def test_bos_claude_akisinda_iptal(self):
+        # büyük araç girdisi akarken (eager_input_streaming → yalnızca input_json olayları) ■ gecikmemeli
+        okunan = []
+
+        def olaylar():
+            for _ in range(200):
+                okunan.append(1)
+                yield mock.Mock(type="input_json", partial_json="x")
+            okunan.append(1)
+            yield mock.Mock(type="text", text="geç")
+
+        akim = mock.MagicMock()
+        akim.__enter__.return_value = akim
+        akim.__iter__.return_value = olaylar()
+        istemci = mock.Mock()
+        istemci.beta.messages.stream.return_value = akim
+        a = _ajan(_Cb(iptal_sonra=5))
+        with mock.patch.object(a, "_claude_client", return_value=istemci):
+            with self.assertRaises(ag.Cancelled):
+                a._run_claude([{"role": "user", "content": "?"}])
+        self.assertLess(len(okunan), 10)  # her olayda denetlendi
+        self.assertTrue(akim.__exit__.called)  # akış kapatıldı, üretim durdu
+
+    def test_ozet_yerel_modelle_eskisi_gibi(self):
+        # _summarize artık sağlayıcıdan geçiyor (eskisi httpx.post stream=False); diğer testler onu yamalıyor
+        a = _ajan(_Cb())
+        gonderilen = {}
+
+        def sahte(method, url, json=None, timeout=None):
+            gonderilen.update(url=url, govde=json)
+            return _Akim(_ollama({"content": " - özet"}, {"content": " satırı "}))
+
+        with mock.patch.object(httpx, "stream", sahte):
+            self.assertEqual(a._summarize("eski konuşma", 4096, 100), "- özet satırı")
+        govde = gonderilen["govde"]
+        self.assertTrue(gonderilen["url"].endswith("/api/chat"))
+        self.assertEqual(govde["model"], a.settings.ollama_model)
+        self.assertEqual(govde["options"], {"num_ctx": 4096, "num_predict": 300})
+        self.assertIs(govde["think"], False)
+        self.assertEqual(govde["keep_alive"], "30m")
+        self.assertNotIn("tools", govde)
+        self.assertTrue(govde["messages"][0]["content"].endswith("eski konuşma"))
+        # hata: özet yok (eskisi gibi boş döner, iş sürer)
+        for akim in (_Akim([], 500, "çöktü"), _Akim([json.dumps({"error": "bellek yetmedi"})])):
+            with mock.patch.object(httpx, "stream", lambda *k, **kw: akim):
+                self.assertEqual(a._summarize("eski konuşma", 4096), "")
+        with mock.patch.object(httpx, "stream", side_effect=httpx.ConnectError("yok")):
+            self.assertEqual(a._summarize("eski konuşma", 4096), "")
 
     def test_401_anahtar_hatasina_cevrilir(self):
         from asistan import connections

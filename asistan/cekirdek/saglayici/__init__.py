@@ -7,7 +7,7 @@
 import anthropic
 import httpx
 
-from .temel import ARAC, DUSUNCE, METIN, SON, Iptal, Parca, Saglayici, SaglayiciHatasi, Saglik, Yanit  # noqa: F401
+from .temel import ARAC, DUSUNCE, METIN, NABIZ, SON, Iptal, Parca, Saglayici, SaglayiciHatasi, Saglik, Yanit  # noqa: F401
 
 
 def bul(ad: str, ayarlar=None, baglantilar: list | None = None) -> Saglayici:

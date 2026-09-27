@@ -135,6 +135,22 @@ class WebSohbet(_Sunucu):
         self.assertEqual(r.json(), {"reply": "Merhaba!"})
         self.assertEqual(ans.call_args.args[:2], ("web", "selam"))
 
+    def test_answer_masaustuyle_ayni_yoldan(self):
+        # answer → istek.calistir → Manager.run (model çağrılmaz); bulut notu, araç süzgeci ve geçmiş korunur
+        from asistan import manager
+
+        def sahte(yonetici, saglayici, mesajlar, metin):
+            self.assertEqual(saglayici, "ollama")
+            self.assertIs(yonetici.agent.extra_system, cloud_server.CLOUD_NOTE)
+            self.assertLessEqual({s["name"] for s in yonetici.agent.tool_specs}, cloud_server.CLOUD_TOOLS)
+            mesajlar += [{"role": "user", "content": metin}, {"role": "assistant", "content": "bulut cevap"}]
+            yonetici.agent.cb.on_text("bulut cevap")
+
+        with mock.patch.object(manager.Manager, "run", autospec=True, side_effect=sahte) as run:
+            self.assertEqual(cloud_server.answer("web", "selam"), "bulut cevap")
+        run.assert_called_once()
+        self.assertEqual(cloud_server.history("web")[-1]["content"], "bulut cevap")
+
 
 if __name__ == "__main__":
     unittest.main()
