@@ -302,6 +302,22 @@ model önce look_at_image ile resmi denetledi, sonra make_3d_figure'u doğru de�
 ayak) → kapalı tek parça; ardından inspect_output işlemcide zaman aşımına uğradı (arızanın yavaşlığı). Filament
 tahmini dolu gövdelerde kabuk 1.2 mm + %15 dolgu (`decor3d.save(infill=)`; tam hacim 3 kat fazla gösteriyordu).
 
+## Yeniden başlatma sonrası ekran kartında denemeler (2026-09-27, 2.5.1)
+
+Kedi figürü uçtan uca (qwen2.5:14b, 378 sn): generate_image → make_3d_figure. SDXL beyaz kediyi açık gri, renk geçişli
+fonda ve aydınlık yer düzleminde çizdi; kenar rengine dayalı arka plan silme zemini de nesne sandı → 93×255×80 mm
+kama. `figure3d_worker.cut_out` artık kenardan başlayıp keskin sınıra kadar yayılan yumuşak bölgeyi zemin sayar (Sobel
+eşiği = en keskin %25), kenardan gövdeye uzanan ince yapıları (ufuk/masa çizgisi, kalınlık < %1.5) ayırır; nesne
+karşılıklı iki kenara birden değerse ya da resmin %80'ini kaplarsa hata verir (gerçek nesneler kenara değmez, büst
+yalnızca alta). Görme denetimi (gemma4:12b) kama bloğa "evet, oturan kedi" dedi: görsel onaya güvenme, kodla denetle.
+Kart doluyken (Ollama 9.8 GB) TripoSR `OutOfMemoryError` → kendiliğinden CPU (28 sn); boşken GPU 13.6 sn.
+Resim motoru: Vulkan 0 = Intel, 1 = RTX; ayarsız motor yükü ikisine dağıtıyordu (örnekleme 4.2 sn, uyarı yanıltıcı).
+`imagegen` motorun yazdığı listeyi `resim/vulkan-kartlari.json`'a saklar, sonraki çalıştırmada `GGML_VK_VISIBLE_DEVICES`
+ile en güçlü karta sabitler (3.2 sn; kullanıcı kendisi verdiyse dokunmaz). Küçük model hataları: üretilen resmin adını
+kısaltma ("Resimler/resim-0.png") → `tools.missing_image` en yeni resimleri söyler; aracı run_python içinde işlev gibi
+çağırma → NameError'a "bu bir araç" notu; qwen2.5:14b planını bir kez Çince yazdı. Testler: kütüphane yolu her zaman
+gerçek kurulumdan (XDG_DATA_HOME başka test dosyasınca değiştirilmiş olabilir; 10 test sessizce atlanıyordu).
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

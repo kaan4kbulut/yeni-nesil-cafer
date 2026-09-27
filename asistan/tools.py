@@ -314,10 +314,12 @@ FIGURE_SPEC = REGISTRY.add({
     "name": "make_3d_figure",
     "description": (
         "Turn ONE picture of a single object (animal, character, figurine, toy, bust) into a real 3D printable "
-        "figure with the local 3D model (TripoSR). The picture must show one whole object in front of a plain light "
+        "figure with the local 3D model (TripoSR). The picture must show one whole object in front of a plain "
         "background: make it first with generate_image, prompt like 'a cute cat figurine sitting, full body, "
-        "centered, three-quarter front view, plain white background, soft studio light, 3D render, no shadow' (or "
-        "use the user's photo). The back side is guessed from one view and thin parts get simplified. Saves "
+        "centered, three-quarter front view, isolated on a plain uniform mid-gray background, no floor, no shadow, "
+        "soft studio light, 3D render' and negative 'floor, ground, shadow, gradient background, text' (a background "
+        "colour different from the object; or use the user's photo). If it says the figure could not be separated, "
+        "make the picture again as told. The back side is guessed from one view and thin parts get simplified. Saves "
         "3D/<name>.stl and .3mf with a flat base, watertight, fitting the bed. Takes from 10 seconds to 3 minutes."),
     "input_schema": {
         "type": "object",
@@ -759,6 +761,16 @@ def file_stem(name: str, default: str) -> str:
     return re.sub(r"[^a-z0-9_-]+", "_", (name or default).translate(table).lower()).strip("_-")[:50] or default
 
 
+def missing_image(root: Path, image: str) -> ToolError:
+    """Resim bulunamadı: modele klasördeki en yeni resimleri söyler. Küçük modeller üretilen resmin adını kısaltıyor
+    ("Resimler/resim-0.png"; gerçek ad "Resimler/resim-20260927-180119-0.png"), liste görünce tek denemede düzeltir."""
+    pics = [p for p in root.rglob("*") if p.suffix.lower() in (".png", ".jpg", ".jpeg", ".webp")
+            and not any(x.startswith(".") for x in p.relative_to(root).parts) and not p.stem.endswith("-girdi")]
+    newest = sorted(pics, key=lambda p: p.stat().st_mtime, reverse=True)[:5]
+    listing = ", ".join(str(p.relative_to(root)) for p in newest)
+    return ToolError(f"No such image: {image}." + (f" Newest images in the workspace: {listing}" if listing else ""))
+
+
 def model_report(r: dict, root: Path) -> str:
     """decor3d.save sonucu → modele giden metin (süs modeli ve 3D figür aynı biçimde)."""
     files = ", ".join(str(Path(f).relative_to(root)) for f in r["files"])
@@ -912,7 +924,7 @@ class Toolbox:
         if image:
             picture = self._resolve(image, read=True)
             if not picture.is_file():
-                raise ToolError(f"No such image: {image}")
+                raise missing_image(self.root, image)
             args["image"] = str(picture)
         out = subprocess.run([python_exe(), str(DECOR_SCRIPT), json.dumps(args)], capture_output=True, text=True,
                              encoding="utf-8", errors="replace", timeout=300, env=agent_env(), creationflags=NO_WINDOW)
@@ -1192,9 +1204,15 @@ class Toolbox:
             f.write(unescape_code(code))
             script = f.name
         try:
-            return self._run_process([python_exe(), script], python=True)
+            result = self._run_process([python_exe(), script], python=True)
         finally:
             Path(script).unlink(missing_ok=True)
+        # küçük modeller aracı Python işlevi gibi çağırıyor (make_decor_model(...) → NameError, 2026-09-27)
+        wrong = re.search(r"NameError: name '(\w+)' is not defined", result)
+        if wrong and wrong.group(1) in REGISTRY.tools:
+            result += (f"\n\n{wrong.group(1)} is a TOOL, not a Python function: do not call it inside run_python code; "
+                       "call the tool itself with its arguments.")
+        return result
 
     # ---- tarayıcı (browser.py; tarayıcı kendi iş parçacığında, turlar arasında açık kalır)
     def _tool_browser_open(self, url: str) -> str:

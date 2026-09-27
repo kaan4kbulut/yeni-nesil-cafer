@@ -153,6 +153,33 @@ class SurucuHatasi(unittest.TestCase):
             self.assertIn("ekran kartı hatası", power.label(s))
 
 
+class ResimMotoruKarti(unittest.TestCase):
+    """Resim motoru (Vulkan) birden çok kartta en güçlüsüne sabitlenir: 0 = Intel, 1 = RTX (2026-09-27)."""
+
+    def setUp(self):
+        from asistan import imagegen
+        self.ig = imagegen
+        self.ig.VULKAN_CACHE.unlink(missing_ok=True)
+        p = mock.patch.object(gpu, "strongest", return_value=RTX)
+        p.start()
+        self.addCleanup(p.stop)
+        self.addCleanup(lambda: self.ig.VULKAN_CACHE.unlink(missing_ok=True))
+
+    def test_liste_saklanir_sonra_guclu_kart_secilir(self):
+        self.assertIsNone(self.ig._vulkan_index())  # henüz liste yok: motor kendi seçer
+        self.ig._note_devices({"0": "Intel(R) Graphics", "1": "NVIDIA GeForce RTX 5070 Ti Laptop GPU"}, chosen=False)
+        self.assertEqual(self.ig._vulkan_index(), 1)
+        self.assertIn("RTX 5070 Ti", gpu._image_device)  # güçlü kart listede: yanlış "Intel'de çalıştı" uyarısı yok
+        self.assertIsNone(self.ig._vulkan_index(saving=True))  # hafif modda zorlanmaz
+        # kart seçiliyken motor yalnızca onu görür ("0 = NVIDIA"): saklanan tam liste bozulmaz
+        self.ig._note_devices({"0": "NVIDIA GeForce RTX 5070 Ti Laptop GPU"}, chosen=True)
+        self.assertEqual(self.ig._vulkan_index(), 1)
+
+    def test_tek_kartta_secim_yok(self):
+        self.ig._note_devices({"0": "NVIDIA GeForce RTX 5070 Ti Laptop GPU"}, chosen=False)
+        self.assertIsNone(self.ig._vulkan_index())
+
+
 class BaglamAltSiniri(unittest.TestCase):
     """2026-09-26: bozuk kartta ölçülen 2048 kalıcı ayar olmuştu; talimat (~4–5.6K token) sığmıyordu."""
 

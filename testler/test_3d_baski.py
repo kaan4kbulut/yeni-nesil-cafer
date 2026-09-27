@@ -17,7 +17,7 @@ KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
 # ajan kütüphaneleri gerçek veri klasöründe: ayarlar geçici klasöre gitse de trimesh / build123d oradan bulunsun
-_VERI = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+_VERI = Path.home() / ".local/share"  # gerçek kurulum: başka test dosyası XDG_DATA_HOME'u geçiciye almış olabilir
 _KUTUPHANE = next((d for d in (_VERI / "yeni-nesil-cafer/python-kutuphaneleri", _VERI / "yerel-asistan/python-kutuphaneleri")
                    if d.is_dir()), _VERI / "yeni-nesil-cafer/python-kutuphaneleri")  # eski adlı klasör henüz taşınmadıysa
 if _KUTUPHANE.is_dir():

@@ -18,7 +18,9 @@ KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
 # ajan kütüphaneleri: kurulu programın gömülü kütüphaneleri ve kullanıcının kurdukları (geliştirme klasöründe yok)
-_VERI = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+# gerçek kurulum klasörü: başka bir test dosyası XDG_DATA_HOME'u geçici klasöre almış olabilir (birlikte
+# çalışınca kütüphaneler bulunamayıp testler sessizce atlanıyordu)
+_VERI = Path.home() / ".local/share"
 _YOLLAR = [p for p in (_VERI / "yeni-nesil-cafer-app/ajan-kutuphaneleri", _VERI / "yeni-nesil-cafer/python-kutuphaneleri")
            if p.is_dir()]
 os.environ["PYTHONPATH"] = os.pathsep.join([*map(str, _YOLLAR), os.environ.get("PYTHONPATH", "")]).strip(os.pathsep)
@@ -98,6 +100,14 @@ class SusModelleri(unittest.TestCase):
         sonuc = self.box.run("make_decor_model", {"shape": "vazo", "name": "dev", "height": 400, "bed": "260x260x260"})
         self.assertIn("küçültüldü", sonuc)
         self.assertLessEqual(max(denetle(self.box.root / "3D" / "dev.stl")["size"]), 260)
+
+    def test_yanlis_resim_adinda_gercek_ad_soylenir(self):
+        # küçük model üretilen resmin adını kısaltıyor: hata, klasördeki en yeni resmi göstermeli
+        (self.box.root / "Resimler").mkdir(exist_ok=True)
+        (self.box.root / "kedi.png").rename(self.box.root / "Resimler" / "resim-20260927-181140-0.png")
+        with self.assertRaisesRegex(ToolError, "Resimler/resim-20260927-181140-0.png"):
+            self.box.run("make_decor_model", {"shape": "siluet", "image": "Resimler/resim.png"})
+        (self.box.root / "Resimler" / "resim-20260927-181140-0.png").rename(self.box.root / "kedi.png")
 
     def test_hatali_istekler(self):
         with self.assertRaises(ToolError):

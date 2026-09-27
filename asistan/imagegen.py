@@ -159,6 +159,43 @@ def install(progress=None, cancelled=lambda: False, key: str = DEFAULT_MODEL) ->
         _download(info["url"], model_path(key), progress, cancelled, "resim modeli", info["size"])
 
 
+VULKAN_CACHE = ROOT / "vulkan-kartlari.json"  # motorun kart numaraları: {"0": "Intel…", "1": "NVIDIA…"}
+_VK_LINE = re.compile(r"^ggml_vulkan: (\d+) = (.+?) \(")
+
+
+def _vulkan_index(saving: bool = False) -> int | None:
+    """Motorun en güçlü kart için kullandığı Vulkan numarası (son çalıştırmanın listesinden). Birden çok kart varken
+    motor yükü tümleşik Intel dahil hepsine dağıtıyordu (0 = Intel, 1 = RTX; örnekleme 4.2 → 3.2 sn, 2026-09-27)."""
+    from . import gpu
+
+    best = gpu.strongest()
+    if saving or best is None:
+        return None
+    try:
+        found = json.loads(VULKAN_CACHE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    match = [int(i) for i, name in found.items() if gpu._same(best, name)]
+    return match[0] if len(found) > 1 and match else None
+
+
+def _note_devices(devices: dict[str, str], chosen: bool) -> None:
+    """Motorun kullandığı kartı bildirir; tam liste (kart seçilmeden görülen) bir sonraki çalıştırma için saklanır."""
+    from . import gpu
+
+    if not devices:
+        return
+    if not chosen and len(devices) > 1:
+        try:
+            VULKAN_CACHE.parent.mkdir(parents=True, exist_ok=True)
+            VULKAN_CACHE.write_text(json.dumps(devices, ensure_ascii=False), encoding="utf-8")
+        except OSError:
+            pass
+    best = gpu.strongest()
+    strong = next((name for name in devices.values() if best is not None and gpu._same(best, name)), None)
+    gpu.note_device(strong or devices[min(devices, key=int)])
+
+
 def free_gpu(ollama_url: str) -> None:
     """Ollama modellerini ekran kartından boşaltır (silmez; sonraki mesajda yeniden yüklenir)."""
     base = ollama_url.rstrip("/")
@@ -224,6 +261,13 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
     if _vram_mib() < 10000:  # az bellekli kartta parça parça çöz (12 GB'ta gereksiz yavaşlatıyor: 62 → 43 sn)
         cmd.append("--vae-tiling")
     env = {**os.environ}
+    chosen = "GGML_VK_VISIBLE_DEVICES" in env  # kullanıcı kendisi seçtiyse dokunulmaz
+    if not chosen:
+        index = _vulkan_index(saving)
+        if index is not None:
+            env["GGML_VK_VISIBLE_DEVICES"] = str(index)
+            chosen = True
+    devices: dict[str, str] = {}
     if os.name != "nt":
         env["LD_LIBRARY_PATH"] = os.pathsep.join(filter(None, [str(exe.parent), env.get("LD_LIBRARY_PATH", "")]))
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -246,10 +290,9 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
                 if not line:
                     continue
                 tail = (tail + [line])[-15:]
-                if line.startswith("ggml_vulkan: 0 = "):  # motorun seçtiği kart: en güçlüsü mü? (gpu.image_report)
-                    from . import gpu
-
-                    gpu.note_device(line.split("=", 1)[1].split("(")[0])
+                vk = _VK_LINE.match(line)
+                if vk:  # motorun gördüğü kartlar (gpu.image_report ve bir sonraki çalıştırmanın kart seçimi)
+                    devices[vk.group(1)] = vk.group(2).strip()
                 m = step_re.search(line)
                 if m and progress:
                     done, total = int(m.group(1)), int(m.group(2))
@@ -257,6 +300,7 @@ def generate(prompt: str, out_dir: Path, negative: str = "", width: int = 1024, 
             else:
                 buf += ch
         proc.wait()
+        _note_devices(devices, chosen)
         files = sorted(out_dir.glob(f"resim-{stamp}-*.png"))
         if proc.returncode == 0 and files:
             break

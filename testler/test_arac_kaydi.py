@@ -147,6 +147,12 @@ class KacisliKod(unittest.TestCase):
         sonuc = box.run("run_python", {"code": kod})
         self.assertIn("tabla (260, 260, 260) 3.14", sonuc)
 
+    def test_arac_islev_gibi_cagrilirsa_ipucu(self):
+        box = tools.Toolbox(tempfile.mkdtemp())
+        sonuc = box.run("run_python", {"code": "make_decor_model(shape='vazo')"})
+        self.assertIn("is a TOOL", sonuc)
+        self.assertNotIn("is a TOOL", box.run("run_python", {"code": "bilinmeyen_ad()"}))  # araç değilse not yok
+
     def test_gecerli_kod_degismez(self):
         for kod in ('print("a\\nb")', "x = 1\nprint(x)", "print(1)", "bozuk kod \\n ("):
             self.assertEqual(tools.unescape_code(kod), kod)

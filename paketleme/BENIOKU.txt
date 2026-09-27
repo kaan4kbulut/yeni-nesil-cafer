@@ -34,7 +34,17 @@ KURULUM · LINUX
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
-SÜRÜM 2.5'TE YENİ
+SÜRÜM 2.5.1'DE DÜZELTİLDİ
+  - 3D figür: beyaz ya da açık renkli bir figür açık renkli fonda (yer düzlemi, gölge) üretildiğinde zemin de
+    figürün parçası sanılıyor, kedi yerine uzun bir blok çıkıyordu. Arka plan artık nesnenin dış hattına kadar
+    siliniyor; ayrılamazsa asistan resmi yeniden üretiyor. Ekran kartı başka bir programla doluysa figür hata
+    vermeden işlemcide yapılıyor.
+  - Resim üretimi birden çok ekran kartı olan bilgisayarlarda en güçlü karta sabitleniyor (tümleşik Intel kartı
+    da işe katılıyor, üretim yavaşlıyordu); yanlış "Intel'de çalıştı" uyarısı da giderildi.
+  - Küçük modellerin iki sık hatası düzeltildi: üretilen resmin adını kısaltınca doğru ad gösteriliyor, bir
+    aracı Python kodu içinde çağırmaya kalkınca ne yapması gerektiği söyleniyor. "Düz / siluet figür"
+    isteğinde hacimli figür yerine siluet figür yapılıyor.
+
   - Resimden gerçek 3D figür: "3D yazıcı için oturan bir kedi figürü yap" ya da "bu fotoğraftaki köpeği
     figür yap" de; asistan resmi üretir (ya da senin resmini kullanır) ve onu hacimli, ayaklı, baskıya
     hazır bir 3D figüre çevirir (STL + 3MF). Yerel yapay zekâ modeli TripoSR (ücretsiz, MIT lisanslı)

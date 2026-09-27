@@ -26,7 +26,7 @@ from . import api_catalog, cli_agents, hooks, learning, power, security, special
 from .tools import (
     program_roots,
     CALL_API_SPEC, DECOR_SPEC, DELEGATE_SPEC, FIGURE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
-    TEAM_TASK_SPEC, Toolbox, ToolError, file_stem, model_report,
+    TEAM_TASK_SPEC, Toolbox, ToolError, file_stem, missing_image, model_report,
     validate_input,
 )
 from .registry import REGISTRY
@@ -235,7 +235,8 @@ PRINT3D_NOTE = (
     "lamp, lampshade, ornament, star, figurine, animal or character figure, relief, lithophane): call "
     "make_decor_model directly and pick shape and sizes; do not write geometry code for these. A figure (animal, "
     "character, statuette): if make_3d_figure is among your tools, make a picture with generate_image and turn it "
-    "into a real 3D figure with make_3d_figure; otherwise use make_decor_model shape 'siluet' and tell the user that "
+    "into a real 3D figure with make_3d_figure (but a flat, 2.5D or silhouette figure the user asks for is always "
+    "make_decor_model shape 'siluet'); otherwise use make_decor_model shape 'siluet' and tell the user that "
     "real 3D figures need the 3D figure engine (Yardım → 3D figür motoru). If generate_image fails, ask the user for "
     "a picture. Functional parts "
     "with exact sizes (box, holder, bracket, lid): FIRST call use_skill with name '3d-baski' (tested build123d "
@@ -836,7 +837,7 @@ class Agent:
             raise ToolError("image is required: make a picture with generate_image first, then pass its path")
         picture = self.toolbox._resolve(image, read=True)
         if not picture.is_file():
-            raise ToolError(f"No such image: {image}")
+            raise missing_image(Path(self.toolbox.root), image)
         target = self.toolbox._resolve(f"3D/{file_stem(str(args.get('name') or ''), picture.stem)}")
         try:
             height = float(args.get("height") or 100)

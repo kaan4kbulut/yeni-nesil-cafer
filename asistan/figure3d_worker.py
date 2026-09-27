@@ -37,7 +37,9 @@ class FigureError(Exception):
 
 def cut_out(path: str, max_px: int = 1024):
     """Resmi yükler, figürü zeminden ayırır: RGBA (zemin saydam). Saydam PNG'de saydamlık kullanılır; değilse kenardan
-    başlayıp zemin rengine benzeyen, kenara bağlı bölge zemin sayılır (figürün içindeki açık renkler figürde kalır)."""
+    başlayıp keskin bir sınıra (nesnenin dış hattına) çarpana kadar yayılan yumuşak geçişli bölge zemin sayılır: renk
+    geçişli fon, aydınlık yer düzlemi ve gölge de zemindir. İlk yöntem (kenar rengine benzeyen bölge) beyaz fonda beyaz
+    kediyi yer düzlemiyle birleştirip modelden kama biçimli bir blok çıkarmıştı (2026-09-27)."""
     from PIL import Image, ImageOps
     from scipy import ndimage
 
@@ -49,21 +51,30 @@ def cut_out(path: str, max_px: int = 1024):
         mask = alpha > 0.5
     else:
         rgb = rgba[..., :3]
-        border = np.concatenate([rgb[0], rgb[-1], rgb[:, 0], rgb[:, -1]])
-        bg = np.median(border, axis=0)
-        spread = np.percentile(np.linalg.norm(border - bg, axis=1), 90)
-        near = np.linalg.norm(rgb - bg, axis=2) < max(0.08, spread * 1.5)
-        labels, _ = ndimage.label(near)
+        smooth = ndimage.gaussian_filter(rgb, sigma=(1.5, 1.5, 0))
+        grad = np.sqrt(sum(ndimage.sobel(smooth[..., c], axis=a) ** 2 for c in range(3) for a in (0, 1)))
+        thr = max(0.04, float(np.percentile(grad, 75)))  # nesnenin dış hattı: resmin en keskin %25'i
+        labels, _ = ndimage.label(grad < thr)
         edge = np.unique(np.concatenate([labels[0], labels[-1], labels[:, 0], labels[:, -1]]))
         background = np.isin(labels, edge[edge > 0])
-        mask = ndimage.binary_fill_holes(ndimage.binary_opening(~background, iterations=2))
+        opening = max(2, round(max(rgb.shape[:2]) / 250))  # zemin çizgisi gibi ince uzantılar kopsun
+        mask = ndimage.binary_fill_holes(ndimage.binary_opening(~background, iterations=opening))
+        # nesnenin arkasından geçen ufuk / masa kenarı: kenardan gelip gövdeye ulaşan İNCE yapı nesneden ayrılır
+        thin = mask & (ndimage.distance_transform_edt(mask) < max(rgb.shape[:2]) * 0.015)
+        parts, _ = ndimage.label(thin)
+        rim = np.unique(np.concatenate([parts[0], parts[-1], parts[:, 0], parts[:, -1]]))
+        mask &= ~np.isin(parts, rim[rim > 0])
     labels, n = ndimage.label(mask)
     if n == 0 or mask.mean() < 0.01:
         raise FigureError("resimde figür bulunamadı: düz zemin önünde tek bir nesne olmalı")
     sizes = ndimage.sum(mask, labels, range(1, n + 1))
     mask = labels == (int(np.argmax(sizes)) + 1)  # en büyük nesne
-    if mask.mean() > 0.9:
-        raise FigureError("figür zeminden ayrılamadı: düz, açık renkli bir zemin önünde çekilmiş resim gerekli")
+    top, bottom, left, right = (bool(line.any()) for line in (mask[0], mask[-1], mask[:, 0], mask[:, -1]))
+    # gerçek nesneler kenara değmez (alta dayanan büst yalnızca alta); karşılıklı iki kenara birden değen şey ufuk,
+    # masa kenarı ya da yer düzlemidir: uydurma blok üretme, resmi yeniletsin
+    if mask.mean() > 0.8 or (left and right) or (top and bottom):
+        raise FigureError("figür zeminden ayrılamadı: resmi, figürden farklı renkte düz bir zemin önünde (yer düzlemi ve "
+                          "gölge olmadan, ör. 'plain uniform mid-gray background, no floor, no shadow') yeniden üretin")
     out = np.dstack([rgba[..., :3], mask.astype(np.float64)])
     return Image.fromarray((out * 255).astype(np.uint8), "RGBA")
 
@@ -182,11 +193,24 @@ def main(args: dict) -> dict:
     t0 = time.time()
     device = "cuda" if args.get("gpu") and torch.cuda.is_available() else "cpu"
     image = prepare(cut_out(args["image"]))
-    model = load_model(args["code"], args["model"], device)
-    with torch.no_grad():
-        scene_codes = model([image], device=device)
-    verts, faces = density_mesh(model, scene_codes[0], 256 if device == "cuda" else 160)
+
+    def shape(dev: str):
+        model = load_model(args["code"], args["model"], dev)
+        with torch.no_grad():
+            scene_codes = model([image], device=dev)
+        return density_mesh(model, scene_codes[0], 256 if dev == "cuda" else 160)
+
+    extra = []
+    try:
+        verts, faces = shape(device)
+    except torch.OutOfMemoryError:
+        # kartı başka bir program tutuyor (Ollama modeli, oyun…): hata verme, işlemcide yap (~25 sn)
+        torch.cuda.empty_cache()
+        device = "cpu"
+        verts, faces = shape(device)
+        extra.append("Ekran kartında yer yoktu (başka bir program kullanıyordu); figür işlemcide yapıldı.")
     body, notes = printable(verts, faces, float(args.get("height") or 100.0), bool(args.get("base", True)))
+    notes = extra + notes
     bed = [float(x) for x in str(args.get("bed") or "220x220x250").lower().split("x")]
     info = decor3d.save(body, notes, bed, args["out"], infill=0.15)
     prepared = Path(args["out"]).with_name(Path(args["out"]).name + "-girdi.png")

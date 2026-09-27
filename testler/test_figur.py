@@ -20,7 +20,9 @@ from unittest import mock
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
 
-_VERI = Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share")
+# gerçek kurulum klasörü: başka bir test dosyası XDG_DATA_HOME'u geçici klasöre almış olabilir (birlikte
+# çalışınca kütüphaneler bulunamayıp testler sessizce atlanıyordu)
+_VERI = Path.home() / ".local/share"
 _YOLLAR = [p for p in (_VERI / "yeni-nesil-cafer-app/ajan-kutuphaneleri", _VERI / "yeni-nesil-cafer/python-kutuphaneleri")
            if p.is_dir()]
 os.environ["PYTHONPATH"] = os.pathsep.join([*map(str, _YOLLAR), os.environ.get("PYTHONPATH", "")]).strip(os.pathsep)
@@ -70,6 +72,45 @@ print(json.dumps({"ic": bool(m[150, 200]), "zemin": bool(m[5, 5]), "oran": float
         self.assertAlmostEqual(r["oran"], 3.1416 * 100 * 100 / (400 * 300), delta=0.03)
         self.assertEqual(r["boyut"], [512, 512])
         self.assertTrue(all(abs(c - 127) <= 2 for c in r["kose"]))  # TripoSR'ın beklediği gri zemin
+
+    def test_beyaz_fonda_beyaz_nesne_ve_yer_duzlemi(self):
+        # canlı denemedeki durum (2026-09-27): açık gri renk geçişli fon, aydınlık yer düzlemi, önünde beyaz kedi
+        r = calistir(r"""
+import json, tempfile, numpy as np
+from PIL import Image, ImageDraw, ImageFilter
+import figure3d_worker as w
+k = tempfile.mkdtemp()
+y = np.linspace(0.78, 0.9, 400)[:, None] * np.ones((400, 400))       # yukarıdan aşağı açılan gri fon
+y[300:] = np.linspace(0.93, 0.98, 100)[:, None]                        # aydınlık yer düzlemi (yumuşak geçiş)
+im = Image.fromarray((np.dstack([y] * 3) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3))
+d = ImageDraw.Draw(im)
+d.ellipse((140, 120, 260, 330), fill=(247, 247, 247), outline=(150, 150, 150), width=3)  # beyaz gövde, gri dış hat
+d.ellipse((160, 60, 240, 140), fill=(250, 250, 250), outline=(150, 150, 150), width=3)   # baş
+im.save(k + "/kedi.png")
+m = np.asarray(w.cut_out(k + "/kedi.png"))[..., 3] > 0
+print(json.dumps({"govde": bool(m[250, 200]), "bas": bool(m[100, 200]), "yer": bool(m[380, 50]),
+                  "fon": bool(m[20, 20]), "oran": float(m.mean())}))
+""")
+        self.assertTrue(r["govde"] and r["bas"])
+        self.assertFalse(r["yer"] or r["fon"])
+        self.assertLess(r["oran"], 0.25)
+
+    def test_zemin_ayrilamazsa_uydurma_blok_yok(self):
+        r = calistir(r"""
+import json, tempfile, numpy as np
+from PIL import Image
+import figure3d_worker as w
+k = tempfile.mkdtemp()
+a = np.full((300, 300, 3), 120, np.uint8)
+a[180:] = 235  # keskin kenarlı masa yüzeyi resmin üç kenarına değiyor, üstünde nesne yok
+Image.fromarray(a).save(k + "/masa.png")
+try:
+    w.cut_out(k + "/masa.png"); hata = ""
+except w.FigureError as e:
+    hata = str(e)
+print(json.dumps({"hata": hata}))
+""")
+        self.assertTrue(r["hata"])
 
     def test_saydam_png_ve_bos_resim(self):
         r = calistir(r"""
