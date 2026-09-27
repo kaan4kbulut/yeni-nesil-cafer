@@ -58,7 +58,8 @@ rm -rf "$YAYIN"; mkdir -p "$YAYIN"
 if [ "${1:-}" != "--paketsiz" ]; then
     yaz "3/5 Kurulum dosyaları (internet paketi)"
     "$PY" paketleme/paketle.py --internet
-    cp "$CIKTI/$PAKET-Windows-internet.zip" "$CIKTI/$PAKET-Linux-internet.tar.gz" "$CIKTI/BENIOKU.txt" "$YAYIN/"
+    cp "$CIKTI/$PAKET-Windows-internet.zip" "$CIKTI/$PAKET-Linux-internet.tar.gz" "$CIKTI/$PAKET-macOS-internet.zip" \
+        "$CIKTI/BENIOKU.txt" "$YAYIN/"
 fi
 if [ "${1:-}" = "--tam" ]; then
     # Paketler son program değişikliğinden sonra üretildiyse yeniden üretilmez (testler, CI ve bu betik sayılmaz)
