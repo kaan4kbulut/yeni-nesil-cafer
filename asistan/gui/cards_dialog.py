@@ -3,7 +3,7 @@
 import threading
 import time
 
-from PySide6.QtCore import QObject, Qt, Signal
+from PySide6.QtCore import QObject, Signal
 from PySide6.QtWidgets import (
     QDialog, QHBoxLayout, QHeaderView, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout,
 )
@@ -45,9 +45,10 @@ class CardsDialog(QDialog):
         self.table.verticalHeader().setVisible(False)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setSelectionMode(QTableWidget.NoSelection)
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        for i in range(1, len(COLUMNS)):
+        # model adı hep okunsun: uzun hata metni son sütunda esner (önce ad sütunu "g…", "q…" diye eziliyordu)
+        for i in range(len(COLUMNS) - 1):
             self.table.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(len(COLUMNS) - 1, QHeaderView.Stretch)
         lay.addWidget(self.table, 1)
         row = QHBoxLayout()
         self.status = QLabel(objectName="hint")
@@ -76,7 +77,7 @@ class CardsDialog(QDialog):
                         [("", None)] * (len(COLUMNS) - 2)
             elif c.get("error"):
                 cells = [(m["name"], None), ("hata", bad)] + [("", None)] * (len(COLUMNS) - 3) + \
-                        [(c["error"][:60], C["muted"])]
+                        [("sınav yarıda kaldı — yeniden sına", C["muted"])]
             else:
                 tools = c.get("tools", 0)
                 cells = [
@@ -98,8 +99,10 @@ class CardsDialog(QDialog):
                 if col == 1 and c and not c.get("error") and c.get("declared_tools") and not c.get("tools"):
                     item.setToolTip("Ollama bu modelin araç desteği olduğunu söylüyor, ama sınavda hiç araç çağırmadı "
                                     "(işi yapmak yerine anlatıyor).")
+                if c and c.get("error") and col == len(cells) - 1:
+                    item.setToolTip(c["error"][:600])  # tam hata: Claude Code'a rapor için
                 self.table.setItem(r, col, item)
-        todo = len(cards.missing(self.url))
+        todo = len(cards.missing(self.url, errors=True))
         self.status.setText(f"{todo} model sınav bekliyor." if todo else "Bütün modellerin kartı güncel.")
 
     def _start(self, force: bool):
@@ -112,7 +115,7 @@ class CardsDialog(QDialog):
         def work():
             try:
                 done = cards.measure_missing(
-                    self.url, force=force, cancelled=self._stop.is_set,
+                    self.url, force=force, errors=True, cancelled=self._stop.is_set,
                     on_progress=lambda i, n, m: self.bridge.progress.emit(f"🧪 sınanıyor {i}/{n} · {m}…"))
                 self.bridge.done.emit(f"{len(done)} model sınandı." if done else "Sınanacak model yok.")
             except InterruptedError:

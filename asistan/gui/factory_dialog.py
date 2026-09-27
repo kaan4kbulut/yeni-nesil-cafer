@@ -35,8 +35,9 @@ class FactoryDialog(QDialog):
         row = QHBoxLayout()
         folder = QPushButton("Klasörü aç", objectName="smallButton")
         folder.clicked.connect(lambda: QDesktopServices.openUrl(QUrl.fromLocalFile(str(factory.TOOLS_DIR))))
-        delete = QPushButton("Seçili aracı sil", objectName="smallButton")
+        self.delete_btn = delete = QPushButton("Seçili aracı sil", objectName="smallButton")
         delete.clicked.connect(self._delete)
+        delete.setEnabled(False)  # bir araç seçilince açılır
         row.addWidget(folder)
         row.addStretch()
         row.addWidget(delete)
@@ -57,6 +58,7 @@ class FactoryDialog(QDialog):
 
     def _show(self, item):
         t = item.data(Qt.UserRole) if item else None
+        self.delete_btn.setEnabled(bool(t))
         if not t:
             self.code.clear()
             return

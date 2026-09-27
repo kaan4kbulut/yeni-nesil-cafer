@@ -145,7 +145,7 @@ class SurucuHatasi(unittest.TestCase):
 class BaglamAltSiniri(unittest.TestCase):
     """2026-09-26: bozuk kartta ölçülen 2048 kalıcı ayar olmuştu; talimat (~4–5.6K token) sığmıyordu."""
 
-    def test_bagllam_talimatin_sigacagi_kadardan_kucuk_olmaz(self):
+    def test_baglam_talimatin_sigacagi_kadardan_kucuk_olmaz(self):
         from asistan import ctxprobe, power
 
         with mock.patch.object(gpu, "fault", return_value=""), \

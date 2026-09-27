@@ -1126,6 +1126,8 @@ class Toolbox:
         for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
             tag.decompose()
         title = soup.title.get_text(strip=True) if soup.title else ""
+        if soup.title:
+            soup.title.decompose()  # başlık metinde bir daha geçmesin (üstte ayrıca yazılıyor)
         lines = [line.strip() for line in soup.get_text("\n").splitlines()]
         text = "\n".join(line for line in lines if line)
         return f"{title}\n\n{text}" if title else text

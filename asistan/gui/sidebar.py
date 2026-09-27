@@ -136,6 +136,9 @@ class ApiDialog(QDialog):
         self.auth_param.setPlaceholderText("ör. X-Api-Key ya da appid")
 
         self.login_session = None  # hesapla girişte (yöntem, süreli anahtar bilgisi): kaydederken saklanır
+        # anahtar nereden alınır / anahtarsız yol (2026-09-26: OpenAI ve Groq anahtarsız kaydedilmişti)
+        self.key_help = QLabel(objectName="hint", wordWrap=True)
+        self.key_help.linkActivated.connect(self._key_help_link)
         self.login_btn = QPushButton("🔑  Hesabınla giriş yap — anahtar kopyalamadan", objectName="smallButton")
         self.login_btn.clicked.connect(self._login)
 
@@ -160,6 +163,7 @@ class ApiDialog(QDialog):
             form.addRow("Adres:", self.url)
             form.addRow("API anahtarı:", self.key)
             form.addRow("", self.login_btn)
+            form.addRow("", self.key_help)
             form.addRow("Modeller:", self.models)
             form.addRow("Ne işe yarar:", self.description)
             form.addRow("Anahtar gönderimi:", self.auth)
@@ -209,6 +213,7 @@ class ApiDialog(QDialog):
         llm = self.kind.currentData() == "llm"
         method = accounts.LOGINS.get(self.preset.currentText(), "")
         self._set_row_visible(self.login_btn, llm and accounts.available(method))
+        self._set_row_visible(self.key_help, llm and bool(self._update_key_help()))
         self._set_row_visible(self.preset, llm and not self.conn)
         self._set_row_visible(self.models, llm)
         self._set_row_visible(self.description, not llm)
@@ -224,6 +229,34 @@ class ApiDialog(QDialog):
             self.name.clear()
             self.url.clear()
         self._update_fields()
+
+    def _update_key_help(self) -> str:
+        """Hazır ayarın firması: anahtar sayfası bağlantısı ve (varsa) aboneliğinle anahtarsız kullanma yolu."""
+        from .. import catalog, cli_agents
+
+        prov = catalog.by_host(LLM_PRESETS.get(self.preset.currentText(), ("", True))[0] or "-")
+        if prov is None:
+            self.key_help.setText("")
+            return ""
+        parts = [f'Anahtarı <a href="{prov.key_url}">{prov.name} sayfasından al</a>.']
+        agent = cli_agents.AGENTS.get(prov.login)
+        if agent and agent.provider != cli_agents.CLAUDE.provider:
+            parts.append(f'Anahtarın yoksa: <a href="hesap:{agent.provider}">{agent.via} kullan ({agent.title})</a> '
+                         "— API anahtarı gerekmez.")
+        text = " ".join(parts)
+        self.key_help.setText(text)
+        return text
+
+    def _key_help_link(self, link: str):
+        if link.startswith("hesap:"):  # pencere kapanır; API'ler sekmesi kurulum/giriş akışını başlatır
+            panel = self.parent()
+            while panel is not None and not hasattr(panel, "account_requested"):
+                panel = panel.parent()
+            self.reject()
+            if panel is not None:
+                panel.account_requested.emit(link.split(":", 1)[1])
+            return
+        QDesktopServices.openUrl(QUrl(link))
 
     def _login(self):
         """Tarayıcıda hesapla giriş; alınan anahtar alana yazılır ve bağlantı denenir (accounts.py)."""

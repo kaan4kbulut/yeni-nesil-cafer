@@ -95,10 +95,12 @@ def card(model: str) -> dict | None:
     return c if valid(c) and not c.get("error") else None
 
 
-def missing(ollama_url: str) -> list[dict]:
-    """Kartı olmayan / eskimiş kurulu modeller (küçükten büyüğe: hızlı olanlar önce hazır olsun)."""
+def missing(ollama_url: str, errors: bool = False) -> list[dict]:
+    """Kartı olmayan / eskimiş kurulu modeller (küçükten büyüğe: hızlı olanlar önce hazır olsun).
+    errors: sınavı hatayla yarıda kalanlar da (kendiliğinden bir gün sonra denenir; kullanıcı düğmeye basınca hemen)."""
     cards = load_cards()
-    todo = [m for m in installed(ollama_url) if not valid(cards.get(m["name"]), m["digest"])]
+    todo = [m for m in installed(ollama_url) if not valid(cards.get(m["name"]), m["digest"])
+            or (errors and (cards.get(m["name"]) or {}).get("error"))]
     return sorted(todo, key=lambda m: m["params"] or 99)
 
 
@@ -215,9 +217,10 @@ def _loaded(ollama_url: str) -> list[dict]:
         return []
 
 
-def measure_missing(ollama_url: str, on_progress=None, cancelled=None, force: bool = False) -> list[dict]:
+def measure_missing(ollama_url: str, on_progress=None, cancelled=None, force: bool = False,
+                    errors: bool = False) -> list[dict]:
     """Kartı olmayan modelleri sırayla sınar. on_progress(sıra, toplam, model)."""
-    todo = sorted(installed(ollama_url), key=lambda m: m["params"] or 99) if force else missing(ollama_url)
+    todo = sorted(installed(ollama_url), key=lambda m: m["params"] or 99) if force else missing(ollama_url, errors)
     done = []
     for i, m in enumerate(todo, 1):
         if cancelled and cancelled():

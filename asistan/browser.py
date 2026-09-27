@@ -109,6 +109,29 @@ def gate(action: str, element: dict, url: str, text: str = "", submit: bool = Fa
 
 # ---------------------------------------------------------------- sayfa okuma (tarayıcıda çalışan betik)
 
+# Görünümün üstünde kalan (okunmuş) metin atlanır; ekrandaki yerden itibaren belge sırasıyla, blok başına satır.
+# 2026-09-26 denetimi: önce hep document.body.innerText'in başı veriliyordu, kaydırma modelin gördüğünü değiştirmiyordu.
+_VISIBLE_TEXT_JS = r"""(max) => {
+  if (!document.body) return '';
+  const out = []; let n = 0, last = null;
+  const walk = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+  const BLOCK = 'p,div,li,tr,td,th,h1,h2,h3,h4,h5,h6,section,article,dt,dd,pre,blockquote,label,button,a';
+  while (walk.nextNode()) {
+    const node = walk.currentNode, el = node.parentElement;
+    const s = node.textContent.replace(/\s+/g, ' ').trim();
+    if (!s || !el || el.closest('script,style,noscript,template')) continue;
+    const r = el.getBoundingClientRect();
+    if (r.bottom < 0 || (r.width === 0 && r.height === 0)) continue;
+    const st = getComputedStyle(el);
+    if (st.visibility === 'hidden' || st.display === 'none') continue;
+    const block = el.closest(BLOCK) || el;
+    out.push(out.length ? (block === last ? ' ' : '\n') : '', s);
+    last = block; n += s.length;
+    if (n > max) break;
+  }
+  return out.join('');
+}"""
+
 _MARK_JS = r"""
 (max) => {
   document.querySelectorAll('[data-ya-ref]').forEach(e => e.removeAttribute('data-ya-ref'));
@@ -284,8 +307,13 @@ class Browser:
     def _snapshot(self, page, find: str = "") -> str:
         elements = page.evaluate(_MARK_JS, MAX_ELEMENTS)
         self.elements = {e["ref"]: e for e in elements}
-        text = page.evaluate("() => (document.body ? document.body.innerText : '')") or ""
+        if find:  # aranan şey sayfanın herhangi bir yerinde olabilir: bütün metin
+            text = page.evaluate("() => (document.body ? document.body.innerText : '')") or ""
+        else:  # ekranda görünen yerden itibaren: kaydırınca model sayfanın devamını görür
+            text = page.evaluate(_VISIBLE_TEXT_JS, MAX_TEXT + 500) or ""
         text = re.sub(r"\n\s*\n+", "\n", text).strip()
+        where = page.evaluate("() => { const h = document.documentElement.scrollHeight - innerHeight;"
+                              " return h > 50 ? Math.round(100 * scrollY / h) : -1; }")
         shown = elements
         if find:
             words = [w for w in re.findall(r"\w{3,}", find.casefold())]
@@ -299,11 +327,19 @@ class Browser:
             if len(shown) < 8:
                 shown = elements  # süzgeç çok daralttı: hepsi (ör. ürün adlarında "ürün" kelimesi geçmez)
             lines = text.splitlines()
-            hits = [i for i, ln in enumerate(lines) if match(ln)]
-            if len(hits) >= 3:  # eşleşen satırlar ve çevresi: fiyatın hemen üstündeki ürün adı da görünsün
+
+            def score(t: str) -> int:  # kaç arama kelimesi geçiyor (+ fiyat): "ürün 290" → ikisi birden geçen satır
+                low = t.casefold()
+                return sum(w in low for w in words) + (1 if money and _MONEY.search(t) else 0)
+
+            best = max((score(ln) for ln in lines), default=0)
+            hits = [i for i, ln in enumerate(lines) if best and score(ln) == best]
+            if hits and len(hits) <= max(3, len(lines) // 2):  # eşleşenler ve çevresi (fiyatın üstündeki ürün adı da)
                 keep = sorted({j for i in hits for j in range(i - 2, i + 3) if 0 <= j < len(lines)})
                 text = "\n".join(lines[j] for j in keep)
-        out = [f"Sayfa: {page.title()[:120]} — {page.url[:200]}",
+        out = [f"Sayfa: {page.title()[:120]} — {page.url[:200]}"
+               + (f"  (konum: %{where}; devamı için browser_scroll)" if where is not None and 0 <= where < 97
+                  else "  (sayfanın sonu)" if where is not None and where >= 97 else ""),
                "Öğeler (tıklamak ya da yazmak için numarayı kullan):"]
         out += [_describe(e) for e in shown] or ["(etkileşimli öğe yok)"]
         out.append("Görünen metin:\n" + (text[:MAX_TEXT] + (" […]" if len(text) > MAX_TEXT else "")))

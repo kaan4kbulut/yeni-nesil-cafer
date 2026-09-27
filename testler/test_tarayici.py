@@ -167,6 +167,35 @@ class GercekTarayici(unittest.TestCase):
             httpd.shutdown()
             httpd.server_close()
 
+    def test_kaydirinca_sayfanin_devami_okunur(self):
+        """2026-09-26 denetimi: metin hep sayfanın başından veriliyordu; kaydırma modelin gördüğünü değiştirmiyordu."""
+        import functools
+        import http.server
+        import re
+        import threading
+
+        d = Path(tempfile.mkdtemp(dir=_GECICI))
+        rows = "".join(f"<p>ürün {i} — {100 + i} TL</p>" for i in range(300))
+        (d / "liste.html").write_text(f"<html><head><meta charset='utf-8'><title>Liste</title></head><body>{rows}"
+                                      "<p>LİSTENİN SONU</p></body></html>", encoding="utf-8")
+        httpd = http.server.ThreadingHTTPServer(("127.0.0.1", 0), functools.partial(
+            http.server.SimpleHTTPRequestHandler, directory=str(d)))
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        b = browser.get()
+        try:
+            first = b.open(f"http://127.0.0.1:{httpd.server_address[1]}/liste.html")
+            after = b.scroll("down")
+            self.assertIn("konum: %0", first)
+            top = int(re.search(r"ürün (\d+)", first.split("Görünen metin:")[1]).group(1))
+            below = int(re.search(r"ürün (\d+)", after.split("Görünen metin:")[1]).group(1))
+            self.assertEqual(top, 0)
+            self.assertGreater(below, top)  # kaydırınca ilk görünen satır ilerler
+            self.assertIn("ürün 290", b.read(find="ürün 290"))  # aramalı okuma bütün sayfada
+        finally:
+            browser.shutdown()
+            httpd.shutdown()
+            httpd.server_close()
+
 
 if __name__ == "__main__":
     unittest.main()
