@@ -455,6 +455,11 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.cloud_btn.clicked.connect(self.open_cloud_jobs)
         self.cloud_btn.hide()
         bar.addPermanentWidget(self.cloud_btn)
+        # donanım kademesi (cekirdek/profil.py): tıklayınca profil özeti ve kilit
+        self.tier_btn = QPushButton(objectName="smallButton")
+        self.tier_btn.setCursor(Qt.PointingHandCursor)
+        self.tier_btn.clicked.connect(self._open_profile)
+        bar.addPermanentWidget(self.tier_btn)
         self.cloud_jobs: list[dict] = []
         self.cloud_job: dict | None = None  # şu an yapılan bulut işi (bitince sonucu gönderilir)
         self.sysmon = SystemMonitorLabel()
@@ -488,6 +493,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.power_timer.timeout.connect(self._check_power)
         self.power_timer.start(15000)
         self._update_power_label()
+        self._measure_profile()
 
     def _build_menu(self):
         bar = self.menuBar()

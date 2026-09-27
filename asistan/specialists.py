@@ -12,6 +12,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek import modeller
 from .config import Settings
 from .connections import ANTHROPIC_KEY, Connection
 from .keystore import get_secret
@@ -24,9 +25,9 @@ ROLES = {
 }
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 # ad parçasına göre tahmin (yetenek bilgisi vermeyen sağlayıcılar için)
-_NAME_HINTS = {
-    "reasoning": ("deepseek-r1", "qwq", "phi4-reasoning", "magistral", "gpt-oss"),
-    "code": ("coder", "codestral", "codellama", "devstral", "starcoder"),
+_NAME_HINTS = {  # ayar/modeller.json → aileler
+    "reasoning": tuple(modeller.deger("aileler.akil_yurutme")),
+    "code": tuple(modeller.deger("aileler.kod")),
 }
 
 
@@ -56,7 +57,7 @@ def vision_models(settings: Settings) -> list[str]:
 from .cli_agents import CLAUDE as _CLAUDE, is_cli, run as run_cli  # noqa: E402  (Codex, Gemini CLI de orada)
 
 CLAUDE_CODE = (_CLAUDE.provider, _CLAUDE.default)  # (sağlayıcı, model): kullanıcının Claude aboneliğiyle Claude Code
-# Claude Code'un çalışabildiği modeller (--model takma adları); "claude-code": Claude Code'un kendi varsayılanı
+# Claude Code'un çalışabildiği modeller (--model takma adları); ilki (CLAUDE.default) Claude Code'un kendi varsayılanı
 CLAUDE_CODE_MODELS = _CLAUDE.models
 
 

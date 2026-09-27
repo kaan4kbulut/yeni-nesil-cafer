@@ -21,6 +21,7 @@ import time
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 
 CARDS_FILE = DATA_DIR / "model-kartlari.json"
@@ -105,9 +106,9 @@ def missing(ollama_url: str, errors: bool = False) -> list[dict]:
 
 
 # kart yokken (yeni kurulum, sınav henüz yapılmadı) başlangıç bilgisi: bu ailelerin modelleri Ollama'ya "araç
-# desteği var" dese de sınavda hiç araç çağırmadı (2026-09-26, 12 model: qwen2.5-coder:14b, gemma3:12b, dolphin3:8b
-# ve glm-ocr 0/6). Kod ve veri ajanları ilk sınav bitene kadar dosya yazamayan bir modele düşmesin.
-NO_TOOL_FAMILIES = ("qwen2.5-coder", "gemma3", "dolphin3", "glm-ocr")
+# desteği var" dese de sınavda hiç araç çağırmadı (2026-09-26, 12 model: Qwen2.5-Coder 14B, Gemma 3 12B,
+# Dolphin 3 8B ve GLM-OCR 0/6). Kod ve veri ajanları ilk sınav bitene kadar dosya yazamayan bir modele düşmesin.
+NO_TOOL_FAMILIES = tuple(modeller.deger("aileler.arac_cagiramaz"))  # ayar/modeller.json
 
 
 def tools_level(model: str) -> int | None:

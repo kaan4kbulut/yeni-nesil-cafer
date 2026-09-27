@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from .. import power, roster, specialists
 from ..agent import describe_error, list_ollama_models, settings_for
+from ..cekirdek import profil
 
 from .dialogs import SettingsDialog
 from .icons import pixmap
@@ -180,6 +181,31 @@ class ModesMixin:
             "Hafif mod: küçük model, en çok 8K bağlam, düşünmesiz yanıt; modeller arasında gidip gelinmez.\n"
             "Fişe takılınca tam güce döner. Ayarlar → Güç'ten değiştirilebilir." if power.saving(self.settings)
             else "Pildesin ama Ayarlar → Güç 'her zaman tam güç': büyük modeller pilde yavaş çalışır.")
+
+    # ---- donanım kademesi (cekirdek/profil.py): açılışta ölçülür, durum çubuğunda görünür, elle kilitlenebilir
+    def _measure_profile(self):
+        self._update_tier_btn()
+        run_in_background(lambda: profil.guncelle(sunucu=False), lambda _p, _e: self._update_tier_btn(), self)
+
+    def _update_tier_btn(self):
+        p = profil.yukle() or {}
+        tier = profil.kademe()
+        locked = profil.kilit()
+        self.tier_btn.setText(f"kademe: {profil.ADLAR[tier]}" + (" 🔒" if locked else ""))
+        off = [profil.AGIR_OZELLIKLER[o] for o in profil.AGIR_OZELLIKLER if not profil.acik_mi(o)]
+        why = (p.get("kademe") or {}).get("neden") or "ölçülüyor…"
+        tip = (f"Elle kilitli. Ölçüm: {why}" if locked else why) + (
+            "\nBu kademede kapalı: " + ", ".join(off) if off else "") + "\nTıkla: profil özeti ve kademe kilidi."
+        self.tier_btn.setToolTip(tip)
+
+    def _open_profile(self):
+        from .profil_dialog import ProfileDialog
+
+        ProfileDialog(self, on_change=self._profile_changed).exec()
+
+    def _profile_changed(self):
+        self._update_tier_btn()
+        self._update_context_label()  # dusuk kademede bağlam tavanı değişir
 
     def _update_light_btn(self):
         btn = getattr(self, "light_btn", None)

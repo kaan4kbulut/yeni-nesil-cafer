@@ -19,12 +19,13 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek import modeller, profil
 from .config import DATA_DIR
 
 DB_FILE = DATA_DIR / "hafiza.db"
-EMBED_MODEL = "nomic-embed-text"
+EMBED_MODEL = modeller.deger("gomme")  # ayar/modeller.json
 EMBED_URL = "http://localhost:11434"
-# nomic-embed-text görev önekleri ister: sorgu ve belge farklı kodlanır
+# gömme modeli (nomic) görev önekleri ister: sorgu ve belge farklı kodlanır
 _PREFIX = {"query": "search_query: ", "document": "search_document: "}
 
 _lock = threading.RLock()
@@ -62,6 +63,8 @@ def reset_for_tests(path: Path) -> None:
 
 def embedding_available(url: str = EMBED_URL) -> bool:
     global _embed_ok
+    if not profil.acik_mi("embedding"):  # dusuk kademede kapalı: arama kelimeyle yapılır
+        return False
     now = time.time()
     if _embed_ok and now - _embed_ok[0] < 60:
         return _embed_ok[1]
@@ -266,6 +269,12 @@ def search(query: str, kinds: tuple[str, ...], k: int = 5, min_score: float = 0.
 def semantic() -> bool:
     """Arama şu an anlam üzerinden mi (embedding modeli hazır mı)?"""
     return embedding_available()
+
+
+def semantic_note() -> str:
+    """Anlamsal arama neden yok: kademe kapattı mı, model mi kurulu değil (arayüz metni)."""
+    return (profil.kapali_notu("embedding") + "; kelime araması yapılır." if not profil.acik_mi("embedding") else
+            f"Anlamsal arama için `{EMBED_MODEL}` modeli kurulu değil; şimdilik kelime araması.")
 
 
 def meta(key: str, value: str | None = None) -> str | None:

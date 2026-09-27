@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import cards, catalog, cli_agents, roster, specialists, sysinfo
+from ..cekirdek import modeller
 from ..config import CLAUDE_MODELS
 
 from .sidebar import run_in_background
@@ -16,8 +17,7 @@ from .theme import C
 _NOT_CHAT = ("embed", "tts", "image", "audio", "whisper", "dall-e", "moderation", "realtime", "transcribe", "imagen",
              "veo", "aqa", "learnlm")
 
-_CODE_HINTS = ("codex", "coder", "codestral", "devstral", "gpt-6", "gpt-5", "gemini-3", "grok", "deepseek",
-               "mistral-medium", "claude")
+_CODE_HINTS = tuple(modeller.deger("aileler.kod_menusu"))  # ayar/modeller.json
 
 
 def _upper_tr(text: str) -> str:

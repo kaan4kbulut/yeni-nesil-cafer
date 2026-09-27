@@ -15,16 +15,14 @@ from dataclasses import dataclass, field
 import httpx
 
 from . import cards, cli_agents, model_updates, catalog, power, specialists
+from .cekirdek import modeller
 from .config import CLAUDE_MODELS, Settings
 from .profiles import AgentProfile
 
 CACHE_SECONDS = 30
 
 # yerel model ailelerine göre kuşak puanı (aynı boyutta yeni kuşak daha yetenekli)
-_FAMILY_BONUS = {
-    "qwen3.6": 9, "qwen3.5": 8, "gemma4": 8, "qwen3": 6, "gpt-oss": 6, "gemma3": 3, "qwen2.5": 3, "llama3.3": 3, "mistral-small": 3,
-    "deepseek-r1": 2, "phi4": 2, "llama3.1": 0, "llama3.2": -2, "qwen2": 0,
-}
+_FAMILY_BONUS = modeller.deger("aileler.kusak_puani")  # ayar/modeller.json
 
 PREF_LABELS = {"tools": "araç", "vision": "görme", "code": "kod", "thinking": "düşünme"}
 

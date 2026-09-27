@@ -27,6 +27,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 
 ROOT = DATA_DIR / "ajan-programlari"
@@ -44,13 +45,19 @@ class CliAgent:
     tool: str = ""  # sohbetteki adım kartının adı (gui/chat.py TOOL_LABELS)
 
 
-CLAUDE = CliAgent("cli:claude", "claude-code", "Claude Code", "Claude aboneliğin", "Claude aboneliğinle",
-                  [("claude-code", "varsayılan"), ("opus", "en yetenekli"), ("fable", "en güçlü"),
-                   ("sonnet", "dengeli, hızlı"), ("haiku", "en hızlı, en az kullanım")], "claude_code")
-CODEX = CliAgent("cli:codex", "codex", "Codex", "ChatGPT hesabın", "ChatGPT hesabınla",
-                 [("codex", "varsayılan (ChatGPT planına göre)")], "codex")
-GEMINI = CliAgent("cli:gemini", "gemini-cli", "Gemini CLI", "Google hesabın", "Google hesabınla",
-                  [("gemini-cli", "varsayılan (otomatik)"), ("pro", "en güçlü"), ("flash", "hızlı")], "gemini_cli")
+def _takma_adlar(provider: str) -> list:
+    """[(model takma adı, not)] — ayar/modeller.json → cli; ilk sıradaki programın varsayılanı."""
+    return [tuple(m) for m in modeller.deger(f"cli.{provider}", [])]
+
+
+def _cli(provider: str, title: str, account: str, via: str, tool: str) -> CliAgent:
+    models = _takma_adlar(provider)
+    return CliAgent(provider, models[0][0], title, account, via, models, tool)
+
+
+CLAUDE = _cli("cli:claude", "Claude Code", "Claude aboneliğin", "Claude aboneliğinle", "claude_code")
+CODEX = _cli("cli:codex", "Codex", "ChatGPT hesabın", "ChatGPT hesabınla", "codex")
+GEMINI = _cli("cli:gemini", "Gemini CLI", "Google hesabın", "Google hesabınla", "gemini_cli")
 AGENTS = {a.provider: a for a in (CLAUDE, CODEX, GEMINI)}
 
 

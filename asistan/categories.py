@@ -16,6 +16,7 @@ import re
 from pathlib import Path
 from dataclasses import dataclass, field
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 from .profiles import AgentProfile
 
@@ -42,22 +43,22 @@ class Category:
     limits: str = ""  # dürüst sınırlar
 
 
-SIZES = {"gemma4:12b": 7.6, "qwen3.5:9b": 6.6, "qwen3.5:4b": 3.4, "qwen2.5-coder:14b": 9.0, "glm-ocr:latest": 2.2,
-         "deepseek-ocr:3b": 6.7, "qwen2.5-coder:7b": 4.7, "qwen3.5:2b": 2.7}
-SMALL = ["qwen3.5:4b", "qwen3.5:2b"]  # listedekilerin hiçbiri sığmayan bilgisayarlar için
+SIZES = modeller.deger("kategoriler.boyutlar")  # model → indirme GB (ayar/modeller.json)
+SMALL = modeller.deger("kategoriler.kucuk")  # listedekilerin hiçbiri sığmayan bilgisayarlar için
+_MODELS = modeller.deger("kategoriler.modeller")  # kategori → sıralı model listesi
 
 CATEGORIES = [
     Category(
         "dil", "Dil ve Metin (NLP / LLM)", "pen",
         "metin anlamlandırma, çeviri, metin yazarlığı, özetleme, sohbet",
-        ["gemma4:12b", "qwen3.5:9b", "qwen3.5:4b"],
+        _MODELS["dil"],
         ["dil", "arastirmaci", "ozet"],
         limits="Uzun ve özenli metinlerde bulut modelleri (Online) belirgin biçimde daha iyi yazar."),
     Category(
         "goru", "Bilgisayarlı Görü", "eye",
         "görsel ve video analizi, nesne tespiti, yüz algılama, taranmış belge (OCR), tıbbi görüntü yorumu, "
         "deepfake tespiti",
-        ["gemma4:12b", "qwen3.5:9b", "qwen3.5:4b", "glm-ocr:latest"],
+        _MODELS["goru"],
         ["gorsel"],
         [Extra("ultralytics", "YOLO ile nesne tespiti ve sayma"), Extra("opencv-python", "yüz algılama, video karelerine ayırma")],
         "Deepfake yalnızca tespit edilir, üretilmez. Tıbbi görüntü yorumu bilgi amaçlıdır, teşhis değildir. "
@@ -65,7 +66,7 @@ CATEGORIES = [
     Category(
         "veri", "Veri Analizi ve Tahminleme", "table",
         "büyük veri setlerinde anormallik bulma, trend analizi, finansal öngörü, istatistiksel modelleme",
-        ["qwen2.5-coder:14b", "qwen3.5:9b", "gemma4:12b"],
+        _MODELS["veri"],
         ["veri"],
         [Extra("scikit-learn", "anormallik tespiti, sınıflandırma, kümeleme"),
          Extra("statsmodels", "zaman serisi tahmini (ARIMA, mevsimsellik), istatistik testleri")],
@@ -73,7 +74,7 @@ CATEGORIES = [
     Category(
         "ses", "Ses ve Konuşma", "languages",
         "konuşmayı yazıya çevirme, metni seslendirme, konuşmacı doğrulama, müzik üretimi",
-        ["qwen3.5:4b", "gemma4:12b"],
+        _MODELS["ses"],
         ["ses"],
         [Extra("faster-whisper", "konuşmayı yazıya çevirme (Türkçe dahil, large-v3-turbo)"),
          Extra("piper-tts", "metni seslendirme (Türkçe ses: tr_TR-dfki-medium)")],
@@ -82,7 +83,7 @@ CATEGORIES = [
     Category(
         "problem", "Problem Çözme ve Kod", "code",
         "karmaşık matematik, lojistik rotalama, oyun stratejisi (satranç…), kod yazma ve hata ayıklama",
-        ["qwen2.5-coder:14b", "qwen3.5:9b", "gemma4:12b"],
+        _MODELS["problem"],
         ["kod"],
         [Extra("ortools", "rota ve çizelge optimizasyonu"), Extra("sympy", "sembolik matematik"),
          Extra("python-chess", "satranç konumları ve hamle analizi")],
@@ -90,7 +91,7 @@ CATEGORIES = [
     Category(
         "otonom", "Otonom Sistemler ve Robotik", "cpu",
         "otonom sürüş, robot kolu, insansız hava aracı: planlama, simülasyon ve kontrol kodu",
-        ["qwen3.5:9b", "qwen2.5-coder:14b", "gemma4:12b"],
+        _MODELS["otonom"],
         ["otonom"],
         [Extra("scipy", "kontrol, optimizasyon ve sinyal işleme")],
         "Bu bilgisayara bağlı fiziksel robot ya da araç yok: iş simülasyon, rota planlama ve kontrol kodu "
@@ -98,7 +99,7 @@ CATEGORIES = [
     Category(
         "uretken", "Üretken Yaratıcılık", "image",
         "metinden görsel oluşturma, dijital sanat; video ve 3D için hazırlık (senaryo, sahne, istem)",
-        ["gemma4:12b", "qwen3.5:9b"],
+        _MODELS["uretken"],
         ["uretken"],
         extras=[Extra("build123d", "3D baskı için ölçülü parça (STL, 3MF, STEP)"),
                 Extra("trimesh", "3D modelin baskıya uygunluğunu denetleme")],
@@ -234,7 +235,7 @@ def model_for(settings, category: Category, installed: set[str] | None = None) -
 
 
 def _params(model: str) -> float:
-    """Model adındaki boyut, milyar parametre ("qwen3.5:9b" → 9); bilinmiyorsa 0."""
+    """Model adındaki boyut, milyar parametre (boyut etiketi "9b" ise 9); bilinmiyorsa 0."""
     m = re.search(r"[:\-](\d+(?:\.\d+)?)b\b", model)
     return float(m.group(1)) if m else 0.0
 

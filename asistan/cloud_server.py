@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 from .registry import REGISTRY
 
@@ -86,7 +87,7 @@ def load_config() -> dict:
             conf[key], changed = make(), True
     conf.setdefault("port", 8765)
     conf.setdefault("host", "127.0.0.1")  # dışarı açmak için 0.0.0.0 — önerilen: Tailscale ile yalnızca kendi cihazların
-    conf.setdefault("model", "qwen3.5:4b")
+    conf.setdefault("model", modeller.deger("varsayilan.bulut_sunucu"))
     conf.setdefault("telegram_token", "")
     conf.setdefault("telegram_chat", 0)
     if changed:

@@ -17,6 +17,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from . import cli_agents, learning, roster, specialists
+from .cekirdek import modeller
 from .agent import Agent, is_action, is_task_request, _TASK
 
 MAX_PLAN_STEPS = 5
@@ -229,7 +230,8 @@ class Manager:
         request = learning.original_request(text)
         if self.worker is None and is_task_request(request):
             self._emit("on_route", f"⚠ Kurulu modellerin hiçbiri araç sınavını geçemedi: {self.chat[1]} dosya yazamaz, "
-                                   "komut çalıştıramaz. Araç kullanabilen küçük bir model kur: `ollama pull qwen3.5:4b`")
+                                   "komut çalıştıramaz. Modeller menüsünden araç kullanabilen küçük bir model indir "
+                                   f"(önerilen: {modeller.deger('temel.model')}).")
         elif self.worker and self.worker != self.chat and is_task_request(request):
             self._emit("on_route", f"🔧 İşi **{self.worker[1]}** yapıyor: {self.chat[1]} araç kullanamıyor (model "
                                    f"kartı). Uzun metinleri yine {self.chat[1]} yazar.")

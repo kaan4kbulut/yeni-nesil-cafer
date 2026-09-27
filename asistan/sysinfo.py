@@ -15,25 +15,18 @@ from pathlib import Path
 
 import httpx
 
-# Yerel model basamakları (Eylül 2026, Ollama kayıt sunucusunda doğrulandı; boyut = indirme GB).
+from .cekirdek import modeller
+
+# Yerel model basamakları (Eylül 2026, Ollama kayıt sunucusunda doğrulandı; boyut = indirme GB; ayar/modeller.json).
 # Her yetenekte zayıf sistemden güçlüye; (model, boyut, en az VRAM GB, ya da ekran kartı yoksa en az RAM GB)
 # Pakete gömülü temel model: 8 GB RAM'li sıradan bir bilgisayarda bile çalışır; sohbet, araç kullanma, resim görme
 # ve düşünme tek modelde (ollama show: completion · vision · tools · thinking)
-BASE_MODEL = ("qwen3.5:4b", 3.4)  # 2b testlerde çok adımlı işlerde dosya bozdu; 4b aynı işleri doğru yaptı
+BASE_MODEL = (modeller.deger("temel.model"), modeller.deger("temel.boyut_gb"))
 APP_DIR = Path(__file__).resolve().parent.parent
 BUNDLE_DIR = APP_DIR / "modeller"  # paketteki model dosyası ve Modelfile
 OLLAMA_DIR = APP_DIR / "ollama"  # pakete gömülü Ollama (kurulum paketinden gelmişse)
-LADDERS = {
-    "chat": ("Sohbet ve görevler", "araç kullanır: dosya, komut, web", [
-        ("qwen3:1.7b", 1.4, 0, 4), ("qwen3:4b", 2.5, 4, 8), ("qwen3:8b", 5.2, 6, 16),
-        ("qwen3:14b", 9.3, 11, 32), ("qwen3:30b", 18.6, 20, 64)]),
-    "vision": ("Resim görme", "fotoğraf, ekran görüntüsü, taranmış belge", [
-        ("gemma3:4b", 3.3, 4, 8), ("qwen3-vl:8b", 6.1, 7, 16), ("gemma3:12b", 8.1, 11, 32)]),
-    "code": ("Kod", "yazılım, hata ayıklama", [
-        ("qwen2.5-coder:7b", 4.7, 6, 16), ("qwen2.5-coder:14b", 9.0, 11, 32), ("qwen3-coder:30b", 18.6, 20, 64)]),
-    "reasoning": ("Derin düşünme", "zor problem, matematik, plan", [
-        ("deepseek-r1:8b", 5.2, 6, 16), ("deepseek-r1:14b", 9.0, 11, 32), ("gpt-oss:20b", 13.8, 16, 64)]),
-}
+LADDERS = {tur: (b["baslik"], b["not"], [tuple(m) for m in b["modeller"]])
+           for tur, b in modeller.deger("basamaklar").items()}
 MODEL_SIZES = {m: size for _, _, ladder in LADDERS.values() for m, size, _, _ in ladder}
 
 
@@ -290,11 +283,8 @@ def _fallback_ladders() -> dict:
 
 
 # yetenek listesinde olmayan ama programın kullandığı modeller: (tür, başlık, not, model, GB, varsayılan seçili)
-SUPPORT_MODELS = [
-    ("memory", "Hafıza (anlamca arama)", "önceki sohbetlerden öğrenilenleri anlamca bulur; yoksa kelime araması",
-     "nomic-embed-text:latest", 0.3, True),
-    ("ocr", "Resimden yazı okuma (OCR)", "taranmış belge ve fotoğraftaki yazı", "glm-ocr:latest", 2.2, False),
-]
+SUPPORT_MODELS = [(d["tur"], d["baslik"], d["not"], d["model"], d["boyut_gb"], d["secili"])
+                  for d in modeller.deger("destek")]
 
 
 def recommend(info: "SystemInfo", live: dict | None = None) -> tuple[str, list[Suggestion]]:

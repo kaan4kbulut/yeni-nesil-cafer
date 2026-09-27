@@ -88,8 +88,10 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   `choices.py` (sorudaki seçenekler → baloncuk), `suggest.py` (karşılama önerileri).
 - Çekirdek (`cekirdek/`, Qt/fastapi yasak): `ayar.py` (tek ayar kaynağı: `ayarlar.json` + `ayar.toml` + `CAFER_*`;
   `config` eski yol), `saglayici/` (Ollama/Claude/OpenAI uyumlu/CLI: tek model çağrısı, `hata_metni`), `araclar/`
-  (dosya, komut/Python, web; `Toolbox` devreder), `istek.py` (ajanı kur + yöneticiyle çalıştır; masaüstü ve bulut).
-  `arayuz/masaustu` gui'yi sunar; `eski.py` taşınan adların eski yolu (2.8'de kalkar).
+  (dosya, komut/Python, web; `Toolbox` devreder), `istek.py` (ajanı kur + yöneticiyle çalıştır; masaüstü ve bulut),
+  `profil.py` (donanım → `DATA_DIR/profil.json`, kademe, kilit, `acik_mi`), `modeller.py` (`asistan/ayar/modeller.json`:
+  bütün model adları). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
+  adların eski yolu (2.8'de kalkar).
 - Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
   `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
   (uzman modele danışma), `profiles.py` (yardımcı ajanlar), `cli_agents.py`, `accounts.py` (OpenRouter OAuth, HF cihaz

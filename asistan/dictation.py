@@ -15,13 +15,14 @@ from pathlib import Path
 import httpx
 
 from . import eski
+from .cekirdek import modeller
 from .config import DATA_DIR
 
 MODEL = "large-v3-turbo"  # Türkçede iyi, large-v3'ten ~6 kat hızlı
 MODEL_DIR = DATA_DIR / "dikte-modeli"  # indirilmiş model (yoksa faster-whisper kendi önbelleğine indirir)
 BUNDLED_DIR = Path(__file__).resolve().parent.parent / "modeller" / "dikte"  # kurulum paketine gömülü model
 MAX_SECONDS = 300  # tek kayıt en çok 5 dakika
-CLEAN_MODELS = ("qwen3.5:4b", "qwen3.5:9b", "gemma4:12b")  # temizleme için küçük ve hızlı olan önce
+CLEAN_MODELS = tuple(modeller.deger("dikte_temizleme"))  # temizleme için küçük ve hızlı olan önce (modeller.json)
 
 CLEAN_PROMPT = (
     "Below is a raw speech-to-text transcript. Return it cleaned up: fix punctuation and capitalisation, remove "

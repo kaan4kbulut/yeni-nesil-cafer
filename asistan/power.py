@@ -130,9 +130,12 @@ def saving(settings) -> bool:
 def num_ctx(settings) -> int:
     """Ollama'ya gönderilecek bağlam: hafif modda en çok 8K (uzun geçmiş pilde her adımı dakikalarca bekletir),
     hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
+    from .cekirdek import profil
     from .ctxprobe import FLOOR_CTX
 
     ctx = min(settings.ollama_num_ctx, BATTERY_CTX) if saving(settings) else settings.ollama_num_ctx
+    if not profil.acik_mi("uzun_baglam"):  # dusuk kademe: uzun bağlam kapalı
+        ctx = min(ctx, profil.KISA_BAGLAM)
     return max(ctx, FLOOR_CTX)
 
 

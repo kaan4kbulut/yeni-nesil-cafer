@@ -40,6 +40,10 @@ def _browsers_path() -> str:
 
 
 def available() -> bool:
+    from .cekirdek import profil
+
+    if not profil.acik_mi("tarayici"):  # dusuk kademede tarayıcı otomasyonu kapalı (MIMARI §3)
+        return False
     try:
         import playwright  # noqa: F401
     except ImportError:

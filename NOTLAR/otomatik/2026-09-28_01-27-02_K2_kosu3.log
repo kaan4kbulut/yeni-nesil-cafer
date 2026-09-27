@@ -1,0 +1,45 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+ayar/modeller.json'daki örnek model adlarını gerçek adlarla değiştir. Web'de araştır: Ollama'da yaygın kullanılan, iyi puanlanan açık modellerden 3B, 7–8B, 14B, 32B sınıfında birer aday; Claude ve OpenAI-uyumlu bulut sağlayıcılardan 'ucuz-hızlı' ve 'güçlü' roller için birer aday. Kademe × rol tablosunu NOTLAR/MODELLER_ONERI.md'ye yaz (her satırda neden). modeller.json'a en makul seçimi yaz ve dosyaya "gecici": true alanı ekle; kullanıcı sonra değiştirecek.
+
+### ÇIKTI (kod 0)
+`asistan/ayar/modeller.json`'daki kademe listelerini web araştırmasıyla seçilmiş gerçek model adlarıyla değiştirdim. Dosyaya `"gecici": true` ekledim, eski açıklama metnini `"gecici_not"` alanına taşıdım. Kademe × rol tablosu, her satırın gerekçesi ve seçilmeyen yedek adaylar `NOTLAR/MODELLER_ONERI.md`'de. Test takımı `.venv` Python'uyla geçti (364 test, 21'i atlandı). Kurulu programın Python'u bu oturumda izin istedi, onunla test koşamadım.
+
+| Kademe | Yerel | Bulut |
+|---|---|---|
+| dusuk | `qwen3.5:2b` | `claude-haiku-4-5`, `gpt-6-luna` |
+| orta | `qwen3.5:9b`, `qwen3.5:4b` | `claude-sonnet-5`, `gpt-6-sol` |
+| yuksek | `gemma4:12b`, `qwen3.6:27b` | `claude-opus-5-5`, `gpt-6-astra` |
+| sunucu | — | `claude-opus-5-5`, `claude-haiku-4-5`, `gpt-6-astra`, `gpt-6-luna` |
+
+Her listedeki ilk ad o kademenin varsayılanı. Sınıflara göre seçim: 3B sınıfı `qwen3.5:2b`, 7–8B sınıfı `qwen3.5:9b`, 14B sınıfı `gemma4:12b`, 32B sınıfı `qwen3.6:27b`. Bulutta ucuz-hızlı rolünde `claude-haiku-4-5` ile `gpt-6-luna`, güçlü rolünde `claude-opus-5-5` ile `gpt-6-astra` var.
+
+Eski listeden farklar:
+- **Gemini yerine OpenAI:** İstek Claude ve OpenAI uyumlu sağlayıcı dediği için bulut listelerinden Gemini'yi çıkardım.
+- **`qwen2.5-coder:14b` çıktı:** Model kartlarında araç çağırma sonucu 0/6, bu yüzden yönetici ya da işçi olamaz.
+- **`qwen3.6:27b` eklendi:** Testin istediği boyut bilgisi için `kategoriler.boyutlar`'a 18 GB olarak yazdım.
+
+Dikkat edilecek iki nokta:
+- **Haiku'nun emekliliği yakın:** Anthropic'in sayfasına göre `claude-haiku-4-5` 15 Ekim 2026'dan itibaren emekliye ayrılabilir. O zaman yerine `claude-sonnet-5` konmalı; program bunu kendisi fark etmiyor.
+- **`qwen3.6:27b` bu makinenin kartına sığmıyor:** 18 GB'lık model 12 GB karta sığmaz. Bu yüzden `yuksek` listesinde ikinci sırada, varsayılan `gemma4:12b` kaldı. Karta sığmayan modeli seçmemek K3'teki yönlendiricinin işi olacak.
+
+Model seçimini kullanıcıya soru olarak `NOTLAR/SORULAR.md`'ye ekledim. `test_modeller.py`'ye `gecici` alanının doğru/yanlış değeri olduğunu kontrol eden bir satır ekledim. `TaskCreate`/`TaskUpdate` bu oturumda yoktu, görev listesi tutulamadı.
+
+Önerilen commit mesajı: `K2: modeller.json kademe listelerine gerçek model adları (geçici, MODELLER_ONERI.md)`
+
+Kaynaklar: [ollama.com/library](https://ollama.com/library?sort=popular), [qwen3.5 etiketleri](https://ollama.com/library/qwen3.5/tags), [gemma4 etiketleri](https://ollama.com/library/gemma4/tags), [qwen3.6 etiketleri](https://ollama.com/library/qwen3.6/tags), [Claude modelleri](https://platform.claude.com/docs/en/about-claude/models/overview), [OpenAI fiyatları](https://developers.openai.com/api/docs/pricing), [Gemma 4 31B ile Qwen 3.6 27B karşılaştırması](https://www.betterclaw.io/blog/gemma-4-27b-vs-qwen-3-6-27b), [Gemma 4 31B ile Qwen3.6 35B-A3B karşılaştırması](https://regolo.ai/gemma-4-31b-vs-qwen-3-6-35b-a3b-when-to-use-which/), [yerel araç çağırma testleri](https://www.promptquorum.com/power-local-llm/best-local-models-tool-calling-2026)
+
+SONUÇ: TAMAM
+DEĞİŞEN: 4
+TEST: geçti (.venv, 364 test, 21 atlandı; kurulu Python izin istedi, koşulamadı)
+NOT: Kademe listelerine gerçek model adları yazıldı ("gecici": true); Haiku 4.5'in 15 Ekim 2026'dan sonra değiştirilmesi gerekebilir.

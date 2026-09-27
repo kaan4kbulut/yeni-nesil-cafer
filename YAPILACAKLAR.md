@@ -84,13 +84,13 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 ## Aşama K2 — Donanım profili ve kademe
 **Hedef:** Program açılışta kendini tanır; kademe kararı görünür ve kilitlenebilir.
 
-- [ ] `cekirdek/profil.py`: CPU, RAM, GPU/VRAM (nvidia-smi → torch → Vulkan/Metal), disk, ağ, Ollama durumu → `.cafer/profil.json` (`docs/SEMALAR.md` §4)
-- [ ] Kademe hesabı `docs/MIMARI.md` §3 eşikleriyle; `ayar.toml → kademe_kilidi` ölçümü ezer
-- [ ] `ayar/modeller.json` oluşturuldu (kademe başına yerel/bulut listeleri + roller); **kodda model adı kalmadı**
-- [ ] `cafer profil` CLI komutu (ya da `python -m asistan profil`)
-- [ ] Masaüstünde durum çubuğunda kademe + tıklayınca profil özeti ve kilitleme seçeneği
-- [ ] Kademe `dusuk` iken ağır özellikler (embedding, tarayıcı otomasyonu, uzun bağlam) devre dışı ve UI'da "bu kademede kapalı" olarak görünür
-- [ ] Testler: sahte donanım verileriyle 4 kademe için kademe hesabı
+- [x] `cekirdek/profil.py`: CPU, RAM, GPU/VRAM (nvidia-smi + sysfs/Windows → torch → Vulkan → Metal), disk, ağ, Ollama durumu → `DATA_DIR/profil.json` (`docs/SEMALAR.md` §4; `.cafer/` = programın veri klasörü, bkz. SORULAR)
+- [x] Kademe hesabı `docs/MIMARI.md` §3 eşikleriyle; `ayar.toml → kademe_kilidi` (ve `CAFER_GENEL_KADEME_KILIDI`) ölçümü ezer; arayüz kilidi `ayarlar.json` → extra
+- [x] `ayar/modeller.json` oluşturuldu (kademe başına yerel/bulut listeleri + roller); **kodda model adı kalmadı** (dosya `asistan/ayar/modeller.json`: paket yalnızca `asistan/`'ı taşır; okuyucu `cekirdek/modeller.py`; kalan 4 eşleşme Claude Code kurulum adresi)
+- [x] `cafer profil` CLI komutu (ya da `python -m asistan profil`) — `python -m asistan profil [--json] [--kilitle K] [--kilidi-ac]`; `cafer` betiği K10 kurulumunda
+- [x] Masaüstünde durum çubuğunda kademe + tıklayınca profil özeti ve kilitleme seçeneği (`gui/profil_dialog.py`)
+- [x] Kademe `dusuk` iken ağır özellikler (embedding, tarayıcı otomasyonu, uzun bağlam) devre dışı ve UI'da "bu kademede kapalı" olarak görünür (düğme ipucu, profil penceresi, hafıza penceresi)
+- [x] Testler: sahte donanım verileriyle 4 kademe için kademe hesabı (`test_profil.py`, `test_modeller.py`)
 
 **Bitti sayılır:** `/profil` bu makinede doğru kademeyi veriyor ve gerçek donanımla uyuşuyor; `/kontrol` 7 (model adı) yeşil.
 
@@ -403,6 +403,7 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 |---|---|---|---|---|---|---|
 | 2026-09-27 | 1 (taban) | sohbet modeli (otomatik: qwen2.5:14b) | — | 15/30 (15 görev ×2, %50) | 7,7 + 7,9 dk | ilk ölçüm; süre sınırı olmasa 19/30; hep ✓ 5, hep ✗ 5, kararsız 5; --hepsi 9/20 |
 | 2026-09-27 | K0 | — | — | koşulmadı (kod değişmedi) | — | birim 249 ✓ / 21 atlandı (`.venv`); arayüz denetimi 714 eylem, 0 hata |
+| 2026-09-28 | K2 | — | — | koşulmadı (model seçimi değişmedi: sabitler birebir aynı) | — | birim 360 ✓ / 21 atlandı (`.venv`); arayüz denetimi 722 eylem, 0 hata; kademe bu makinede `yuksek` |
 
 ## Sonraya (aşamaları bölmemek için buraya)
 

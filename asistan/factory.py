@@ -25,6 +25,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 from .registry import REGISTRY, Tool, safe_name
 
@@ -98,9 +99,9 @@ def find_ready(need: str) -> dict:
                 packages.append((e.package, e.note))
     models = []
     if re.search(r"\bocr\b|taranmış|belge oku|yazıyı oku", text):
-        models.append(("glm-ocr:latest", "taranmış belge ve resimdeki yazıyı okuma"))
+        models.append((modeller.deger("ocr"), "taranmış belge ve resimdeki yazıyı okuma"))
     if re.search(r"resim|görsel|fotoğraf|image|photo", text) and re.search(r"gör|anla|tanı|analiz|describe", text):
-        models.append(("gemma4:12b", "resim görme (look_at_image aracı bunu kullanır)"))
+        models.append((modeller.deger("gorme"), "resim görme (look_at_image aracı bunu kullanır)"))
     mcp = [label for keys, label in MCP_CATALOG.items() if any(k in text for k in keys)]
     return {"packages": packages, "models": models, "mcp": mcp}
 

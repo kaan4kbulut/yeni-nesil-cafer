@@ -54,7 +54,7 @@ def komut_calistir(komut: str, kok: Path, *, python_yolu: Callable[[], str], aja
 
 
 def kacislari_coz(kod: str) -> str:
-    """Bazı yerel modeller (qwen2.5:14b) kodu gerçek satır sonu yerine düz metin "\\n" ile gönderir: kod tek satır
+    """Bazı yerel modeller (qwen2.5 14B) kodu gerçek satır sonu yerine düz metin "\\n" ile gönderir: kod tek satır
     olur ve her denemede SyntaxError verir (bir grup görevi bu yüzden hiçbir şey üretemedi, 2026-09-27). Kod
     tek satırsa, olduğu gibi derlenmiyorsa ve kaçışlar çözülünce derleniyorsa çözülmüş hali döner; yoksa aynen."""
     if "\n" in kod or "\\n" not in kod:

@@ -19,7 +19,7 @@ from typing import Protocol
 import anthropic
 import httpx
 
-from .cekirdek import saglayici as sg
+from .cekirdek import modeller, saglayici as sg
 from .cekirdek.saglayici import claude as sg_claude, cli_ajan as sg_cli, ollama as sg_ollama
 from .cekirdek.saglayici.openai_uyumlu import OpenAIUyumluSaglayici
 from .config import Settings
@@ -43,16 +43,16 @@ THINK_SECONDS = 240  # pilde yavaş modelde karakter sınırına varmadan dakika
 STALL_SECONDS = 150  # Ollama'dan bu kadar süre tek parça gelmezse çağrı takılmış sayılır (model yükleme dahil sığar)
 NUM_PREDICT = 8192  # tek çağrıda en çok bu kadar token: uzun hikâyeye yeter, kısır döngü dakikalarca sürmez
 # kendini tekrar eden model: metnin son REPEAT_TAIL karakteri metinde REPEAT_COUNT kez geçiyorsa döngüdedir.
-# qwen2.5:14b grup görevinde aynı kod bloğunu ~20 kez yazdı (8192 token, 3 dk 47 sn; 2026-09-27): o sürede
+# qwen2.5 14B grup görevinde aynı kod bloğunu ~20 kez yazdı (8192 token, 3 dk 47 sn; 2026-09-27): o sürede
 # Ollama tek isteği işlediği için sohbet de bekledi.
 REPEAT_TAIL = 300
 REPEAT_COUNT = 3
 QUICK_REQUEST = 60  # bu kadar kısa, tek satırlık istekler ("telegram aç") düşünmeden yapılır
 
 # Sunucu tarafı yedek model (refusal fallback) desteklenen modeller
-CLAUDE_FALLBACK_MODELS = {"claude-opus-5", "claude-fable-5-1"}
+CLAUDE_FALLBACK_MODELS = set(modeller.deger("claude.yedekli"))
 # Adaptive thinking desteklemeyen modeller
-CLAUDE_NO_THINKING = {"claude-haiku-4-5"}
+CLAUDE_NO_THINKING = set(modeller.deger("claude.dusunmesiz"))
 
 
 Cancelled = sg.Iptal  # kullanıcı durdurdu (çekirdekteki sınıfla aynı: arayüz ikisini de yakalar)
@@ -1114,7 +1114,8 @@ class Agent:
         if found is None:
             raise ToolError(
                 f"No specialist model for '{role}' is installed. Tell the user which model would add this "
-                "ability (for images: `ollama pull gemma3:12b`) and meanwhile do the best you can.")
+                f"ability (for images: {modeller.deger('gorme_uzmani')}; they can download it from the Models menu, "
+                "never give them a terminal command) and meanwhile do the best you can.")
         provider, model = found
         answer = specialists.ask(self.settings, self.connections, provider, model, question, images)
         return f"[{model} yanıtı]\n{answer}"

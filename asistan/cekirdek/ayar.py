@@ -14,6 +14,8 @@ import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
+from . import modeller
+
 APP_ID = "yeni-nesil-cafer"  # klasör ve kimlik adı
 OLD_ID = "yerel-asistan"  # 2.2'ye kadarki adı: klasörleri ilk açılışta yeni ada taşınır (veri kaybolmasın)
 
@@ -200,8 +202,9 @@ def _ezilenler() -> dict:
 @dataclass
 class Settings:
     provider: str = "ollama"  # "ollama" veya "claude"
-    ollama_model: str = "qwen3.5:4b"  # yeni kurulumda pakete gömülü temel model (sysinfo.BASE_MODEL)
-    claude_model: str = "claude-opus-5"
+    # yeni kurulumda pakete gömülü temel model (sysinfo.BASE_MODEL); adlar ayar/modeller.json → varsayilan
+    ollama_model: str = field(default_factory=lambda: modeller.deger("varsayilan.ollama"))
+    claude_model: str = field(default_factory=lambda: modeller.deger("varsayilan.claude"))
     ollama_url: str = "http://localhost:11434"
     ollama_num_ctx: int = 8192  # 14B model + 16K bağlam 12 GB VRAM'e sığmaz
     anthropic_api_key: str = ""  # eski sürümlerden kalma; açılışta anahtar zincirine taşınır

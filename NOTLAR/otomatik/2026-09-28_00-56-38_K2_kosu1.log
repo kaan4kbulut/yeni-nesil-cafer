@@ -1,0 +1,96 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+
+Aşama: K2 onaysız
+
+Sıra şu, atlama yok:
+
+1. **Aşamayı bul.** `YAPILACAKLAR.md`'yi oku. "K2 onaysız" ile başlayan aşamayı bul. Kod verilmemişse ilk tamamlanmamış aşamayı seç ve seçtiğini bana söyle. Aşamanın "Bitti sayılır" maddelerini kendi kontrol listen olarak al.
+
+2. **Bağlamı yükle.** `docs/MIMARI.md` ve `docs/SEMALAR.md`'de bu aşamayla ilgili bölümleri oku. `NOTLAR/MEVCUT_DURUM.md` varsa oku (K0'da üretilir). Mevcut kodda etkilenecek dosyaları Grep/Glob ile bul; tahmin etme, bak.
+
+2b. **Görev listesini kur.** Aşamanın her maddesi için `TaskCreate` ile bir görev aç; ilk görevin başlığı aşama koduyla başlasın (ör. `K3: yonlendirici.py iskeleti`). Son görev her zaman `K<n>: /kontrol + NOTLAR` olsun. Bir maddeye başlarken onu `in_progress`, bitirince `completed` yap — **atlamadan, sırayla**. Bu liste terminaldeki ilerleme çubuğunu besler; güncellemezsen kullanıcı nerede olduğunu göremez. Çalışırken bir madde daha ortaya çıkarsa `TaskCreate` ile ekle (çubuk kendini ayarlar).
+
+3. **Kısa plan yaz.** Şu başlıklarla, en fazla 25 satır:
+   - Değişecek / eklenecek dosyalar
+   - Korunacak mevcut davranış (kırılmaması gerekenler)
+   - Riskler ve geri dönüş yolu
+   - Test stratejisi
+   
+   Plan **geri alınması zor** bir iş içeriyorsa (dosya/klasör taşıma, veri şeması değişikliği, mevcut ayar dosyasının biçimini değiştirme) burada dur ve onayımı bekle. Argümanda "onaysız" varsa ya da plan sadece ekleme/yeni modül ise durmadan devam et.
+
+4. **Uygula.** Kurallar:
+   - Çalışan davranışı bozma. Refaktör = yenisini yanına kur, eskiyi çalışır tut, sonra taşı.
+   - `asistan/cekirdek/` içine PySide6/Qt/fastapi import'u koyma.
+   - Model adı kodda sabitleme; `modeller.json`'dan oku.
+   - Her yeni modül için `testler/` altına en az bir test.
+   - Yeni bağımlılık eklemen gerekirse önce nedenini söyle; ağır bağımlılık (torch, transformers, tarayıcı motoru) çekirdeğe giremez.
+   - Türkçe adlandırma; docstring'ler Türkçe ve kısa.
+
+5. **Doğrula.** `/kontrol` komutunun yaptığı kontrolleri çalıştır (test, import dumanı, çekirdek-arayüz ayrımı, manifest doğrulama). Kırmızı varsa düzelt; düzeltemiyorsan neden düzeltemediğini yaz, aşamayı "tamamlandı" işaretleme.
+
+6. **Kaydet.**
+   - `YAPILACAKLAR.md`'de biten maddeleri `[x]` yap; yarım kalanları `[ ]` bırak ve yanına kısa not düş.
+   - `NOTLAR/` altına `YYYY-AA-GG-<aşama-kodu>.md` yaz: ne yapıldı, ne kaldı, karşılaşılan sorunlar, sonraki aşamaya öneri. Dosya varsa üstüne ekle.
+
+7. **Bana rapor ver.** Değişen dosya listesi, test sonucu (kaç geçti/kaç kaldı), açık sorular, önerdiğin commit mesajı. Ben "commitle" demeden commit atma.
+
+
+### ÇIKTI (kod 0)
+K2 (Donanım profili ve kademe) bitti. Önceki otomatik koşu oturum sınırına takılıp hiç kod yazmamıştı; aşamayı bu oturumda baştan yaptım. Aşamanın 7 maddesinin hepsi `[x]`.
+
+**Bitti ölçütü**
+- **Kademe bu makinede doğru çıkıyor:** `python -m asistan profil` kademeyi **yüksek** buluyor (31 GB RAM + RTX 5070 Ti 12 GB).
+- **Gerçek donanımla uyuşuyor:** RAM, ekran kartı, işlemci ve Ollama değerleri `free`, `nvidia-smi` ve Ollama'nın kendi model listesiyle birebir aynı. Karşılaştırma tablosu `NOTLAR/2026-09-28-K2.md`'de.
+- **Kodda model adı kalmadı:** hepsi `asistan/ayar/modeller.json`'da. Taşımadan önce ve sonra 20 model ayarını dosyaya döktüm; ikisi bayt bayt aynı, yani model seçimi hiç değişmedi.
+- **Model adı denetimi (`/kontrol` 7):** tamamen yeşil değil, ⚠️. Kalan 4 eşleşmenin hepsi Claude Code'un kurulum sayfası adresi; model adı değil.
+
+**Kullanıcı açısından değişenler**
+- **Durum çubuğu:** sağda "kademe: yüksek" düğmesi var. Tıklayınca profil özeti açılıyor; oradan kademe elle kilitlenebiliyor ya da yeniden ölçülebiliyor.
+- **Düşük kademe:** hafızada anlamca arama, tarayıcı otomasyonu ve 8K üstü bağlam kapanıyor. Bu, düğmenin ipucunda, profil penceresinde ve hafıza penceresinde "bu kademede kapalı" diye görünüyor. Ekransız denemede kilidi "düşük"e alınca bağlam 8K'ya indi, kilit açılınca geri döndü.
+- **Komut yazdırma kaldırıldı:** kullanıcıya gösterilen iki `ollama pull …` mesajı, "Modeller menüsünden indir" yönlendirmesiyle değişti.
+
+**Test sonuçları**
+- **Birim testleri:** 360 test çalıştı, 339 geçti, 0 kaldı, 21 atlandı. Atlananlar K0'dakiyle aynı: 3D ve belge kütüphaneleri geliştirme ortamında kurulu değil.
+- **Arayüz denetimi:** 722 eylem, 0 hata.
+- **Kurulu programın Python'uyla testler koşulamadı:** o yol bu oturumda onay istiyor (SORULAR'daki eski K0 sorunu). Testler geliştirme ortamının Python'uyla koşuldu.
+- **Diğer kontroller:** `ruff` kurulu değil, lint yapılmadı. Web arayüzü ve yetenekler henüz yok (K8, K5).
+
+**Verdiğim geçici kararlar** (hepsi `NOTLAR/SORULAR.md`'de)
+- **Dosyanın yeri:** `modeller.json`'u depo kökü yerine `asistan/ayar/` altına koydum. Aktarma, güncelleme ve bulut paketi yalnızca `asistan/` klasörünü taşıyor; kökte kalsaydı kurulu program dosyayı bulamazdı.
+- **Kademe başına model listeleri:** listeleri ben seçtim ve dosyada "geçici" diye işaretledim. Gerekçeler `NOTLAR/MODELLER_ONERI.md`'de; beğenmediğin varsa değiştirip o satırı silmen yeterli.
+- **Kilidin kaydedildiği yer:** arayüzden seçilen kilit `ayarlar.json`'a yazılıyor. `ayar.toml`'da kilit varsa o önce geliyor ve arayüzdeki seçim kutusu kapanıyor.
+- **Veri dosyası:** `python -m asistan profil`'i denerken gerçek veri klasörüne `profil.json` yazıldı. Program açılışta da aynı dosyayı yazıyor, zararı yok.
+
+**Kalanlar**
+- **`cafer` kısa komutu:** henüz yok; şimdilik `python -m asistan profil`. K10 kurulumunda eklenmeli.
+- **Kurulum sihirbazındaki terminal komutları:** `sudo pacman …` gibi komut yazdırma hâlâ duruyor; K10'a bıraktım.
+
+Önerdiğim commit mesajı:
+```
+K2: donanım profili ve kademe; model adları asistan/ayar/modeller.json'a taşındı
+
+- cekirdek/profil.py: CPU/RAM/GPU (nvidia-smi → torch → Vulkan → Metal)/disk/ağ/Ollama → DATA_DIR/profil.json;
+  MIMARI §3 kademesi; kilit (ayar.toml/CAFER_* > arayüz > ölçüm); dusuk'te embedding, tarayıcı, uzun bağlam kapalı
+- cekirdek/modeller.py + asistan/ayar/modeller.json: bütün model adları tek yerde (sabitler birebir aynı)
+- python -m asistan profil (arayuz/komut); durum çubuğunda kademe düğmesi + profil penceresi
+- kullanıcıya "ollama pull" komutu yazdırılmıyor
+- testler: test_profil.py, test_modeller.py
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+```
+
+SONUÇ: TAMAM
+DEĞİŞEN: 38
+TEST: geçti (339 geçti / 0 kaldı / 21 atlandı; arayüz denetimi 722 eylem 0 hata; kurulu Python'la koşulamadı)
+NOT: Kademe bu makinede "yüksek" ve gerçek donanımla uyuşuyor; model adları modeller.json'da, model denetiminde yalnızca 4 kurulum adresi ⚠️ kaldı.

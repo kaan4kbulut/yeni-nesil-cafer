@@ -17,10 +17,6 @@ from .cekirdek.ayar import (  # noqa: F401  (eski yol: aynı nesneler)
     migrate_dir,
 )
 
-CLAUDE_MODELS = [  # önerilen başta (K2'de ayar/modeller.json'a taşınacak)
-    "claude-opus-5-5",
-    "claude-fable-5-1",
-    "claude-sonnet-5",
-    "claude-haiku-4-5",
-    "claude-opus-5",
-]
+from .cekirdek import modeller as _modeller
+
+CLAUDE_MODELS = _modeller.deger("claude.modeller")  # önerilen başta (ayar/modeller.json)
