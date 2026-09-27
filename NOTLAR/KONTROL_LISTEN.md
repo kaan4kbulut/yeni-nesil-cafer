@@ -58,3 +58,4 @@
 - [ ] Programı aç: cevapların yanında 'sağlayıcı/model — neden' görünüyor mu?
 - [ ] Ollama'yı kapat, sohbet et → bulut anahtarı varsa buluta düşmeli, yoksa 'çevrimdışı' demeli.
 - [ ] Gizlilik modunu 'yerel' yap → bulut kullanılmamalı. Sonra 'karma'ya al.
+- [ ] **K4 DURDU:** claude 124 ile çıktı: zaman aşımı. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.
