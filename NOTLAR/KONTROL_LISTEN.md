@@ -40,3 +40,7 @@
 - [ ] Telefonu aynı Wi-Fi'ye bağla, NOTLAR/<tarih>-K8.md'deki adresi aç, token'ı gir, görev başlat.
 - [ ] VPS'e SSH ile gir, docs/SUNUCU_KURULUM.md başındaki tek satırı çalıştır.
 - [ ] K9: 6 madde açık kaldı; NOTLAR/ altındaki K9 notunu oku, gerekirse `/asama K9` ile bitirt.
+
+## K9 — Uzak mod ve senkron (2026-09-28 00:10)
+- [ ] Masaüstünde 'uzak sunucu' ayarına VPS adresi + token gir. Bilgisayar kapalıyken telefondan görev ver → açınca masaüstünde görünüyor mu?
+- [ ] K10: 7 madde açık kaldı; NOTLAR/ altındaki K10 notunu oku, gerekirse `/asama K10` ile bitirt.
