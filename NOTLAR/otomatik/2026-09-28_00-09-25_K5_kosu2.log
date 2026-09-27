@@ -1,0 +1,40 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+
+İstek: saat_dilimi "Verilen şehir adı için şu anki saati ve UTC farkını döner. Girdi: sehir (string). Çıktı: saat (string), utc_fark (string). İzin: ag."
+
+1. **Adı doğrula.** `[a-z0-9_]+` olmalı; `yetenekler/<ad>/` zaten varsa dur ve söyle.
+
+2. **Manifest yaz.** `docs/SEMALAR.md` §1 şemasına birebir uyan `yetenekler/<ad>/manifest.json`. Açıklamadan girdi/çıktı alanlarını türet; belirsizse en fazla **bir** soru sor. `izinler` sadece gerçekten gerekeni içersin (en az ayrıcalık). `gereksinimler.min_kademe`'yi işin ağırlığına göre seç; emin değilsen `dusuk`. `kaynak: "yerlesik"`, `guvenilir: true` (ben yazdırıyorum). En az 2 `ornekler` girişi.
+
+3. **Kodu yaz.** `yetenekler/<ad>/calistir.py`:
+   - `def calistir(girdi: dict, baglam) -> dict` sözleşmesi
+   - Girdi doğrulaması en başta; eksikse `YetenekHatasi(sinif="veri", ...)`
+   - Ağ/dosya hatalarını doğru sınıfla fırlat (`ag`, `izin`, `eksik_bagimlilik`)
+   - Ağır import'lar fonksiyon içinde (lazy) — modül yüklenince bağımlılık patlamasın
+   - Türkçe docstring, kısa
+
+4. **Test yaz.** `yetenekler/<ad>/test_<ad>.py`: manifestteki `ornekler`i koşar + en az bir hata yolu testi (eksik girdi). Ağ gerektiren testleri `pytest.mark.ag` ile işaretle ki çevrimdışı atlanabilsin.
+
+5. **Kaydet ve doğrula.**
+   - `python -m pytest yetenekler/<ad>/ -q`
+   - Kayıt defterinin yeteneği gördüğünü göster: `python -c "from asistan.cekirdek.yetenek.kayit import Kayit; print(Kayit().listele())"` (modül henüz yoksa bunu belirt, atla)
+   - `/kontrol hizli`
+
+6. **Planlayıcıya tanıt.** Planlayıcının yetenek listesini manifestlerden otomatik okuduğunu doğrula. Elle bir listeye ekleme gerekiyorsa bu bir mimari ihlaldir: ekle ama `NOTLAR/`'a "planlayıcı yetenekleri manifestten okumalı, elle liste var" diye uyarı düş.
+
+7. **Rapor.** Dosyalar, test sonucu, manifest özeti (izinler, kademe), commit mesajı önerisi.
+
+
+### ÇIKTI (kod 1)
+You've hit your session limit · resets 12:40am (Europe/Istanbul)
