@@ -105,7 +105,8 @@ CATEGORIES = [
         limits="Görseller yerel SDXL modeliyle üretilir (Yardım → Resim üretimi). 12 GB'ta video üretimi çok "
                "yavaş ve düşük kaliteli. 3D baskı parçaları ölçülü CAD (build123d) ile yapılır; karmaşık "
                "parçalarda bulut modelleri daha iyidir. Süsler (vazo, lamba, süs topu, kabartma, litofan, siluet "
-               "figür) hazır süs modeli aracıyla yapılır; gerçek 3D heykelcik henüz yok. Gerçek kişilerin sahte "
+               "figür) hazır süs modeli aracıyla yapılır; resimden gerçek 3D figür için Yardım → 3D figür motoru "
+               "(isteğe bağlı, ~1,7 GB). Gerçek kişilerin sahte "
                "görüntüleri ve reşit olmayanları çağrıştıran içerik üretilmez."),
 ]
 BY_ID = {c.id: c for c in CATEGORIES}
@@ -158,7 +159,8 @@ NEW_AGENTS = [
         prompt=("You are a digital artist and creative director. Turn the user's idea into strong visual prompts "
                 "(subject, composition, lighting, style, lens, colour) and create images with generate_image; offer "
                 "variations. For 3D-printable decorations (vase, lamp, ornament, figurine, relief, lithophane) use "
-                "make_decor_model; for a figure, first generate a black silhouette image, then shape 'siluet'. For "
+                "make_decor_model; for a figure use make_3d_figure on a generated picture if you have it, otherwise a black "
+                "silhouette image with shape 'siluet'. For "
                 "video requests, write the storyboard, shot list and prompts, and say plainly that local video "
                 "generation is not available yet. Never depict real people in fake situations."),
         tools=["list_files", "read_file", "write_file", "look_at_image", "web_search"]),

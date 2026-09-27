@@ -34,7 +34,14 @@ KURULUM · LINUX
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
-SÜRÜM 2.4'TE YENİ
+SÜRÜM 2.5'TE YENİ
+  - Resimden gerçek 3D figür: "3D yazıcı için oturan bir kedi figürü yap" ya da "bu fotoğraftaki köpeği
+    figür yap" de; asistan resmi üretir (ya da senin resmini kullanır) ve onu hacimli, ayaklı, baskıya
+    hazır bir 3D figüre çevirir (STL + 3MF). Yerel yapay zekâ modeli TripoSR (ücretsiz, MIT lisanslı)
+    kullanılır; bir kez kurulması gerekir: Yardım → 3D figür motoru… (~1,7 GB; bilgisayarında torch yoksa
+    NVIDIA kartta ~3 GB daha). Ekran kartında birkaç saniye, işlemcide ~25 saniye sürer. Arka taraf tek
+    resimden tahmin edildiği için ince ayrıntılar sadeleşebilir; figürler ağaç destekle basılmalı.
+
   - 3D yazıcı için süs modelleri: "3D yazıcım için burgulu bir vazo yap", "üstten bakınca spiral dilimli
     gece lambası", "yılbaşı süs topu", "oturan kedi figürü" gibi iste. Hazırlananlar:
       · vazo (klasik, lale, silindir, koni, kum saati, top, şişe; yivli, yıldız, çokgen kesit; burgulu)

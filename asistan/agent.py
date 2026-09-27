@@ -7,6 +7,7 @@ sağlayıcının kendi (native) mesaj biçiminde tutulur ve JSON olarak kaydedil
 import json
 import platform
 import re
+import subprocess
 import time
 import uuid
 from pathlib import Path
@@ -24,8 +25,8 @@ from .profiles import AgentProfile
 from . import api_catalog, cli_agents, hooks, learning, power, security, specialists, sysinfo
 from .tools import (
     program_roots,
-    CALL_API_SPEC, DECOR_SPEC, DELEGATE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
-    TEAM_TASK_SPEC, Toolbox, ToolError,
+    CALL_API_SPEC, DECOR_SPEC, DELEGATE_SPEC, FIGURE_SPEC, PIP_SPEC, FIND_API_SPEC, IMAGE_GEN_SPEC, USE_SKILL_SPEC,
+    TEAM_TASK_SPEC, Toolbox, ToolError, file_stem, model_report,
     validate_input,
 )
 from .registry import REGISTRY
@@ -232,8 +233,11 @@ _PRINT3D = re.compile(r"\b3\s?d\b|\bstl\b|\b3mf\b|\bstep\b dosya|yazıcı|baskı
 PRINT3D_NOTE = (
     "\n\n## 3D printable models\nBuild real geometry in millimetres, never a picture. Decorative objects (vase, "
     "lamp, lampshade, ornament, star, figurine, animal or character figure, relief, lithophane): call "
-    "make_decor_model directly and pick shape and sizes; do not write geometry code for these (a figure comes from "
-    "a silhouette image: if generate_image fails, ask the user for a picture). Functional parts "
+    "make_decor_model directly and pick shape and sizes; do not write geometry code for these. A figure (animal, "
+    "character, statuette): if make_3d_figure is among your tools, make a picture with generate_image and turn it "
+    "into a real 3D figure with make_3d_figure; otherwise use make_decor_model shape 'siluet' and tell the user that "
+    "real 3D figures need the 3D figure engine (Yardım → 3D figür motoru). If generate_image fails, ask the user for "
+    "a picture. Functional parts "
     "with exact sizes (box, holder, bracket, lid): FIRST call use_skill with name '3d-baski' (tested build123d "
     "template; guessing the API wastes many attempts), export to the 3D/ folder and call check_3d_model. Use the "
     "printer's bed size from memory. If build123d is missing, install it with install_python_package.")
@@ -708,6 +712,10 @@ class Agent:
         recent = [m.get("content") for m in messages[-12:] if m.get("role") == "user"]
         if any(isinstance(c, str) and (_PRINT3D.search(c) or _DECOR.search(c)) for c in recent):
             self.tool_specs.append(DECOR_SPEC)
+            from . import figure3d
+
+            if figure3d.installed():
+                self.tool_specs.append(FIGURE_SPEC)
 
     def _system(self) -> str:
         # base_system: yerel programı anlatan uzun talimatın yerine (bulut kopyası kısa, kendine özgü talimat kullanır)
@@ -818,6 +826,31 @@ class Agent:
 
     def _tool_ask_specialist(self, args: dict) -> str:
         return self._consult("ask_specialist", args)
+
+    def _tool_make_3d_figure(self, args: dict) -> str:
+        """Resimden 3D figür (figure3d.py); Ollama modelleri ekran kartından boşaltılır."""
+        from . import figure3d
+
+        image = str(args.get("image") or "").strip()
+        if not image:
+            raise ToolError("image is required: make a picture with generate_image first, then pass its path")
+        picture = self.toolbox._resolve(image, read=True)
+        if not picture.is_file():
+            raise ToolError(f"No such image: {image}")
+        target = self.toolbox._resolve(f"3D/{file_stem(str(args.get('name') or ''), picture.stem)}")
+        try:
+            height = float(args.get("height") or 100)
+        except (TypeError, ValueError):
+            raise ToolError("height must be a number in mm") from None
+        base = str(args.get("base", True)).lower() not in ("false", "0", "hayır", "no")
+        try:
+            r = figure3d.run(str(picture), str(target), height=height, base=base, bed=str(args.get("bed") or
+                             "220x220x250"), ollama_url=self.settings.ollama_url)
+        except (RuntimeError, subprocess.TimeoutExpired) as e:
+            raise ToolError(str(e)) from None
+        where = "graphics card" if r.get("device") == "cuda" else "processor (slower)"
+        return (model_report(r, Path(self.toolbox.root)) + f"\nMade on the {where} in {r.get('seconds')} s. The picture "
+                f"as the model saw it: {Path(r['input']).relative_to(self.toolbox.root)}")
 
     def _tool_generate_image(self, args: dict) -> str:
         return self._generate_image(args)

@@ -280,6 +280,28 @@ STL, görme modeli onayı (197 sn). Kedi figüründe model doğru yolu seçti (g
 bellek yetmedi (açık programın işi ekran kartını tutuyordu); `imagegen.generate` artık bir kez boşaltıp yeniden dener.
 Sonraki aşama (kullanıcıyla konuşuldu, yapılmadı): resimden gerçek 3D figür (TripoSR, ~1,7 GB, düğmeyle kurulur).
 
+## Resimden 3D figür (2026-09-27)
+
+Kullanıcı Aşama 2'yi istedi: resimden hacimli figür. `figure3d.py` (program tarafı): kurulum YALNIZCA düğmeyle
+(Yardım → 3D figür motoru…, `window_modes._figure_setup`); TripoSR kodu GitHub'dan sabit commit'le (yalnızca `tsr/` +
+LICENSE → `DATA_DIR/figur-motoru/kod`), model Hugging Face'ten sabit sürümle (model.ckpt 1,68 GB, config.yaml,
+DINO'nun yalnızca config.json'u) — hepsi SHA-256 doğrulamalı, `imagegen._download` ile kaldığı yerden; eksik
+kütüphaneler (omegaconf, einops, transformers, huggingface_hub, PyMCubes; torch yoksa NVIDIA'da cu130, yoksa CPU)
+ajan kütüphane klasörüne. `figure3d_worker.py` (ajan Python'unda): arka plan kendi yöntemimizle (kenardan dolan
+zemin rengi / saydamlık; rembg yok), girdi TripoSR'ın beklediği gibi (%85, gri zemin, 512), `torchmcubes`/`rembg`
+sahte modülle geçilir, DINO yapı dosyası yerelden (`hf_hub_download` değiştirilir), yoğunluk ızgarası (GPU 256³, CPU
+160³) → PyMCubes → Taubin yumuşatma (12 tur; ızgara basamaklarını siler) → en büyük parça, yükseklik, alt %3 kesilip
+düz taban, 3 mm ayak (dış hattın dışbükey örtüsü) → `decor3d.save`. transformers 5 ViT katmanlarını yeniden adlandırdı
+(`encoder.layer.N.attention.attention.query` → `layers.N.attention.q_proj`, `intermediate.dense` → `mlp.fc1`…):
+yükleyici eski adları çevirir (`_VIT_RENAMES`); transformers'ı 5'in altına sabitlemek huggingface_hub'ı da geriletirdi.
+Araç `make_3d_figure` (Agent._tool_; Ollama'yı ekran kartından boşaltır, `gpu.fault()`ta CPU) yalnızca motor kuruluysa
+ve 3D/süs sohbetinde. Ölçüm (CPU, i9-13900HX): TripoSR örnekleri at/tilki/polis/robot ~23 sn, hepsi kapalı ve tek parça.
+Kurulum bu bilgisayarda 358 sn (16 MB/sn). Ekran kartı o sırada "Reset required" durumundaydı (15:51, Xid 62/154):
+GPU yolu yeniden başlatmadan sonra denenmeli. Sohbet denemesi (qwen3.5:4b, işlemcide, tilki resmi ek olarak):
+model önce look_at_image ile resmi denetledi, sonra make_3d_figure'u doğru değerlerle çağırdı (120 mm, tabla,
+ayak) → kapalı tek parça; ardından inspect_output işlemcide zaman aşımına uğradı (arızanın yavaşlığı). Filament
+tahmini dolu gövdelerde kabuk 1.2 mm + %15 dolgu (`decor3d.save(infill=)`; tam hacim 3 kat fazla gösteriyordu).
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

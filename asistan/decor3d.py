@@ -485,17 +485,28 @@ BUILDERS = {
 
 
 def build(raw: dict, out: str) -> dict:
-    """Modeli üretir, tablaya oturtur (gerekirse küçültür), STL ve 3MF yazar; sonuç bilgisi döner."""
-    import trimesh
-
+    """Süs modelini üretir ve kaydeder (save); sonuç bilgisi döner."""
     p = _params(raw)
     body, notes = BUILDERS[p["shape"]](p)
+    vase_mode = p["wall"] is not None and p["wall"] <= 0 and p["shape"] in ("vazo", "abajur", "girdap_lamba")
+    solid = p["shape"] in ("siluet", "yildiz", "burgulu_kule") or (p["shape"] == "sus_topu" and not p["wall"])
+    return save(body, notes, p["bed"], out, vase_mode=vase_mode, infill=0.15 if solid else None)
+
+
+def save(body: mf.Manifold, notes: list[str], bed, out: str, vase_mode: bool = False,
+         infill: float | None = None) -> dict:
+    """Modeli tablaya oturtur (gerekirse orantılı küçültür), STL ve 3MF yazar, yazılan dosyayı denetler.
+    Süs modelleri ve resimden 3D figür (figure3d_worker.py) aynı yoldan kaydedilir. infill: dolu gövdenin
+    dilimleyicideki dolgu oranı (filament tahmini: 1.2 mm kabuk + dolgu; verilmezse tam hacim, ör. ince duvarlı vazo)."""
+    import trimesh
+
+    notes = list(notes)
     lo, hi = np.array(body.bounding_box()[:3]), np.array(body.bounding_box()[3:])
     size = hi - lo
-    fit = min(1.0, *(b / s for s, b in zip(sorted(size), sorted(p["bed"])) if s > 0))
+    fit = min(1.0, *(b / s for s, b in zip(sorted(size), sorted(bed)) if s > 0))
     if fit < 1.0:  # tablaya sığmıyor: orantılı küçült (%2 pay)
         body = body.scale((fit * 0.98,) * 3)
-        notes.insert(0, f"Tablaya ({'x'.join(f'{b:g}' for b in p['bed'])} mm) sığsın diye %{fit * 98:.0f} boyuta "
+        notes.insert(0, f"Tablaya ({'x'.join(f'{b:g}' for b in bed)} mm) sığsın diye %{fit * 98:.0f} boyuta "
                         "küçültüldü.")
         lo, hi = np.array(body.bounding_box()[:3]), np.array(body.bounding_box()[3:])
     body = body.translate((-(lo[0] + hi[0]) / 2, -(lo[1] + hi[1]) / 2, -lo[2]))
@@ -519,14 +530,17 @@ def build(raw: dict, out: str) -> dict:
         files.append(str(three))
     except OSError:  # STL her dilimleyicide açılır; yarım 3MF bırakılmaz
         three.unlink(missing_ok=True)
-    parts = len(body.decompose())
     vol = body.volume() / 1000
     info = {"files": files, "size_mm": [round(float(x), 1) for x in tm.extents], "triangles": int(body.num_tri()),
-            "watertight": bool(written.is_watertight), "bodies": parts, "volume_cm3": round(vol, 1), "notes": notes}
-    solid = p["wall"] is not None and p["wall"] <= 0 and p["shape"] in ("vazo", "abajur", "girdap_lamba")
-    if solid:  # vazo modunda tek duvar: yüzey alanı × ~0.5 mm
+            "watertight": bool(written.is_watertight), "bodies": len(body.decompose()), "volume_cm3": round(vol, 1),
+            "notes": notes}
+    if vase_mode:  # vazo modunda tek duvar: yüzey alanı × ~0.5 mm
         info["filament_g"] = round(body.surface_area() * 0.5 / 1000 * PLA)
-    elif p["shape"] not in ("burgulu_kule",):
+    elif infill is not None:  # dolu gövde: 3 duvar (~1.2 mm) + iç dolgu (tam hacim 3 kat fazla gösteriyordu)
+        shell = min(vol, body.surface_area() * 1.2 / 1000)
+        info["filament_g"] = round((shell + (vol - shell) * infill) * PLA)
+        info["infill"] = infill
+    else:
         info["filament_g"] = round(vol * PLA)
     return info
 

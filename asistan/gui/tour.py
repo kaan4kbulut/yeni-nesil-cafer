@@ -14,6 +14,11 @@ from .theme import C
 
 # sürüm → (başlık, açıklama, düğme yazısı, pencerede yapılacak iş: MainWindow metodu adı ya da "")
 NEWS = {
+    "2.5": [
+        ("Resimden gerçek 3D figür", "Hayvan, karakter ya da biblo figürü iste: asistan önce resmini üretir (ya da "
+         "senin fotoğrafını kullanır), sonra 3D yazıcıda basılacak hacimli, ayaklı bir figüre çevirir. Motoru bir kez "
+         "kurman gerekir (~1,7 GB).", "kur", "_figure_setup"),
+    ],
     "2.4": [
         ("3D yazıcı için süsler", "\"3D yazıcım için burgulu bir vazo yap\", \"girdaplı gece lambası\", \"yılbaşı süs "
          "topu\", \"oturan kedi figürü\" gibi iste: vazo, abajur, lamba, süs topu, yıldız, kafes küre, resimden "

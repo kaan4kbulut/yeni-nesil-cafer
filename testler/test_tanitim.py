@@ -39,9 +39,10 @@ class TanitimTesti(unittest.TestCase):
         acilan = []
         # hata düzeltme sürümünün (ör. 2.3.1) kendi tanıtımı yok: bu sürüme kadarki en yeni tanıtım
         son = max((v for v in tour.NEWS if tour._key(v) <= tour._key(tour.__version__)), key=tour._key)
+        madde = next(m for m in tour.NEWS[son] if m[2])  # düğmesi olan ilk madde
         dlg = tour.TourDialog(tour.NEWS[son], acilan.append)
-        next(b for b in dlg.findChildren(QPushButton) if b.text() == "göster").click()
-        self.assertEqual(acilan, ["_tour_media"])
+        next(b for b in dlg.findChildren(QPushButton) if b.text() == madde[2]).click()
+        self.assertEqual(acilan, [madde[3]])
 
 
 if __name__ == "__main__":

@@ -309,6 +309,29 @@ DECOR_SPEC = REGISTRY.add({
     },
 }, "yazar", ("süs modeli yap", "model hazır"), group="ozel")
 
+# Resimden gerçek 3D figür (figure3d.py, TripoSR): yalnızca motor kuruluysa ve 3D / süs sohbetinde (agent._offer_decor)
+FIGURE_SPEC = REGISTRY.add({
+    "name": "make_3d_figure",
+    "description": (
+        "Turn ONE picture of a single object (animal, character, figurine, toy, bust) into a real 3D printable "
+        "figure with the local 3D model (TripoSR). The picture must show one whole object in front of a plain light "
+        "background: make it first with generate_image, prompt like 'a cute cat figurine sitting, full body, "
+        "centered, three-quarter front view, plain white background, soft studio light, 3D render, no shadow' (or "
+        "use the user's photo). The back side is guessed from one view and thin parts get simplified. Saves "
+        "3D/<name>.stl and .3mf with a flat base, watertight, fitting the bed. Takes from 10 seconds to 3 minutes."),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "image": {"type": "string", "description": "Picture in the workspace, e.g. Resimler/resim-….png"},
+            "name": {"type": "string", "description": "File name without extension, e.g. kedi_figuru"},
+            "height": {"type": "number", "description": "Figure height in mm (default 100)"},
+            "base": {"type": "boolean", "description": "Add a 3 mm base plate so it stands well (default true)"},
+            "bed": {"type": "string", "description": "Printer build volume WxDxH in mm from memory, e.g. 260x260x260"},
+        },
+        "required": ["image"],
+    },
+}, "yazar", ("3D figür yap", "figür hazır"), group="ozel")
+
 # Kurulum / kaldırma öncesi: sistemde zaten var mı? (salt okunur, onay gerekmez)
 CHECK_SPEC = REGISTRY.add({
     "name": "check_installed",
@@ -730,6 +753,25 @@ class ToolError(Exception):
     pass
 
 
+def file_stem(name: str, default: str) -> str:
+    """Modelin verdiği addan güvenli dosya adı (Türkçe harfler sadeleşir)."""
+    table = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
+    return re.sub(r"[^a-z0-9_-]+", "_", (name or default).translate(table).lower()).strip("_-")[:50] or default
+
+
+def model_report(r: dict, root: Path) -> str:
+    """decor3d.save sonucu → modele giden metin (süs modeli ve 3D figür aynı biçimde)."""
+    files = ", ".join(str(Path(f).relative_to(root)) for f in r["files"])
+    x, y, z = r["size_mm"]
+    lines = [f"Created {files}: {x} × {y} × {z} mm, {r['bodies']} body, "
+             + ("watertight (ready to slice)" if r["watertight"] else "NOT watertight")
+             + (f", about {r['filament_g']} g PLA" if r.get("filament_g") else "")
+             + (f" at {r['infill'] * 100:.0f}% infill" if r.get("infill") else "") + "."]
+    lines += ["Print notes (tell the user):"] + [f"- {n}" for n in r["notes"]]
+    lines.append("Next: check it with inspect_output (a yes/no question describing the request) before answering.")
+    return "\n".join(lines)
+
+
 def unescape_code(code: str) -> str:
     """Bazı yerel modeller (qwen2.5:14b) kodu gerçek satır sonu yerine düz metin "\\n" ile gönderir: kod tek satır
     olur ve her denemede SyntaxError verir (bir grup görevi bu yüzden hiçbir şey üretemedi, 2026-09-27). Kod
@@ -863,9 +905,7 @@ class Toolbox:
     def _tool_make_decor_model(self, shape: str, name: str = "", height=None, width=None, profile: str = "",
                                pattern: str = "", sides=None, twist=None, wall=None, hole=None, thickness=None,
                                image: str = "", invert=False, bed: str = "220x220x250") -> str:
-        table = str.maketrans("çğıöşüÇĞİÖŞÜ", "cgiosuCGIOSU")
-        stem = re.sub(r"[^a-z0-9_-]+", "_", (name or shape).translate(table).lower()).strip("_-")[:50] or "sus"
-        target = self._resolve(f"3D/{stem}")
+        target = self._resolve(f"3D/{file_stem(name, shape)}")
         args = {"shape": shape, "height": height, "width": width, "profile": profile, "pattern": pattern,
                 "sides": sides, "twist": twist, "wall": wall, "hole": hole, "thickness": thickness, "bed": bed,
                 "invert": invert is True or str(invert).lower() in ("true", "1", "evet"), "out": str(target)}
@@ -885,14 +925,7 @@ class Toolbox:
         r = json.loads(out.stdout.strip().splitlines()[-1])
         if r.get("error"):
             raise ToolError(r["error"])
-        files = ", ".join(str(Path(f).relative_to(self.root)) for f in r["files"])
-        x, y, z = r["size_mm"]
-        lines = [f"Created {files}: {x} × {y} × {z} mm, {r['bodies']} body, "
-                 + ("watertight (ready to slice)" if r["watertight"] else "NOT watertight")
-                 + (f", about {r['filament_g']} g PLA" if r.get("filament_g") else "") + "."]
-        lines += ["Print notes (tell the user):"] + [f"- {n}" for n in r["notes"]]
-        lines.append("Next: check it with inspect_output (a yes/no question describing the request) before answering.")
-        return "\n".join(lines)
+        return model_report(r, self.root)
 
     def _tool_check_installed(self, name: str) -> str:
         """Programın izini birçok yerde arar; yalnızca okur."""

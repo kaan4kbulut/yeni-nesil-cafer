@@ -287,6 +287,40 @@ class ModesMixin:
 
         run_in_background(lambda: imagegen.install(progress, lambda: False), done, self)
 
+    def _figure_setup(self):
+        """Resimden gerçek 3D figür (figure3d.py): kurulu değilse kütüphaneler + TripoSR modeli (~1,7 GB) indirilir."""
+        from .. import figure3d
+
+        if figure3d.installed():
+            self._notify("3D figür motoru kurulu — sohbette “3D yazıcı için oturan bir kedi figürü yap” gibi yaz", 10000)
+            return
+        if getattr(self, "_figure_installing", False):
+            self._notify("3D figür motoru zaten kuruluyor…", 5000)
+            return
+        size = figure3d.download_gb()
+        answer = QMessageBox.question(
+            self, "3D figür motoru",
+            "Resimden gerçek 3D figür yapan yerel model (TripoSR, ücretsiz, MIT lisanslı) kurulsun mu?\n\n"
+            f"İndirme: ~{size:.1f} GB. Kesilirse kaldığı yerden sürer.\n\nKurulunca asistan hayvan, karakter ya da "
+            "biblo figürlerini önce resmini üretip sonra 3D yazıcıda basılacak hacimli bir modele çevirebilir. Arka "
+            "taraf tek resimden tahmin edildiği için ince ayrıntılar sadeleşebilir.")
+        if answer != QMessageBox.Yes:
+            return
+        self._figure_installing = True
+
+        def progress(pct, text):
+            QTimer.singleShot(0, self, lambda: self._notify(f"3D figür motoru kuruluyor · {text}"
+                                                            + (f" · %{pct}" if pct >= 0 else ""), 600000))
+
+        def done(_res, error):
+            self._figure_installing = False
+            if error:
+                self._notify(f"3D figür motoru kurulamadı: {describe_error(error)}", 20000)
+                return
+            self._notify("✓ 3D figür motoru hazır — sohbette “oturan bir kedi figürü yap” yazabilirsin", 20000)
+
+        run_in_background(lambda: figure3d.install(progress, lambda: False), done, self)
+
     def _free_model(self) -> str:
         """Sansürsüz modda çalışacak model: pildeyken kuruluysa küçük bir sansürsüz model (seçilen yerine)."""
         free = self.settings.extra.get("uncensored") and self.settings.extra.get("uncensored_model")
