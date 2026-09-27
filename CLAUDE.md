@@ -136,13 +136,57 @@ etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` �
 - Gemma 4 sistem talimatı olmadan araç çağırmaz, komutu metin yazar; bozuk çağrıda dakikalarca tamponlayabilir
   (`STALL_SECONDS`, `NUM_PREDICT`, `_CLAIMS_WORK`). Kartlar: gemma3/dolphin3 araç 0/3, sansürsüz gemma4 1/3.
 - Sistem talimatı + araç tanımları ~5.600 token; 8K bağlamda geçmişe ~1.100 token kalır → `LEAN_CTX` altında `agent.lean`.
-- 4B modeller işçi ve denetçi olarak zayıf; yönetici hâlâ sohbet modeliyle planlıyor. Kalıcı çözüm: YAPILACAKLAR aşama 2–3.
+- 4B modeller işçi ve denetçi olarak zayıf; yönetici hâlâ sohbet modeliyle planlıyor. Kalıcı çözüm: YAPILACAKLAR K3–K4.
 - Küçük modeller dosya adını kısaltır, aracı `run_python` içinde işlev gibi çağırır, planı ara sıra Çince yazar.
 
-## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`)
+## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`, K serisi)
 
-1. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı.
-2. Araç çağıramayan modeller için şema-kısıtlı karar.
-3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak.
-4. Bulut sunucuyu gerçek sunucuda kurmak.
-5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları).
+1. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı (K3).
+2. Araç çağıramayan modeller için şema-kısıtlı karar (K4).
+3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak (K5).
+4. Bulut sunucuyu gerçek sunucuda kurmak (K8).
+5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları) (Sonraya).
+
+## Mimari v3 — kademeli + bulut (K serisi)
+
+Hedef mimarinin tek kaynağı `docs/MIMARI.md`, şemalar `docs/SEMALAR.md`, aşama planı `YAPILACAKLAR.md` (K0–K10), mevcut
+durum haritası `NOTLAR/MEVCUT_DURUM.md` (K0'da yazılır). Aşağıdaki kurallar `docs/MIMARI.md` §11'in özeti. Parantezdeki
+aşamada kurulan yol (`cekirdek/`, `ayar/modeller.json`, `yetenekler/`, `guvenlik.py`, `analiz/hata.py`) henüz yoksa o yol
+kurulana kadar yukarıdaki kurallar ve dosya haritası geçerlidir.
+
+1. **Çekirdek arayüz bilmez** (K1). `asistan/cekirdek/` içinde `PySide6`, `Qt`, `fastapi` import'u olamaz. Masaüstü, web ve
+   CLI çekirdeği çağırır.
+2. **Model adı koda gömülmez** (K2). `ayar/modeller.json`'dan, kademe ve role göre okunur.
+3. **Kademe farkındalığı** (K2). Ağır iş (`embedding`, tarayıcı, uzun bağlam, büyük model) `profil.kademe()`'ye bakar;
+   `dusuk`'te kapalıdır.
+4. **Planlayıcı yalnızca kayıtlı yetenekleri çağırır** (K5). Her yetenek `yetenekler/<ad>/manifest.json` + `calistir.py` + test.
+5. **Kurulum, silme, ağ üzerinden gönderme `guvenlik.py`'den geçer** (K6). Onaysız kurulum yok. Üretilen yetenekler
+   sandbox'ta. Tek izin hattı kuralı sürer: `guvenlik.py` `permissions.py`'nin yanında ikinci bir onay yolu açmaz.
+6. **Her başarısız adım `analiz/hata.py`'den geçer** (K6). Yeni bir hata deseni görürsen sınıflandırıcıya ekle.
+7. **Her yeni modülün testi olur.** `/kontrol` yeşil değilse aşama bitmedi.
+8. **Çalışan davranışı bozma.** Refaktör: yenisini yanına kur → eski çalışır kalsın → sonra taşı.
+9. **Ağır bağımlılık çekirdeğe girmez.** Yetenek gereksinimi olarak isteğe bağlı kalır.
+10. **Türkçe adlandırma** (yeni kodda), İngilizce yalnızca kütüphane API'lerinde.
+
+## Çalışma düzeni
+
+- **Bir oturum = bir aşama.** Aşamaya `/asama K<n>` ile başla. Aşama bitmeden başka aşamaya dokunma; başka bir sorun
+  görürsen `NOTLAR/`'a yaz, geç.
+- **Görev listesi zorunlu.** 3 adımdan uzun her işte `TaskCreate`/`TaskUpdate` kullan; başladığın maddeyi `in_progress`,
+  bitirdiğini `completed` yap. Terminaldeki ilerleme çubuğu (`.claude/ilerleme/`) bu listeden beslenir; güncellemezsen
+  kullanıcı nerede olduğunu göremez.
+- Büyük refaktörden önce `mimar` ajanıyla plan çıkar; bitince `denetci` ajanıyla denetle.
+- Hata görünce `/hata-analiz`. Yeni yetenek gerekince `/yetenek-ekle`. Aşama sonunda `/kontrol` (testler yine kurulu
+  programın Python'uyla; bkz. dosya haritası → Testler).
+- Commit atma; commit mesajı öner. Kullanıcı "commitle" derse at.
+- Bir şeyi tahmin etme; dosyayı aç, komutu çalıştır, sonucu göster.
+- Kullanıcıya soru soracaksan tek soru sor, geri kalan kararları makul varsayımla ver ve varsayımını yaz.
+
+Komutlar: `/asama K3` (aşamayı plan → kod → test → not sırasıyla uygular) · `/kontrol` (`hizli`) (test, import dumanı,
+çekirdek-arayüz ayrımı, model adı, manifest doğrulama) · `/hata-analiz <log|metin|son>` (hatayı sınıflandırır, kök nedeni
+kanıtlar, düzeltir, sınıflandırıcıya ekler) · `/yetenek-ekle <ad> "<açıklama>"` (manifest + kod + test ile yetenek iskeleti)
+· `/profil` (`benchmark`) (donanım profili, kademe, gerçekle karşılaştırma) · `/sunucu` (`docker`) (web modunu ayağa
+kaldırıp uçtan uca test eder).
+
+Ajanlar: `mimar` — kod yazmaz; aşama öncesi etkilenecek dosyalar, riskler, sıra. `denetci` — kod değiştirmez; diff'i mimari
+kurallara ve testlere karşı denetler, GEÇTİ/ŞARTLI/KALDI verir.

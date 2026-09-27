@@ -21,6 +21,9 @@ Bu dosya depo kökünde, `CLAUDE.md`'nin yanında durur. Her aşama için Claude
    Sonra CLAUDE.md'ye yalnızca kalıcı kural/karar, `NOTLAR/<tarih>.md`'ye deney ve ölçüm. Buradaki kutuyu ✓ yap.
 4. **Yeni özellik isteği** gelirse (senden ya da Claude Code'dan) bu dosyanın sonuna "Sonraya" listesine yaz; aşamayı bölme.
 5. Bir şey bozulursa: `problem_report.py`'nin ürettiği raporu Claude Code'a ver; "rapordaki kanıtlardan başla" de.
+6. **K serisinde** (aşağıda) şablonun yerine `/asama K<n>` kullanılır; komut aynı sırayı (plan → kod → test → not) uygular.
+   Eski Aşama 1–6 K serisine taşındı: 1 → K7 (✓), 2 → K3, 3 → K4, 4 → K5, 5 → K8, 6 → K10. Talimat blokları ilgili K
+   aşamasının içinde "Mevcut plandan taşındı" başlığıyla duruyor.
 
 ---
 
@@ -43,7 +46,209 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 
 ---
 
-## Aşama 1 — Sınav seti: başarıyı sayıyla ölçmek ✓
+## K serisi — kademeli + bulut
+
+> Kural: **bir oturum = bir aşama.** Aşama bitmeden sonrakine geçme. `/kontrol` yeşil olmadan aşama bitmiş sayılmaz.
+
+---
+
+## Aşama K0 — Hazırlık ve mevcut durum haritası
+**Hedef:** Kod değişmeden, neyin var neyin yok olduğunu bilmek.
+
+- [x] `cafer-plan` paketi repoya kuruldu (`docs/`, `.claude/`, bu dosya)
+- [x] `CLAUDE_EKLENTI.md` içeriği `CLAUDE.md`'ye işlendi, `CLAUDE_EKLENTI.md` silindi
+- [ ] `NOTLAR/MEVCUT_DURUM.md` yazıldı: mevcut modüller, giriş noktaları, mevcut araçlar (dosya/komut/python/web/tarayıcı), sağlayıcılar, ayar mekanizması, test durumu
+- [ ] `docs/MIMARI.md` §2 hedef yapısı ile mevcut yapı arasındaki fark tablosu (`MEVCUT_DURUM.md` içinde)
+- [ ] Mimari ihlaller listelendi (çekirdek/arayüz karışıklığı, gömülü model adları, onaysız kurulum/silme)
+- [x] `git tag v-k0-baslangic` atıldı (geri dönüş noktası)
+
+**Bitti sayılır:** `MEVCUT_DURUM.md` var, hiçbir kod değişmedi, `/kontrol hizli` mevcut durumu raporladı (kırmızı olabilir — kayıt altında olması yeter).
+
+---
+
+## Aşama K1 — Çekirdek / arayüz ayrımı
+**Hedef:** `asistan/cekirdek/` arayüz bilmez; masaüstü sadece çekirdeği çağırır.
+
+- [ ] `asistan/cekirdek/` ve `asistan/arayuz/masaustu/` klasörleri oluşturuldu
+- [ ] `ayar.py` tek ayar kaynağı (`ayar.toml` + `CAFER_*` env) — mevcut ayar okuma buraya taşındı, eski yol çalışır
+- [ ] Sağlayıcı arayüzü `saglayici/temel.py` (`sohbet`, `akis`, `saglik`, `maliyet`); mevcut Ollama/Claude/OpenAI-uyumlu/CLI-ajan kodu bu arayüze taşındı
+- [ ] Mevcut araçlar (dosya, komut, Python, web) çekirdeğe taşındı; UI'daki iş mantığı kalmadı
+- [ ] Masaüstü UI çekirdeği `import` ederek çalışıyor; kullanıcı açısından hiçbir şey değişmedi
+- [ ] `testler/test_cekirdek_ayrimi.py`: çekirdekte Qt import'u yok (grep tabanlı test)
+- [ ] Eski modül yolları için geçici uyumluluk (`from asistan.eski import X` → uyarı + yeni yola yönlendirme), bir sonraki sürümde kaldırılacak notu
+
+**Bitti sayılır:** Masaüstü uygulaması eskisi gibi açılıp sohbet ediyor; `/kontrol` 2, 3, 6 yeşil.
+
+---
+
+## Aşama K2 — Donanım profili ve kademe
+**Hedef:** Program açılışta kendini tanır; kademe kararı görünür ve kilitlenebilir.
+
+- [ ] `cekirdek/profil.py`: CPU, RAM, GPU/VRAM (nvidia-smi → torch → Vulkan/Metal), disk, ağ, Ollama durumu → `.cafer/profil.json` (`docs/SEMALAR.md` §4)
+- [ ] Kademe hesabı `docs/MIMARI.md` §3 eşikleriyle; `ayar.toml → kademe_kilidi` ölçümü ezer
+- [ ] `ayar/modeller.json` oluşturuldu (kademe başına yerel/bulut listeleri + roller); **kodda model adı kalmadı**
+- [ ] `cafer profil` CLI komutu (ya da `python -m asistan profil`)
+- [ ] Masaüstünde durum çubuğunda kademe + tıklayınca profil özeti ve kilitleme seçeneği
+- [ ] Kademe `dusuk` iken ağır özellikler (embedding, tarayıcı otomasyonu, uzun bağlam) devre dışı ve UI'da "bu kademede kapalı" olarak görünür
+- [ ] Testler: sahte donanım verileriyle 4 kademe için kademe hesabı
+
+**Bitti sayılır:** `/profil` bu makinede doğru kademeyi veriyor ve gerçek donanımla uyuşuyor; `/kontrol` 7 (model adı) yeşil.
+
+---
+
+## Aşama K3 — Model yönlendirici ve yedekleme zinciri
+**Hedef:** Her adım için "hangi model, neden" kararı; başarısızlıkta otomatik yükselme.
+
+- [ ] `cekirdek/yonlendirici.py`: `docs/MIMARI.md` §4 kural sırası (çevrimdışı → gizlilik → görev türü → kademe → zincir)
+- [ ] Sağlayıcı sağlık kontrolü 5 dk önbellek; sağlıksız sağlayıcı zincirden düşer
+- [ ] Yedekleme zinciri: zaman aşımı / 2 başarısızlık → üst seviye; zincir sonu → hata analizine devret
+- [ ] Bulut maliyet tavanı (`ayar.toml → [bulut]`); aşımda kullanıcıya sor
+- [ ] Karar `secim = {saglayici, model, neden}` olarak dönüyor ve UI'da görünüyor
+- [ ] Gizlilik modu `yerel | karma | bulut` ayarı ve UI anahtarı
+- [ ] Testler: sahte sağlayıcılarla her kural için en az bir senaryo; zincir yükselme senaryosu
+- [ ] Yöneticiye en güçlü model, işçiye hızlı model politikası (`yonetici_politikasi`, `roster.manager_for`) — mevcut
+      plandan taşındı (eski Aşama 2, talimat aşağıda). Yedekleme zinciri ve `secim` maddeleriyle aynı iş: yönetici seçimi
+      yönlendiricinin bir rolü olarak yazılır, yanında ikinci bir seçim kodu açılmaz.
+
+**Bitti sayılır:** Sohbet ekranında her cevabın yanında "ollama/x — neden: …" görünüyor; Ollama kapatılınca bulut varsa buluta, yoksa "çevrimdışı" mesajına düşüyor. Taşınan eski Aşama 2'nin bitti ölçütü de sağlanmış.
+
+### Mevcut plandan taşındı: eski Aşama 2 — Yöneticiye en güçlü model, işçiye hızlı model ☐
+
+CLAUDE.md'deki tuzak listesinin yarısı "yönetici sohbet modeliyle planlıyor ve denetliyor"dan geliyor. Kalıcı çözüm orada
+yazılı ama yapılmamış. Bu aşama yalnızca politika ekler; döngüye dokunmaz.
+
+```
+Yönetici modeli politikası. Ayarlar'a `yonetici_politikasi`: "otomatik" (varsayılan) | "yerel" | "bulut".
+`roster.manager_for(policy)` sırası (otomatik):
+  1) `cli:claude` — `cli_agents` ile giriş yapılmışsa ve istek kullanıcının sohbetinden geliyorsa (CLAUDE.md kuralı:
+     CLI ajanları kuyruk ve zamanlanmış işte çalışmaz).
+  2) kullanılabilir (`Connection.usable`) bulut bağlantılarından kartı en yüksek olan.
+  3) yerelde kartı 6/6 olan en yüksek puanlı model (roster.stronger'daki ölçüt).
+  4) hiçbiri yoksa sohbet modeli + adımlar panelinde tek satırlık uyarı.
+  "yerel" 3–4; "bulut" 1–2, yoksa 3–4. Sansürsüz modda yönetici yalnızca yerel (sansürsüz↔normal geçişi yok).
+Kullanım: `manager.py` planı, `_completion_check` doğrulamasını ve `_escalate` kararını yönetici modeliyle yapar; adımları
+  `roster.worker_for` (hızlı yerel) ve adımın kategorisine göre `categories` modeliyle yapar. Metin yazan adımda
+  `writer_model` kuralı aynen kalır.
+Yedekleme: yönetici çağrısı 401/zaman aşımı/bağlam hatası verirse sıradaki adaya geç, plan kartına "Yönetici: X → Y" yaz.
+  Bulut yöneticide `agent.api_context` ve `_compact` kuralları geçerli; özet yine yerel modelle.
+Arayüz: plan kartında "Yönetici: <model> · İşçi: <model>"; Ayarlar'da üç seçenekli kutu; durum çubuğuna dokunma.
+Testler: sahte bağlantılarla politika sırasının unittest'i (giriş yok / 401 / sansürsüz / kuyruktan gelen istek).
+Ölçüm: Aşama 1 sınavını `--yonetici yerel` ve `--yonetici otomatik` ile koş; RAPOR.md'ye iki satır.
+YAPMA: döngünün yapısını değiştirme; yeni araç ekleme; kartlara yeni sınav ekleme.
+```
+
+**Bitti (eski Aşama 2):** otomatik politikada sınav başarısı yerelden düşük değil (beklenti: belirgin yüksek); plan kartı
+yöneticiyi gösteriyor; anahtarsız bağlantı hiçbir zaman yönetici seçilmiyor (unittest).
+
+---
+
+## Aşama K4 — Görev motoru (Anla → Planla → Uygula → Doğrula)
+**Hedef:** Çok adımlı istekler planlanır, adım adım koşar, kaldığı yerden devam eder.
+
+- [ ] `cekirdek/semalar/gorev.json` (JSON Schema) — `docs/SEMALAR.md` §2 ile birebir
+- [ ] `gorev/anlayici.py`: niyet, kısıtlar, belirsizlikler, gereken/eksik yetenekler; belirsizlik yüksekse tek soru
+- [ ] `gorev/planlayici.py`: şema kısıtlı plan üretimi (varsa mevcut "şema kısıtlı araç seçimi" aşamasının kodu buraya taşınır); şemaya uymayan plan → 1 düzeltme turu → yine uymuyorsa `model_yetersiz`
+- [ ] `gorev/yurutucu.py`: adım koşma, `{{adim_N.sonuc}}` çözümleme, checkpoint, `onay_gerekli` adımlarda bekleme
+- [ ] `gorev/dogrulayici.py`: `basari_olcutu` kontrolü (kural tabanlı + gerekirse `hizli` modele sor)
+- [ ] `gorev/durum.py`: SQLite görev deposu; "yarım görevler" listesi; "devam et"
+- [ ] `cafer gorev "…"` CLI; masaüstünde Görevler sekmesi (liste, adım durumu, onay düğmesi)
+- [ ] Testler: sahte yeteneklerle 3 adımlı görev; ortada kapatıp devam ettirme; doğrulama başarısız → tekrar deneme
+- [ ] Şema-kısıtlı üretim (`agent.structured`) ve araç çağıramayan modeller için araç seçici kipi — mevcut plandan taşındı
+      (eski Aşama 3, talimat aşağıda; henüz kodu yok). `gorev/planlayici.py`'nin şema kısıtlı plan üretimi bu yolu kullanır.
+
+**Bitti sayılır:** "Çalışma klasöründeki .txt dosyalarını say, en büyüğünü özetle" gibi 2–3 adımlı bir istek plan olarak görünüyor, adım adım koşuyor, program kapatılıp açılınca devam ediyor. Taşınan eski Aşama 3'ün bitti ölçütü de sağlanmış.
+
+### Mevcut plandan taşındı: eski Aşama 3 — Araç çağıramayan modeller için şema-kısıtlı karar ☐
+
+Gemma 4, gemma3, dolphin3 araç çağrısını metin olarak yazıyor. Ollama'nın `format` alanına JSON şeması verilince model
+gramer kısıtıyla üretir; "yazdı ama yapmadı" büyük ölçüde biter. Plan zaten JSON; aynı yolu araç seçimine de uygula.
+
+```
+Şema-kısıtlı üretim. `agent.structured(messages, schema, model)`: Ollama'da `format=<JSON şeması>`; OpenAI uyumlu
+bağlantıda `response_format: {type: "json_schema"}`; desteklemeyen sağlayıcıda talimat + ayrıştırma + bir kez yeniden deneme.
+Kullan: `manager.needs_plan`, plan üretimi, `_completion_check` kararı (üçü zaten JSON istiyor; şemayı kesinleştir).
+Araç seçici kipi: kartında araç puanı 3/3 olmayan modeller için turu iki parçaya böl:
+  a) karar — şema: {"eylem": "arac" | "cevap", "arac": <kayıtlı araç adlarından biri, enum>, "argumanlar": {…},
+     "gerekce": <kısa>}; `registry`'deki şemalar argümanlar için birleştirilir (araç enum'una göre koşullu şema, olmuyorsa
+     iki adım: önce araç, sonra o aracın şemasıyla argümanlar).
+  b) program aracı `agent._execute_tool` ile çalıştırır (izin hattı aynı, `permissions.py`'ye dokunulmaz), sonucu geçmişe
+     ekler, tekrar karar ister; "cevap" gelince metni normal akışla (streaming) yazdırır.
+  3/3 modellerde yerleşik araç çağrısı aynen kalır; kip seçimi `roster` üzerinden, kullanıcıya görünmez.
+Ölçüm: `cards.py` sınavını gemma3, dolphin3, sansürsüz gemma4 ile yeniden koş (hedef ≥ 2/3); Aşama 1 sınavını qwen ile
+  koşup gerileme olmadığını göster; RAPOR.md'ye satırlar.
+YAPMA: sistem talimatını uzatma (lean bütçesi 8K'da ~1.100 token); araç şemalarını kopyalayıp ikinci bir kayıt yaratma.
+```
+
+**Bitti (eski Aşama 3):** kartlarda 0/3 olan modeller ≥ 2/3; 3/3 modellerde gerileme yok; `yazdi-ama-yapmadi` görevi Gemma ile geçiyor.
+
+---
+
+## Aşama K5 — Yetenek kayıt defteri
+**Hedef:** Planlayıcı yalnızca manifestli yetenekleri çağırır; mevcut araçlar yeteneğe dönüştü.
+
+- [ ] `cekirdek/semalar/manifest.json` (JSON Schema) — `docs/SEMALAR.md` §1
+- [ ] `yetenek/kayit.py`: `yetenekler/*/manifest.json` tarama, doğrulama, aktif/pasif listeleme (gereksinim karşılanmıyorsa pasif)
+- [ ] `yetenek/calistirici.py`: `calistir(girdi, baglam)` çağrısı; `sandbox: true` ise ayrı venv + zaman aşımı + izin kontrolü
+- [ ] Mevcut araçlar yeteneğe dönüştürüldü: `dosya_listele`, `dosya_oku`, `dosya_yaz`, `dosya_tasi`, `komut_calistir`, `python_calistir`, `web_arama`, `web_oku`, (varsa) `tarayici`
+- [ ] Planlayıcı yetenek listesini **manifestlerden** okuyor; elle liste yok
+- [ ] Masaüstünde Yetenekler sekmesi: aktif/pasif, izinler, kaynak, güvenilir mi
+- [ ] `/yetenek-ekle` komutu ile bir deneme yeteneği eklendi ve planlayıcı onu kullandı
+- [ ] Testler: manifest doğrulama (bozuk manifest pasif), sandbox zaman aşımı, izin dışı erişim engeli
+- [ ] `tarayici` yeteneğinde ürün/ilan listesini yapısal okuma (`extract_items`) — mevcut plandan taşındı (eski Aşama 4,
+      talimat aşağıda)
+
+**Bitti sayılır:** `/kontrol` 8 tüm yetenekler için yeşil; K4'teki görev artık yetenekler üzerinden koşuyor. Taşınan eski Aşama 4'ün bitti ölçütü de sağlanmış.
+
+### Mevcut plandan taşındı: eski Aşama 4 — Tarayıcı: ürün listelerini güvenilir okumak ☐
+
+```
+`browser.py`'ye `extract_items` aracı: sayfadaki ürün/ilan listesini yapısal olarak döndürür [{ad, fiyat, para_birimi, url}].
+Sıra: 1) JSON-LD (schema.org ItemList / Product) — büyük TR e-ticaret siteleri bunu veriyor; 2) DOM sezgisi: aynı yapıda
+tekrar eden kardeş kartlar; kartta fiyat deseni (\d{1,3}(\.\d{3})*(,\d{2})?\s*(TL|₺)) ve bir bağlantı metni → ad; 3) hiçbiri
+yoksa boş liste ve dürüst hata ("liste bulunamadı"), uydurma yok. Yönetici ürün/fiyat isteğinde numaralı öğe okuma yerine
+bu aracı kullanır (`manager._via_browser`); doğrulama: en az istenen sayıda satır ve her satırda sayısal fiyat.
+Sayfa kendini yeniden çizerse araç DOM'u tekrar okur (öğe numarası kullanmaz, bu tuzak kapanır).
+Ölçüm: Aşama 1'deki 19 ve 20 numaralı görevler + Trendyol için bir görev daha; `--tekrar 3`.
+YAPMA: siteye özel seçici gömme (site adına göre if yok); giriş gerektiren sayfalar; sepete ekleme.
+```
+
+**Bitti (eski Aşama 4):** üç internet görevi 3/3 geçiyor; boş sonuçta cevap "bulunamadı", uydurma yok.
+
+---
+
+## Aşama K6 — Hata analizi ve kendini genişletme
+**Hedef:** Yapamadığı işi sınıflandırır; bağımlılık kurar; yetenek üretir; hepsi onaylı ve sandbox'lı.
+
+- [ ] `analiz/hata.py`: 8 sınıf için desen tabanlı sınıflandırıcı + eylem tablosu (`docs/MIMARI.md` §7); bilinmeyen → `hizli` modele sor
+- [ ] `guvenlik.py` + `ayar/guvenlik.toml`: `kurulum`, `ag`, `dosya_silme`, `sandbox_zaman_asimi_sn`; kaynak allowlist
+- [ ] `yetenek/yukleyici.py`: pip / winget / apt / brew ile kurulum; politika `sor` ise onay kuyruğuna
+- [ ] `yetenek/uretici.py`: eksik yetenek → manifest yazdır → kod ajanı ile `calistir.py` + test üret → sandbox test → onay → kayıt (`kaynak: uretildi`, `guvenilir: false`); 3 tur sınırı
+- [ ] Yürütücü ↔ hata analizi bağlantısı: başarısız adım → sınıf → eylem → adımı tekrar / kullanıcıya sor / vazgeç
+- [ ] Onay kuyruğu: masaüstünde ve (K8 sonrası) web'de "bekleyen onaylar"
+- [ ] `NOTLAR/HATALAR.md` başlatıldı; `/hata-analiz` komutu sınıflandırıcıya desen ekleyebiliyor
+- [ ] Testler: her sınıf için sahte hata → doğru eylem; üretici sahte kod ajanıyla uçtan uca; sandbox'ta yasak erişim engellendi
+- [ ] Hazır MCP sunucusunu (onayla) kendisi kurmak; çalışan, üretilmiş bir aracı güncellemek — mevcut plandan taşındı
+      ("Sonraya" listesi; CLAUDE.md'de araç fabrikasının eksiği olarak geçer)
+
+**Bitti sayılır:** "Bu PDF'in tablolarını Excel'e çıkar" gibi mevcut yeteneği olmayan bir istekte program eksik yeteneği söylüyor, onay isteyip yetenek üretiyor, test ediyor, sonra görevi tamamlıyor. `pip` olmayan bir modül hatasında onay isteyip kuruyor.
+
+---
+
+## Aşama K7 — Ölçüm, sınav seti ve kademe otomatik ayarı
+**Hedef:** Program kendi hızını ve başarısını ölçer; kademe gerçeğe göre kayar.
+
+- [ ] `analiz/olcum.py`: model başına tok/sn, ilk-token, başarı oranı (doğrulayıcıdan), süre; `profil.json → benchmark`
+- [ ] İlk kullanımda 30 sn benchmark; `/profil benchmark` ile elle
+- [ ] Kademe otomatik düşürme/yükseltme kuralı + kullanıcıya bildirim + kilit varsa dokunma
+- [ ] `testler/sinav/`: mevcut sınav seti kademe etiketlendi (hangi görev hangi kademede beklenir); `cafer sinav --kademe orta` koşar, başarı tablosu üretir
+- [ ] Sınav sonuçları yönlendirme tablosuna geri besleniyor (kademe × görev türü → tercih edilen rol)
+- [ ] Modeller sekmesi: `modeller.json` listesi, ölçümler, "varsayılanı değiştir"; "listeyi yenile" düğmesi (`modeller.json`'u katalogdan/elle güncelleme)
+
+**Bitti sayılır:** Sınav tablosu üretiliyor; küçük bir modeli yavaşlatınca (ya da sahte ölçümle) kademe düşüyor ve bildiriyor.
+
+### Mevcut plandan taşındı: eski Aşama 1 — Sınav seti: başarıyı sayıyla ölçmek ✓
+
+Tamamlandı (taban %50, bkz. aşağıdaki ölçüm defteri); K7'deki `testler/sinav/` maddesi bu setin üzerine kurulur.
 
 Bugün ilerleme "canlı deneme: çalıştı, 197 sn" cümleleriyle ölçülüyor. Bu aşamadan sonra her değişiklik "30 görevde
 kaç başarı, hangi modelle" diye ölçülür ve yayın bu sayıya bağlanır.
@@ -106,84 +311,28 @@ YAPMA: programın kendisine sınav için özel dal ekleme (sınav dışarıdan, 
 Bitince: varsayılan yerel modelle `--hizli --tekrar 2` koş, RAPOR.md'yi commit et, sonucu NOTLAR/<tarih>.md'ye yaz.
 ```
 
-**Bitti:** 20 görev tanımlı; `--hizli` 10 dakikanın altında; RAPOR.md'de ilk ölçüm var (kaç geçti önemli değil — bu taban
-çizgisi); `yayinla.sh` eşiğin altında durduğunu bir deneme ile gösterdi.
+**Bitti (eski Aşama 1):** 20 görev tanımlı; `--hizli` 10 dakikanın altında; RAPOR.md'de ilk ölçüm var (kaç geçti önemli
+değil — bu taban çizgisi); `yayinla.sh` eşiğin altında durduğunu bir deneme ile gösterdi.
 
 ---
 
-## Aşama 2 — Yöneticiye en güçlü model, işçiye hızlı model ☐
+## Aşama K8 — Sunucu modu (web + telefon)
+**Hedef:** Aynı paket sunucuda çalışır; telefondan PWA ile kullanılır; bilgisayar kapalıyken görevler sürer.
 
-CLAUDE.md'deki tuzak listesinin yarısı "yönetici sohbet modeliyle planlıyor ve denetliyor"dan geliyor. Kalıcı çözüm orada
-yazılı ama yapılmamış. Bu aşama yalnızca politika ekler; döngüye dokunmaz.
+- [ ] `arayuz/web/`: FastAPI; uç noktalar `/saglik`, `/gorev` (POST/GET), `/onaylar`, `/yetenekler`, `/profil`, `/sohbet` (SSE akış)
+- [ ] Tek kullanıcı token kimliği (`CAFER_TOKEN`); yanlış/eksik → 401
+- [ ] PWA: `manifest.webmanifest`, service worker, "ana ekrana ekle"; sohbet + görevler + onaylar ekranları (sade, masaüstüyle aynı retro dil)
+- [ ] `cafer sunucu --port` giriş noktası; masaüstü kodu yüklenmez (`/sunucu` bunu doğrular)
+- [ ] `sunucu/Dockerfile` (python:3.12-slim, sadece çekirdek + web), `docker-compose.yml` (cafer-web + isteğe bağlı `ollama` servisi GPU profiliyle), `Caddyfile`, `.env.ornek`
+- [ ] `docs/SUNUCU_KURULUM.md`: 2 vCPU/4 GB VPS'e 10 adımda kurulum; alan adı + HTTPS; yedekleme (`.cafer/` klasörü)
+- [ ] Testler: uç nokta testleri (TestClient), token, SSE akışı
+- [ ] `sunucu/kur.sh` sıfır Ubuntu 24.04'te idempotent, `sunucu/dogrula.sh`, gerçek sunucuda (Hetzner) kurulum — mevcut
+      plandan taşındı (eski Aşama 5, talimat aşağıda). Kurulum belgesi tek olur: `docs/SUNUCU_KURULUM.md` ve
+      `sunucu/BENIOKU.md` aynı adımları ayrı ayrı anlatmaz (bkz. `NOTLAR/SORULAR.md`).
 
-```
-Yönetici modeli politikası. Ayarlar'a `yonetici_politikasi`: "otomatik" (varsayılan) | "yerel" | "bulut".
-`roster.manager_for(policy)` sırası (otomatik):
-  1) `cli:claude` — `cli_agents` ile giriş yapılmışsa ve istek kullanıcının sohbetinden geliyorsa (CLAUDE.md kuralı:
-     CLI ajanları kuyruk ve zamanlanmış işte çalışmaz).
-  2) kullanılabilir (`Connection.usable`) bulut bağlantılarından kartı en yüksek olan.
-  3) yerelde kartı 6/6 olan en yüksek puanlı model (roster.stronger'daki ölçüt).
-  4) hiçbiri yoksa sohbet modeli + adımlar panelinde tek satırlık uyarı.
-  "yerel" 3–4; "bulut" 1–2, yoksa 3–4. Sansürsüz modda yönetici yalnızca yerel (sansürsüz↔normal geçişi yok).
-Kullanım: `manager.py` planı, `_completion_check` doğrulamasını ve `_escalate` kararını yönetici modeliyle yapar; adımları
-  `roster.worker_for` (hızlı yerel) ve adımın kategorisine göre `categories` modeliyle yapar. Metin yazan adımda
-  `writer_model` kuralı aynen kalır.
-Yedekleme: yönetici çağrısı 401/zaman aşımı/bağlam hatası verirse sıradaki adaya geç, plan kartına "Yönetici: X → Y" yaz.
-  Bulut yöneticide `agent.api_context` ve `_compact` kuralları geçerli; özet yine yerel modelle.
-Arayüz: plan kartında "Yönetici: <model> · İşçi: <model>"; Ayarlar'da üç seçenekli kutu; durum çubuğuna dokunma.
-Testler: sahte bağlantılarla politika sırasının unittest'i (giriş yok / 401 / sansürsüz / kuyruktan gelen istek).
-Ölçüm: Aşama 1 sınavını `--yonetici yerel` ve `--yonetici otomatik` ile koş; RAPOR.md'ye iki satır.
-YAPMA: döngünün yapısını değiştirme; yeni araç ekleme; kartlara yeni sınav ekleme.
-```
+**Bitti sayılır:** `/sunucu docker` tüm kontrolleri geçiyor; telefondan aynı ağda PWA açılıp bir görev başlatılıyor. Taşınan eski Aşama 5'in bitti ölçütü de sağlanmış.
 
-**Bitti:** otomatik politikada sınav başarısı yerelden düşük değil (beklenti: belirgin yüksek); plan kartı yöneticiyi
-gösteriyor; anahtarsız bağlantı hiçbir zaman yönetici seçilmiyor (unittest).
-
----
-
-## Aşama 3 — Araç çağıramayan modeller için şema-kısıtlı karar ☐
-
-Gemma 4, gemma3, dolphin3 araç çağrısını metin olarak yazıyor. Ollama'nın `format` alanına JSON şeması verilince model
-gramer kısıtıyla üretir; "yazdı ama yapmadı" büyük ölçüde biter. Plan zaten JSON; aynı yolu araç seçimine de uygula.
-
-```
-Şema-kısıtlı üretim. `agent.structured(messages, schema, model)`: Ollama'da `format=<JSON şeması>`; OpenAI uyumlu
-bağlantıda `response_format: {type: "json_schema"}`; desteklemeyen sağlayıcıda talimat + ayrıştırma + bir kez yeniden deneme.
-Kullan: `manager.needs_plan`, plan üretimi, `_completion_check` kararı (üçü zaten JSON istiyor; şemayı kesinleştir).
-Araç seçici kipi: kartında araç puanı 3/3 olmayan modeller için turu iki parçaya böl:
-  a) karar — şema: {"eylem": "arac" | "cevap", "arac": <kayıtlı araç adlarından biri, enum>, "argumanlar": {…},
-     "gerekce": <kısa>}; `registry`'deki şemalar argümanlar için birleştirilir (araç enum'una göre koşullu şema, olmuyorsa
-     iki adım: önce araç, sonra o aracın şemasıyla argümanlar).
-  b) program aracı `agent._execute_tool` ile çalıştırır (izin hattı aynı, `permissions.py`'ye dokunulmaz), sonucu geçmişe
-     ekler, tekrar karar ister; "cevap" gelince metni normal akışla (streaming) yazdırır.
-  3/3 modellerde yerleşik araç çağrısı aynen kalır; kip seçimi `roster` üzerinden, kullanıcıya görünmez.
-Ölçüm: `cards.py` sınavını gemma3, dolphin3, sansürsüz gemma4 ile yeniden koş (hedef ≥ 2/3); Aşama 1 sınavını qwen ile
-  koşup gerileme olmadığını göster; RAPOR.md'ye satırlar.
-YAPMA: sistem talimatını uzatma (lean bütçesi 8K'da ~1.100 token); araç şemalarını kopyalayıp ikinci bir kayıt yaratma.
-```
-
-**Bitti:** kartlarda 0/3 olan modeller ≥ 2/3; 3/3 modellerde gerileme yok; `yazdi-ama-yapmadi` görevi Gemma ile geçiyor.
-
----
-
-## Aşama 4 — Tarayıcı: ürün listelerini güvenilir okumak ☐
-
-```
-`browser.py`'ye `extract_items` aracı: sayfadaki ürün/ilan listesini yapısal olarak döndürür [{ad, fiyat, para_birimi, url}].
-Sıra: 1) JSON-LD (schema.org ItemList / Product) — büyük TR e-ticaret siteleri bunu veriyor; 2) DOM sezgisi: aynı yapıda
-tekrar eden kardeş kartlar; kartta fiyat deseni (\d{1,3}(\.\d{3})*(,\d{2})?\s*(TL|₺)) ve bir bağlantı metni → ad; 3) hiçbiri
-yoksa boş liste ve dürüst hata ("liste bulunamadı"), uydurma yok. Yönetici ürün/fiyat isteğinde numaralı öğe okuma yerine
-bu aracı kullanır (`manager._via_browser`); doğrulama: en az istenen sayıda satır ve her satırda sayısal fiyat.
-Sayfa kendini yeniden çizerse araç DOM'u tekrar okur (öğe numarası kullanmaz, bu tuzak kapanır).
-Ölçüm: Aşama 1'deki 19 ve 20 numaralı görevler + Trendyol için bir görev daha; `--tekrar 3`.
-YAPMA: siteye özel seçici gömme (site adına göre if yok); giriş gerektiren sayfalar; sepete ekleme.
-```
-
-**Bitti:** üç internet görevi 3/3 geçiyor; boş sonuçta cevap "bulunamadı", uydurma yok.
-
----
-
-## Aşama 5 — Bulut beyni gerçek sunucuya kurmak ☐
+### Mevcut plandan taşındı: eski Aşama 5 — Bulut beyni gerçek sunucuya kurmak ☐
 
 Bu aşamanın büyük kısmı elle yapılır; Claude Code yalnızca kurulumu sıfır makinede kanıtlar.
 
@@ -199,14 +348,43 @@ YAPMA: sunucu koduna yeni özellik; bilgisayardan buluta iş gönderme (o ayrı 
 Elle: Hetzner CX23 (Ubuntu 24.04), Tailscale kur, `paketleme/bulut_paketi.sh` çıktısını kopyala, `kur.sh`, `dogrula.sh`,
 programdan bağlan, telefondan Telegram'da `/baglan <kod>`. Bir araştırma isteği gönder, bilgisayar kapalıyken cevap gelsin.
 
-**Bitti:** bilgisayar kapalıyken telefondan bir araştırma isteği cevaplandı; `dogrula.sh` sunucuda tümü ✓.
+**Bitti (eski Aşama 5):** bilgisayar kapalıyken telefondan bir araştırma isteği cevaplandı; `dogrula.sh` sunucuda tümü ✓.
 
 ---
 
-## Aşama 6 — Arayüzü hedefe göre sadeleştirmek ☐
+## Aşama K9 — Uzak mod ve senkron
+**Hedef:** Masaüstü istemci sunucuya bağlanabilir; görevler ve ayarlar tek yerde.
 
-CLAUDE.md'nin hedefi "kullanıcı model seçmek istemiyor". Aşama 2–3 oturunca model menüleri, kategoriler ve kipler ana
-menüden Yardım → Gelişmiş altına iner; ana ekranda yalnızca sohbet, iş klasörü ve durum çubuğu kalır.
+- [ ] Masaüstünde "uzak sunucu" ayarı: URL + token; açıkken görev deposu ve sohbet sunucudan
+- [ ] Çevrimdışıyken yerel kuyruk; bağlanınca senkron (basit: son-yazan-kazanır, çakışma listesi)
+- [ ] Bildirim yeteneği (`bildirim_gonder`: ntfy ya da Telegram bot) — onay bekleyen görevlerde telefona bildirim
+- [ ] Sunucudaki onay masaüstünde, masaüstündeki onay sunucuda görünür
+- [ ] Testler: uzak mod ile yerel mod aynı testleri geçiyor (parametrize)
+- [ ] Bilgisayardan buluta iş gönderme (araştırma) — mevcut plandan taşındı ("Sonraya" listesi). CLAUDE.md kuralı sürer:
+      buluttan gelen ve yerel dosya gerektiren iş bilgisayarda kendiliğinden çalışmaz (☁ → "yap"); CLI ajanları kuyruğa bağlanmaz.
+
+**Bitti sayılır:** Bilgisayar kapalıyken telefondan başlatılan görev, bilgisayar açılınca masaüstünde görünüyor.
+
+---
+
+## Aşama K10 — Kurulum, sadeleştirme ve sürüm
+**Hedef:** Düşük sistemde bile tek komutla kurulup çalışan, sade bir program.
+
+- [ ] Kurulum sihirbazı (ilk açılış): profil → kademe → "yerel model kur / bulut anahtarı gir / ikisi" → gizlilik modu → bitti
+- [ ] Tek komut kurulum: `pipx install …` ya da platform yükleyicisi (Windows için `.exe`, mevcut güncelleme mekanizmasıyla uyumlu)
+- [ ] Kademe `dusuk` profili: UI'da sadece sohbet + görevler + ayarlar; diğer sekmeler gizli ama açılabilir
+- [ ] Başlangıç süresi ölçümü: `dusuk` kademede < 3 sn hedefi; ağır import'lar lazy
+- [ ] Sürüm notu ve `CHANGELOG.md`; in-app güncelleme K serisi ile uyumlu
+- [ ] `docs/MIMARI.md` gerçekle güncellendi (yapılamayan/değişen kararlar not edildi)
+- [ ] Model seçimiyle ilgili menü ve düğmeler Yardım → Gelişmiş'e, sağlayıcı seçici ve sansürsüz/güvenlik kipleri
+      Ayarlar'a — mevcut plandan taşındı (eski Aşama 6, talimat aşağıda)
+
+**Bitti sayılır:** Temiz bir sanal makinede (ya da düşük kademe kilidiyle) kurulum sihirbazından geçip bulut anahtarıyla bir görev tamamlanıyor; `/kontrol` tamamen yeşil. Taşınan eski Aşama 6'nın bitti ölçütü de sağlanmış.
+
+### Mevcut plandan taşındı: eski Aşama 6 — Arayüzü hedefe göre sadeleştirmek ☐
+
+CLAUDE.md'nin hedefi "kullanıcı model seçmek istemiyor". Aşama 2–3 oturunca (artık K3–K4) model menüleri, kategoriler ve
+kipler ana menüden Yardım → Gelişmiş altına iner; ana ekranda yalnızca sohbet, iş klasörü ve durum çubuğu kalır.
 
 ```
 Ana pencerede model seçimiyle ilgili menü ve düğmeleri (model menüleri, ajan kategorileri, varsayılan model, güç kipi)
@@ -215,7 +393,7 @@ modelin adı ve ekran kartı kalır. Hiçbir işlevi silme, yalnızca yerini de�
 azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra karşılaştırarak göster.
 ```
 
-**Bitti:** ana menüde model seçimi yok; tüm eylemler Gelişmiş/Ayarlar altında bulunuyor; denetim 0 hata.
+**Bitti (eski Aşama 6):** ana menüde model seçimi yok; tüm eylemler Gelişmiş/Ayarlar altında bulunuyor; denetim 0 hata.
 
 ---
 
@@ -228,6 +406,4 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 ## Sonraya (aşamaları bölmemek için buraya)
 
 - 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP).
-- Araç fabrikası: hazır MCP sunucusunu kendisi kurmak; çalışan aracı güncellemek.
-- Bilgisayardan buluta iş gönderme (araştırma).
 - Beceriyi çok adımlı plan olarak saklamak.

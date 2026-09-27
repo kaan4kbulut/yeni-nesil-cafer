@@ -1,0 +1,57 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+Kurulum görevi:
+1. CLAUDE_EKLENTI.md içeriğini CLAUDE.md'nin sonuna işle (CLAUDE.md parçalara bölünmüşse uygun parçaya; CLAUDE.md yoksa oluştur). Sonra CLAUDE_EKLENTI.md'yi sil.
+2. YAPILACAKLAR_EK.md'deki K0–K10 aşamalarını YAPILACAKLAR.md'nin sonuna taşı (dosya yoksa oluştur). Mevcut planımdaki sınav seti, güçlü yönetici model, şema kısıtlı araç seçimi, bulut sunucu, UI sadeleştirme gibi maddeler K serisiyle çakışıyorsa ilgili K aşamasının içine "mevcut plandan taşındı" notuyla birleştir; çift madde bırakma. Sonra YAPILACAKLAR_EK.md'yi sil.
+3. .claude/settings.json'daki hook ve statusLine komutlarını bu makinede bir kez çalıştırıp test et (bildir.py'ye {"hook_event_name":"Stop","last_assistant_message":"kurulum tamam"} ver; bildirim çıkmazsa bu işletim sisteminde çalışan yöntemle düzelt).
+4. Hiçbir Python dosyasına (asistan/ altı) dokunma.
+
+
+### ÇIKTI (kod 0)
+Adım 1 ve 2 tamam. Adım 3'te hook'u elle çalıştıramadım; bildirim hâlâ denenmedi ve `bildir.py` değişmedi. `asistan/` altına dokunmadım.
+
+**1. CLAUDE.md:** Eklenti sona işlendi: 10 mimari kural, çalışma düzeni, komutlar ve ajanlar. Mevcut kurallarla üç yerde çelişiyordu, bunları kısa notlarla uzlaştırdım:
+- **Onay yolu:** `guvenlik.py` ikinci bir onay yolu açmaz, tek izin hattı `permissions.py` kalır.
+- **Adlandırma:** Türkçe adlandırma yalnızca yeni kodda geçerli.
+- **Testler:** `/kontrol` testleri kurulu programın Python'uyla koşar.
+
+Dosya 192 satır oldu; eski 150 satır sınırını aşıyor. `CLAUDE_EKLENTI.md` silindi.
+
+**2. YAPILACAKLAR.md:** K0–K10 eklendi. "Sonraya" listesi dosyanın sonunda kaldı, çünkü kural onu orada istiyor. Eski aşamalar talimatlarıyla birlikte kendi K aşamalarına taşındı:
+
+| Eski aşama | K aşaması |
+|---|---|
+| 1 Sınav seti (✓) | K7 |
+| 2 Güçlü yönetici | K3 |
+| 3 Şema-kısıtlı karar | K4 |
+| 4 Tarayıcı | K5 |
+| 5 Bulut sunucu | K8 |
+| 6 Arayüz sadeleştirme | K10 |
+
+"Sonraya"dan iki madde de taşındı: MCP sunucusunu kendisi kurmak K6'ya, buluta iş göndermek K9'a. Eski planın ve EK'in her satırını tek tek aradım; eksik çıkanlar yalnızca bilerek değiştirdiğim satırlar. K0'da gerçekten yapılmış üç kutuyu işaretledim; `v-k0-baslangic` etiketinin var olduğunu kontrol ettim. `YAPILACAKLAR_EK.md` silindi.
+
+**3. Hook ve statusLine:** Bu oturum `acceptEdits` kipinde. `settings.json`'daki `Bash(python:*)` izni uygulanmıyor, bu yüzden betikleri, `notify-send`'i ve unittest'i elle çalıştıramadım. `.claude/` altı "hassas dosya" sayıldığı için `bildir.py`'yi de düzenleyemedim.
+- **Çalıştığı kanıtlanan:** Oturum açılışındaki hook `.cafer/ilerleme.json`'u yazdı. Yani `/usr/bin/python` ve betik yolları bu makinede doğru. `notify-send` de kurulu.
+- **Denenemeyen:** Bildirimin ekrana çıkması ve durum çubuğunun çıktısı.
+- **Önerilen düzeltme:** `NOTLAR/2026-09-27-KUR.md`'de. `notify-send` beklenerek çalıştırılsın, D-Bus adresi yoksa yedek adres verilsin, her bildirimin sonucu `.cafer/bildirim.log`'a yazılsın.
+
+**Sonraki aşamaları etkiliyor:** Bu izin durumunda K aşamaları da test koşamaz. `/kontrol` çalışmaz. Önerim sürücüyü `--tam-yetki` ile çalıştırmak. Ayrıca `TaskCreate`/`TaskUpdate` bu oturumda yoktu. İlerleme çubuğunu besleyen hook bu yüzden hiç tetiklenmiyor. Görev listesini `.cafer/ilerleme.json`'a elle yazdım.
+
+Bunlar ve ileriki aşamalar için 6 soru daha (sunucu belgesi, masaüstü sekmeleri, yönlendirici gibi) geçici kararlarıyla `NOTLAR/SORULAR.md`'de.
+
+SONUÇ: KISMEN
+DEĞİŞEN: 6
+TEST: çalıştırılamadı (izin yok; yalnızca Markdown değişti)
+NOT: 1–2 tamam; bildirim denenemedi, düzeltme önerisi ve izin sorunu NOTLAR/2026-09-27-KUR.md ve SORULAR.md'de
+
+Ignoring 55 permissions.allow entries from .claude/settings.json: this workspace has not been trusted. Run Claude Code interactively here once and accept the trust dialog, or set projects["/home/caferkaandebana/Projeler/yeni-nesil-cafer"].hasTrustDialogAccepted: true in /home/caferkaandebana/.claude.json.
