@@ -1,0 +1,118 @@
+{
+ "statusLine": {
+  "type": "command",
+  "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/durum.py\"",
+  "padding": 0
+ },
+ "hooks": {
+  "SessionStart": [
+   {
+    "hooks": [
+     {
+      "type": "command",
+      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
+     }
+    ]
+   }
+  ],
+  "PostToolUse": [
+   {
+    "matcher": "TaskCreate|TaskUpdate",
+    "hooks": [
+     {
+      "type": "command",
+      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
+     }
+    ]
+   }
+  ],
+  "Notification": [
+   {
+    "hooks": [
+     {
+      "type": "command",
+      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
+     }
+    ]
+   }
+  ],
+  "Stop": [
+   {
+    "hooks": [
+     {
+      "type": "command",
+      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
+     }
+    ]
+   }
+  ]
+ },
+ "permissions": {
+  "allow": [
+   "Read",
+   "Edit",
+   "Write",
+   "Glob",
+   "Grep",
+   "Agent",
+   "WebSearch",
+   "WebFetch",
+   "TaskCreate",
+   "TaskUpdate",
+   "TaskList",
+   "TaskGet",
+   "Bash(python:*)",
+   "Bash(python3:*)",
+   "Bash(py:*)",
+   "Bash(pytest:*)",
+   "Bash(pip:*)",
+   "Bash(pip3:*)",
+   "Bash(ruff:*)",
+   "Bash(git status:*)",
+   "Bash(git add:*)",
+   "Bash(git commit:*)",
+   "Bash(git tag:*)",
+   "Bash(git diff:*)",
+   "Bash(git log:*)",
+   "Bash(git show:*)",
+   "Bash(git checkout:*)",
+   "Bash(git stash:*)",
+   "Bash(ls:*)",
+   "Bash(dir:*)",
+   "Bash(cat:*)",
+   "Bash(type:*)",
+   "Bash(mkdir:*)",
+   "Bash(mv:*)",
+   "Bash(cp:*)",
+   "Bash(echo:*)",
+   "Bash(where:*)",
+   "Bash(which:*)",
+   "Bash(tree:*)",
+   "Bash(find:*)",
+   "Bash(grep:*)",
+   "Bash(curl:*)",
+   "Bash(ollama:*)",
+   "Bash(nvidia-smi:*)",
+   "Bash(docker:*)",
+   "Bash(docker compose:*)",
+   "Bash(powershell:*)",
+   "Bash(wmic:*)",
+   "Bash(sysctl:*)",
+   "Bash(free:*)",
+   "Bash(nproc:*)",
+   "Bash(claude:*)",
+   "Bash(codex:*)",
+   "Bash(gemini:*)",
+   "Bash(cafer:*)"
+  ],
+  "deny": [
+   "Bash(rm -rf:*)",
+   "Bash(rmdir /s:*)",
+   "Bash(git push:*)",
+   "Bash(git reset --hard:*)",
+   "Bash(git clean:*)",
+   "Bash(format:*)",
+   "Bash(del /s:*)"
+  ]
+ }
+}
