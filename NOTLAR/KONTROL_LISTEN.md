@@ -31,3 +31,7 @@
 - [ ] Bir yeteneğin pip paketini kaldır, o yeteneği kullan → 'eksik bağımlılık, kurayım mı?' sormalı; onaylayınca kurup devam etmeli.
 - [ ] Yeteneği olmayan bir iş iste ('şu PDF'in tablolarını Excel'e çıkar') → eksik yeteneği söyleyip üretme onayı istiyor mu? Üretip görevi bitiriyor mu?
 - [ ] K7: 6 madde açık kaldı; NOTLAR/ altındaki K7 notunu oku, gerekirse `/asama K7` ile bitirt.
+
+## K7 — Ölçüm ve sınav (2026-09-28 00:09)
+- [ ] Modeller sekmesinde tok/sn ve başarı oranları var mı? 'Listeyi yenile' modeller.json'u güncelliyor mu?
+- [ ] K8: 8 madde açık kaldı; NOTLAR/ altındaki K8 notunu oku, gerekirse `/asama K8` ile bitirt.
