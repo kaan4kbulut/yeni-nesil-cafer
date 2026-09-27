@@ -228,7 +228,7 @@ _agent_lock = threading.Lock()  # küçük sunucuda aynı anda tek model çağr�
 def answer(channel: str, text: str, conf: dict | None = None) -> str:
     """Kanalın geçmişiyle bir tur çalıştırır, cevabı döndürür."""
     from .agent import Agent
-    from .manager import Manager
+    from .cekirdek import istek
 
     conf = conf or load_config()
     settings = settings_for_cloud(conf)
@@ -242,7 +242,7 @@ def answer(channel: str, text: str, conf: dict | None = None) -> str:
     with _agent_lock:
         _local.channel = channel
         try:
-            Manager(agent).run("ollama", messages, text)
+            istek.calistir(agent, "ollama", messages, text)  # masaüstüyle aynı yol (hatalar yukarı çıkar)
         finally:
             _local.channel = ""
     _save_history(channel, messages)

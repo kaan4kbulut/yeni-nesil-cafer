@@ -10,6 +10,7 @@ import re
 import subprocess
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 from dataclasses import replace
 from datetime import date
@@ -18,6 +19,9 @@ from typing import Protocol
 import anthropic
 import httpx
 
+from .cekirdek import saglayici as sg
+from .cekirdek.saglayici import claude as sg_claude, cli_ajan as sg_cli, ollama as sg_ollama
+from .cekirdek.saglayici.openai_uyumlu import OpenAIUyumluSaglayici
 from .config import Settings
 from .connections import ANTHROPIC_KEY, Connection, key_error
 from .keystore import get_secret
@@ -51,8 +55,7 @@ CLAUDE_FALLBACK_MODELS = {"claude-opus-5", "claude-fable-5-1"}
 CLAUDE_NO_THINKING = {"claude-haiku-4-5"}
 
 
-class Cancelled(Exception):
-    pass
+Cancelled = sg.Iptal  # kullanıcı durdurdu (çekirdekteki sınıfla aynı: arayüz ikisini de yakalar)
 
 
 class _SubRelay:
@@ -1320,13 +1323,9 @@ class Agent:
     # ---- Aboneliğinle çalışan resmi programlar (Claude Code, Codex, Gemini CLI; cli_agents.py) ----
 
     def _run_cli(self, messages: list, provider: str) -> None:
-        # önceki konuşma (varsa) kısaca bağlam olarak verilir; program her çağrıda yeni oturum açar
-        agent = cli_agents.AGENTS[provider]
-        history = [m for m in messages[:-1] if isinstance(m.get("content"), str) and m["content"].strip()][-6:]
-        prompt = messages[-1]["content"]
-        if history:
-            context = "\n\n".join(f"{m['role']}: {m['content'][:1500]}" for m in history)
-            prompt = f"Earlier conversation:\n{context}\n\nCurrent request:\n{prompt}"
+        # önceki konuşma (varsa) kısaca bağlam olarak verilir; program her çağrıda yeni oturum açar (sg_cli.istem)
+        saglayici = sg_cli.CliAjanSaglayici(provider, self.cli_model or self.settings.extra.get("cli_model", ""))
+        agent = saglayici.ajan
         system = "\n\n".join(x for x in ((self.profile.prompt if self.profile else ""), self.extra_system,
                                           "Reply in the user's language (usually Turkish).") if x)
         if self.gate_actions:  # onay yok: program yalnızca okur ve plan çıkarır; ✓ ile düzenleyebilir
@@ -1344,9 +1343,8 @@ class Agent:
             self.cb.on_tool_end(sid, result or "bitti", error)
 
         try:
-            text = cli_agents.run(provider, prompt, str(self.toolbox.root), system, edits=not self.gate_actions,
-                                  cancelled=self.cb.is_cancelled, on_step=step,
-                                  model=self.cli_model or self.settings.extra.get("cli_model", ""))
+            text = saglayici.sohbet(messages, system, klasor=str(self.toolbox.root),
+                                    duzenleyebilir=not self.gate_actions, iptal=self.cb.is_cancelled, adim=step).metin
         except InterruptedError:
             self.cb.on_tool_end(call_id, "durduruldu", True)
             raise Cancelled()
@@ -1362,10 +1360,7 @@ class Agent:
     # ---- Claude ----
 
     def _claude_client(self) -> anthropic.Anthropic:
-        key = get_secret(ANTHROPIC_KEY)
-        if key:
-            return anthropic.Anthropic(api_key=key)
-        return anthropic.Anthropic()  # ANTHROPIC_API_KEY veya `ant auth login` profili
+        return sg_claude.istemci(get_secret(ANTHROPIC_KEY))  # anahtar yoksa ANTHROPIC_API_KEY / `ant auth login`
 
     # ---- döngülerin ortak parçaları (Claude / Ollama / OpenAI uyumlu) ----
 
@@ -1454,24 +1449,12 @@ class Agent:
     # ---- Claude API ----
 
     def _run_claude(self, messages: list) -> None:
-        client = self._claude_client()
         model = self.settings.claude_model
-        # eager_input_streaming: büyük araç girdileri (dosya içeriği) üretilirken akar
-        tools = [{**spec, "eager_input_streaming": True} for spec in self.tool_specs]
-        params = dict(
-            model=model,
-            max_tokens=64000,
-            system=self._system(),
-            cache_control={"type": "ephemeral"},
-        )
-        if tools:
-            params["tools"] = tools
-        if model not in CLAUDE_NO_THINKING:
-            params["thinking"] = {"type": "adaptive", "display": "summarized"}
-        if model in CLAUDE_FALLBACK_MODELS:
-            # Güvenlik sınıflandırıcısı reddederse sunucu önerilen modelle yeniden dener
-            params["betas"] = ["server-side-fallback-2026-07-01"]
-            params["fallbacks"] = "default"
+        saglayici = sg_claude.ClaudeSaglayici(self._claude_client, model)
+        # eager_input_streaming (büyük araç girdileri üretilirken akar), düşünme ve sunucu yedeği: sağlayıcıda
+        params = saglayici.parametreler(self._system(), self.tool_specs, dusunme=model not in CLAUDE_NO_THINKING,
+                                        sunucu_yedegi=model in CLAUDE_FALLBACK_MODELS)
+        tools = params.get("tools", [])
 
         json_retries = 0
         compacted = False  # "prompt is too long" sonrası bir kez özetlendi
@@ -1480,14 +1463,15 @@ class Agent:
             self.cb.on_model_start(step)
             started = time.monotonic()
             try:
-                with client.beta.messages.stream(messages=_clean(messages), **params) as stream:
-                    for event in stream:
+                with closing(saglayici.akis(_clean(messages), parametreler=params)) as akis:
+                    for parca in akis:
                         self._check_cancel()
-                        if event.type == "text":
-                            self.cb.on_text(event.text)
-                        elif event.type == "thinking":
-                            self.cb.on_thinking(event.thinking)
-                    response = stream.get_final_message()
+                        if parca.tur == sg.METIN:
+                            self.cb.on_text(parca.metin)
+                        elif parca.tur == sg.DUSUNCE:
+                            self.cb.on_thinking(parca.metin)
+                        elif parca.tur == sg.SON:
+                            response = parca.son["yanit"]
                 json_retries = 0
                 elapsed = time.monotonic() - started
                 usage = response.usage
@@ -1675,14 +1659,11 @@ class Agent:
                   "preferences and facts about them, files and folders created or changed (exact paths), commands "
                   "that worked or failed, decisions taken, and what is still open. Write in the user's language, "
                   f"as a compact list, at most {words} words. No introduction.\n\n" + text)
+        saglayici = sg_ollama.OllamaSaglayici(self.settings.ollama_url, self.settings.ollama_model)
         try:
-            r = httpx.post(self.settings.ollama_url.rstrip("/") + "/api/chat", json={
-                "model": self.settings.ollama_model, "messages": [{"role": "user", "content": prompt}],
-                "stream": False, "think": False, "keep_alive": "30m",
-                "options": {"num_ctx": num_ctx, "num_predict": words * 3}}, timeout=httpx.Timeout(300, connect=10))
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
-        except (httpx.HTTPError, ValueError):
+            return saglayici.sohbet([{"role": "user", "content": prompt}], num_ctx=num_ctx, num_predict=words * 3,
+                                    dusunme=False, okuma_zaman_asimi=300).metin.strip()
+        except (httpx.HTTPError, ValueError, sg.SaglayiciHatasi, RuntimeError):
             return ""
 
     def _describe(self, spec: dict) -> str:
@@ -1732,56 +1713,40 @@ class Agent:
         # cevap bağlamın kalanına sığsın: taşarsa Ollama istemin başını silip üretmeyi sürdürür (context shift),
         # model kendi talimatını kaybeder ve anlamsız, dakikalarca süren bir cevap yazar
         room = num_ctx - estimate_tokens(sent, fixed) * scale
-        payload = {
-            "model": self.settings.ollama_model,
-            "messages": [system, *sent],
-            **({"tools": tools} if tools else {}),
-            "stream": True,
-            **({"format": self.json_format} if self.json_format else {}),
-            "options": {"num_ctx": num_ctx, "num_predict": int(min(NUM_PREDICT, max(REPLY_RESERVE, room)))},
-            **({"think": False} if self.no_think else {}),
-            "keep_alive": "30m",  # modeli bellekte tut; her mesajda yeniden yüklenmesin
-        }
+        saglayici = sg_ollama.OllamaSaglayici(url, self.settings.ollama_model)
+        payload = saglayici.istek([system, *sent], "", tools, num_ctx=num_ctx,
+                                  num_predict=int(min(NUM_PREDICT, max(REPLY_RESERVE, room))),
+                                  dusunme=not self.no_think, bicim=self.json_format)
         content, tool_calls, final = "", [], {}
         thought = 0  # bu çağrıda üretilen düşünme metninin uzunluğu
         checked = 0  # tekrar denetiminin en son baktığı metin uzunluğu
         started = time.monotonic()
-        with httpx.stream("POST", url, json=payload, timeout=httpx.Timeout(600, connect=10, read=STALL_SECONDS)) as resp:
-            if resp.status_code != 200:
-                resp.read()
-                if tools and "does not support tools" in resp.text:
-                    raise _NoToolSupport()
-                raise RuntimeError(f"Ollama hatası ({resp.status_code}): {resp.text}")
-            for line in resp.iter_lines():
+        # boş akış (takılma) sağlayıcıda httpx.ReadTimeout olur; "araç yok" hatası AracDesteklenmiyor; içi boş
+        # satırlar NABIZ olarak gelir: iptal (■ / Esc) her satırda denetlenir
+        with closing(_eski_hata_metni(saglayici.akis([], govde=payload, okuma_zaman_asimi=STALL_SECONDS))) as akis:
+            for parca in akis:
                 self._check_cancel()
-                if not line:
-                    continue
-                chunk = json.loads(line)
-                if "error" in chunk:
-                    raise RuntimeError(f"Ollama hatası: {chunk['error']}")
-                msg = chunk.get("message", {})
-                if msg.get("thinking"):
-                    self.cb.on_thinking(msg["thinking"])
-                    thought += len(msg["thinking"])
+                if parca.tur == sg.DUSUNCE:
+                    self.cb.on_thinking(parca.metin)
+                    thought += len(parca.metin)
                     if (thought > THINK_LIMIT or time.monotonic() - started > THINK_SECONDS) \
                             and not content and not tool_calls:
                         raise _ThinkTooLong()
-                if msg.get("content"):
-                    content += msg["content"]
-                    self.cb.on_text(msg["content"])
+                elif parca.tur == sg.METIN:
+                    content += parca.metin
+                    self.cb.on_text(parca.metin)
                     if len(content) - checked >= 200:
                         checked = len(content)
                         cut = repeat_cut(content)
-                        if cut:  # akışı kapatmak Ollama'da üretimi de durdurur
+                        if cut:  # akışı kapatmak (closing) Ollama'da üretimi de durdurur
                             content = content[:cut]
                             self.cb.on_text("\n\n*(Model aynı metni tekrar tekrar yazmaya başladı; durdurdum.)*\n\n")
                             final = {"done_reason": "repeat"}
                             break
-                tool_calls.extend(msg.get("tool_calls") or [])
-                if not (content or tool_calls or thought) and time.monotonic() - started > STALL_SECONDS:
-                    raise httpx.ReadTimeout("boş parçalar geliyor")  # akış sürüyor ama içi boş: takılma sayılır
-                if chunk.get("done"):
-                    final = chunk
+                elif parca.tur == sg.ARAC:
+                    tool_calls.extend(parca.araclar)
+                elif parca.tur == sg.SON:
+                    final = parca.son
         if final.get("done_reason") == "length":
             self._learn_ctx(num_ctx, final.get("eval_count", 0), estimate_tokens(payload["messages"][1:], fixed))
         return content, tool_calls, final
@@ -1799,11 +1764,10 @@ class Agent:
     # ---- OpenAI uyumlu sağlayıcılar (OpenAI, Gemini, Groq, OpenRouter, LM Studio...) ----
 
     def _run_openai(self, messages: list, conn: Connection) -> None:
-        url = conn.base_url.rstrip("/") + "/chat/completions"
         model = self.settings.api_models.get(conn.id) or (conn.models[0] if conn.models else "")
         if not model:
             raise RuntimeError(f"{conn.name} için model seçilmemiş. API'ler sekmesinden bağlantıyı test et.")
-        headers = {"Authorization": f"Bearer {conn.key}"} if conn.key else {}
+        saglayici = OpenAIUyumluSaglayici(conn, model)
         tools = [
             {"type": "function", "function": {"name": s["name"], "description": s["description"], "parameters": s["input_schema"]}}
             for s in self.tool_specs
@@ -1816,58 +1780,34 @@ class Agent:
             self._check_cancel()
             self.cb.on_model_start(step)
             ctx = api_context(model)
-            payload = {"model": model, "messages": [system, *fit_context(messages, ctx, fixed)], "stream": True}
-            if self.json_format:
-                payload["response_format"] = {"type": "json_object"}
-            if tools:
-                payload["tools"] = tools
+            payload = saglayici.istek([system, *fit_context(messages, ctx, fixed)], "", tools,
+                                      json_bicimi=bool(self.json_format))
             started = time.monotonic()
-            content, calls, usage, chunks = "", {}, {}, 0
-            with httpx.stream("POST", url, json=payload, headers=headers,
-                              timeout=httpx.Timeout(600, connect=15)) as resp:
-                if resp.status_code != 200:
-                    resp.read()
-                    if resp.status_code in (400, 413) and _OVERFLOW.search(resp.text) and ctx > MIN_API_CTX:
-                        # bağlam aşıldı (LM Studio 4K, küçük Groq modelleri…): bütçe yarıya, özetle, yeniden dene
-                        _API_CTX[model] = max(MIN_API_CTX, ctx // 2)
-                        self._compact(messages, system, tools, _API_CTX[model], force=True)
-                        continue
-                    if resp.status_code == 401:
-                        raise key_error(conn, 401)
-                    raise RuntimeError(f"{conn.name} hatası ({resp.status_code}): {resp.text[:500]}")
-                for line in resp.iter_lines():
-                    self._check_cancel()
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    chunk = json.loads(data)
-                    if chunk.get("error"):
-                        raise RuntimeError(f"{conn.name} hatası: {chunk['error']}")
-                    usage = chunk.get("usage") or (chunk.get("x_groq") or {}).get("usage") or usage
-                    for choice in chunk.get("choices") or []:
-                        delta = choice.get("delta") or {}
-                        thinking = delta.get("reasoning_content") or delta.get("reasoning")
-                        if thinking:
-                            self.cb.on_thinking(thinking)
-                        if delta.get("content"):
-                            chunks += 1
-                            content += delta["content"]
-                            self.cb.on_text(delta["content"])
-                        # araç çağrıları parça parça gelir; index ile birleştirilir
-                        for tc in delta.get("tool_calls") or []:
-                            chunks += 1
-                            slot = calls.setdefault(tc.get("index", len(calls)), {
-                                "id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            if tc.get("id"):
-                                slot["id"] = tc["id"]
-                            fn = tc.get("function") or {}
-                            slot["function"]["name"] += fn.get("name") or ""
-                            slot["function"]["arguments"] += fn.get("arguments") or ""
+            content, tool_calls, son = "", [], {}
+            try:
+                with closing(saglayici.akis([], govde=payload)) as akis:
+                    for parca in akis:
+                        self._check_cancel()
+                        if parca.tur == sg.DUSUNCE:
+                            self.cb.on_thinking(parca.metin)
+                        elif parca.tur == sg.METIN:
+                            content += parca.metin
+                            self.cb.on_text(parca.metin)
+                        elif parca.tur == sg.SON:
+                            tool_calls, son = parca.araclar, parca.son
+            except sg.SaglayiciHatasi as e:
+                if e.durum in (400, 413) and _OVERFLOW.search(e.govde) and ctx > MIN_API_CTX:
+                    # bağlam aşıldı (LM Studio 4K, küçük Groq modelleri…): bütçe yarıya, özetle, yeniden dene
+                    _API_CTX[model] = max(MIN_API_CTX, ctx // 2)
+                    self._compact(messages, system, tools, _API_CTX[model], force=True)
+                    continue
+                if e.durum == 401:
+                    raise key_error(conn, 401) from None
+                raise RuntimeError(f"{conn.name} hatası ({e.durum}): {e.govde[:500]}") from None
 
             elapsed = time.monotonic() - started
-            out_tokens = usage.get("completion_tokens") or chunks
+            usage = son.get("usage") or {}
+            out_tokens = usage.get("completion_tokens") or son.get("parca", 0)
             self.cb.on_model_end({
                 "model": model,
                 "input_tokens": usage.get("prompt_tokens", 0),
@@ -1875,9 +1815,6 @@ class Agent:
                 "seconds": elapsed,
                 "tokens_per_sec": out_tokens / elapsed if elapsed else 0,
             })
-            tool_calls = [calls[i] for i in sorted(calls)]
-            for tc in tool_calls:
-                tc["id"] = tc["id"] or uuid.uuid4().hex
             assistant = {"role": "assistant", "content": content}
             if tool_calls:
                 assistant["tool_calls"] = tool_calls
@@ -1909,44 +1846,22 @@ def repeat_cut(text: str) -> int:
     return text.find(tail) + REPEAT_TAIL
 
 
+def _eski_hata_metni(akis):
+    """Sağlayıcının HTTP hatası kullanıcıya eskisi gibi görünsün ("RuntimeError: Ollama hatası (500): …")."""
+    try:
+        yield from akis
+    except sg.SaglayiciHatasi as e:
+        raise RuntimeError(str(e)) from None
+
+
 class _ThinkTooLong(Exception):
     """Ollama: model cevaba geçmeden çok uzun düşündü (döngüye girmiş olabilir)."""
 
 
-class _NoToolSupport(Exception):
-    """Ollama: seçili model araç çağrısını desteklemiyor."""
+_NoToolSupport = sg_ollama.AracDesteklenmiyor  # Ollama: seçili model araç çağrısını desteklemiyor
 
-
-def ollama_models(base_url: str) -> list[dict]:
-    """Kurulu modeller (/api/tags): name, size, details{parameter_size, quantization_level}."""
-    resp = httpx.get(base_url.rstrip("/") + "/api/tags", timeout=5)
-    resp.raise_for_status()
-    return resp.json().get("models", [])
-
-
-def list_ollama_models(base_url: str) -> list[str]:
-    return [m["name"] for m in ollama_models(base_url)]
-
-
-def ollama_running(base_url: str) -> list[dict]:
-    """Bellekteki modeller (/api/ps): size ve size_vram ile GPU/CPU payı hesaplanır."""
-    resp = httpx.get(base_url.rstrip("/") + "/api/ps", timeout=2)
-    resp.raise_for_status()
-    return resp.json().get("models", [])
-
-
-def describe_error(exc: Exception) -> str:
-    """Hataları kullanıcıya gösterilecek Türkçe metne çevirir."""
-    if isinstance(exc, anthropic.AuthenticationError):
-        return "Claude API anahtarı geçersiz ya da eksik. Sol paneldeki API'ler sekmesinden anahtarını gir."
-    if isinstance(exc, anthropic.RateLimitError):
-        return "Claude API hız sınırına ulaşıldı. Biraz bekleyip tekrar dene."
-    if isinstance(exc, anthropic.APIStatusError):
-        return f"Claude API hatası ({exc.status_code}): {exc.message}"
-    if isinstance(exc, anthropic.APIConnectionError):
-        return "Claude API'ye bağlanılamadı. İnternet bağlantını kontrol et."
-    if isinstance(exc, httpx.ConnectError):
-        return "Ollama'ya bağlanılamadı. `ollama serve` çalışıyor mu?"
-    if isinstance(exc, TypeError) and "api_key" in str(exc).lower():
-        return "Claude API anahtarı bulunamadı. Sol paneldeki API'ler sekmesinden anahtarını gir."
-    return f"{type(exc).__name__}: {exc}"
+# K1: sağlayıcıya özgü yardımcılar çekirdekte (cekirdek/saglayici); eski adlar aynı işlevler
+ollama_models = sg_ollama.modeller  # kurulu modeller (/api/tags)
+ollama_running = sg_ollama.bellekteki_modeller  # bellekteki modeller (/api/ps)
+list_ollama_models = sg_ollama.model_adlari
+describe_error = sg.hata_metni  # hataları kullanıcıya gösterilecek Türkçe metne çevirir

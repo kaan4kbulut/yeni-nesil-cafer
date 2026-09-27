@@ -4,7 +4,6 @@ import json
 import re
 import subprocess
 import sys
-import tempfile
 from pathlib import Path
 
 import httpx
@@ -19,16 +18,19 @@ COMMAND_TIMEOUT = 120
 # pakete gömülü hazır set (ajan-kutuphaneleri) ve sonradan kurulanlar (veri klasöründe, yeniden kurulumda kalır).
 from .config import DATA_DIR  # noqa: E402
 
+from .cekirdek.araclar import dosya as a_dosya, komut as a_komut, web as a_web  # noqa: E402
+from .cekirdek.araclar.temel import GIZLI_DOSYALAR, PENCERESIZ, AracHatasi  # noqa: E402
+
 BUNDLED_LIBS = Path(__file__).resolve().parent.parent / "ajan-kutuphaneleri"
 PROGRAM_DIR = Path(__file__).resolve().parent.parent  # programın kurulu olduğu klasör (kodu burada)
-SECRET_FILES = {"anahtarlar.json"}  # API anahtarları: asistan bunları okuyamaz
+SECRET_FILES = GIZLI_DOSYALAR  # API anahtarları: asistan bunları okuyamaz (cekirdek/araclar/temel.py)
 USER_LIBS = DATA_DIR / "python-kutuphaneleri"
 DECOR_SCRIPT = Path(__file__).resolve().parent / "decor3d.py"  # süs modelleri: ajan Python'unda ayrı süreçte
 AGENT_LIBRARIES = ("pandas, numpy, matplotlib (save charts to files), openpyxl (Excel), python-docx (Word), "
                    "python-pptx (PowerPoint), pypdf (PDF read), reportlab (PDF create), Pillow (images), "
                    "requests, httpx, beautifulsoup4, PyYAML, faster-whisper (speech to text), build123d (CAD: exact-size "
                    "3D parts, export STL/3MF/STEP), trimesh (3D meshes)")
-NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Windows: konsol penceresi açılmasın
+NO_WINDOW = PENCERESIZ  # Windows: konsol penceresi açılmasın
 
 
 def program_roots(extra: str = "") -> list[Path]:
@@ -754,8 +756,7 @@ def _truncate(text: str) -> str:
     return text[:MAX_OUTPUT] + f"\n\n[... çıktı kısaltıldı, toplam {len(text)} karakter]"
 
 
-class ToolError(Exception):
-    pass
+ToolError = AracHatasi  # K1: çekirdekteki sınıfla aynı (araç uygulamaları cekirdek/araclar'da)
 
 
 def file_stem(name: str, default: str) -> str:
@@ -787,23 +788,7 @@ def model_report(r: dict, root: Path) -> str:
     return "\n".join(lines)
 
 
-def unescape_code(code: str) -> str:
-    """Bazı yerel modeller (qwen2.5:14b) kodu gerçek satır sonu yerine düz metin "\\n" ile gönderir: kod tek satır
-    olur ve her denemede SyntaxError verir (bir grup görevi bu yüzden hiçbir şey üretemedi, 2026-09-27). Kod
-    tek satırsa, olduğu gibi derlenmiyorsa ve kaçışlar çözülünce derleniyorsa çözülmüş hali döner; yoksa aynen."""
-    if "\n" in code or "\\n" not in code:
-        return code
-    try:
-        compile(code, "<kod>", "exec")
-        return code  # zaten geçerli (ör. print("a\\nb"))
-    except (SyntaxError, ValueError):
-        pass
-    try:  # Türkçe harfler latin-1'e sığmaz: önce \\uXXXX olur, çözümde geri gelir
-        fixed = code.encode("latin-1", "backslashreplace").decode("unicode_escape")
-        compile(fixed, "<kod>", "exec")
-    except (SyntaxError, ValueError, UnicodeError):
-        return code
-    return fixed
+unescape_code = a_komut.kacislari_coz  # tek satıra "\\n" ile sıkıştırılmış kodu çözer (cekirdek/araclar/komut.py)
 
 
 def _fit_args(handler, args) -> dict:
@@ -843,23 +828,14 @@ class Toolbox:
     def _resolve(self, path: str, read: bool = False) -> Path:
         # Model çıktısı güvenilmez: çalışma klasörünün dışına çıkan yolları reddet. Okuma araçları ayrıca
         # programın kendi klasörlerine (kod, ayarlar, veriler) erişebilir: asistan içinde çalıştığı programı tanısın.
-        target = (self.root / path).expanduser().resolve()
-        if target.is_relative_to(self.root):
-            return target
-        if read and any(target.is_relative_to(r) for r in self.read_roots):
-            if target.name in SECRET_FILES:
-                raise ToolError("This file holds the user's API keys and cannot be read.")
-            return target
-        raise ToolError(f"Path is outside the workspace: {path}"
-                        + (" (writing is only allowed inside the workspace)" if not read and any(
-                            target.is_relative_to(r) for r in self.read_roots) else ""))
+        return a_dosya.yol_coz(self.root, self.read_roots, path, read)
 
     def _base(self, target: Path) -> Path:
         """Yolun bağlı olduğu izinli kök (çalışma klasörü ya da programın bir klasörü)."""
-        return next((r for r in (self.root, *self.read_roots) if target.is_relative_to(r)), self.root)
+        return a_dosya.taban(target, self.root, self.read_roots)
 
     def _shown(self, path: Path) -> str:
-        return str(path.relative_to(self.root)) if path.is_relative_to(self.root) else str(path)
+        return a_dosya.gorunen(path, self.root)
 
     def run(self, name: str, args: dict) -> str:
         handler = getattr(self, f"_tool_{name}", None)
@@ -1093,129 +1069,30 @@ class Toolbox:
         return f"Opened '{name}' → {label}. It is starting now; tell the user it is open."
 
     def _tool_list_files(self, path: str = ".") -> str:
-        target = self._resolve(path, read=True)
-        if not target.is_dir():
-            raise ToolError(f"Not a directory: {path}")
-        entries = sorted(target.iterdir(), key=lambda p: (not p.is_dir(), p.name.lower()))
-        lines = []
-        for p in entries[:500]:
-            if p.is_dir():
-                lines.append(f"{p.name}/")
-            else:
-                lines.append(f"{p.name}  ({p.stat().st_size} bytes)")
-        return "\n".join(lines) or "(empty directory)"
+        return a_dosya.listele(self.root, self.read_roots, path)
 
     def _tool_read_file(self, path: str, start_line: int = 1, max_lines: int = 2000) -> str:
-        target = self._resolve(path, read=True)
-        if not target.is_file():
-            raise ToolError(f"File not found: {path}")
-        try:
-            lines = target.read_text(encoding="utf-8").splitlines()
-        except UnicodeDecodeError:
-            raise ToolError("File is not UTF-8 text") from None
-        start = max(start_line, 1)
-        chunk = lines[start - 1 : start - 1 + max(max_lines, 1)]
-        body = "\n".join(f"{i}\t{line}" for i, line in enumerate(chunk, start))
-        end = start + len(chunk) - 1
-        if chunk and (start > 1 or end < len(lines)):  # model dosyanın devamı olduğunu bilsin
-            body += (f"\n[satır {start}-{end} / toplam {len(lines)}; devamı için start_line kullan, "
-                     "belirli bir şeyi aramak için search_files]")
-        return body or "(empty file)"
+        return a_dosya.oku(self.root, self.read_roots, path, start_line, max_lines)
 
     def _tool_search_files(self, pattern: str, path: str = ".", max_results: int = 200) -> str:
-        target = self._resolve(path, read=True)
-        base = self._base(target)
-        if not target.exists():
-            raise ToolError(f"Not found: {path}")
-        try:
-            rx = re.compile(pattern, re.I)
-        except re.error:
-            rx = re.compile(re.escape(pattern), re.I)
-        files = [target] if target.is_file() else sorted(
-            p for p in target.rglob("*") if p.is_file() and not any(x.startswith(".") for x in p.relative_to(target).parts))
-        hits, scanned = [], 0
-        for f in files:
-            if f.stat().st_size > 50_000_000 or not f.resolve().is_relative_to(base) or f.name in SECRET_FILES:
-                continue  # çok büyük ya da klasör dışını gösteren sembolik bağ
-            try:
-                with f.open(encoding="utf-8") as fh:
-                    scanned += 1
-                    for n, line in enumerate(fh, 1):
-                        if rx.search(line):
-                            hits.append(f"{self._shown(f)}:{n}: {line.rstrip()[:300]}")
-                            if len(hits) >= max(1, max_results):
-                                return "\n".join(hits) + f"\n[ilk {len(hits)} sonuç; daha fazlası olabilir]"
-            except (UnicodeDecodeError, OSError):
-                continue  # ikili dosya
-        if not hits:
-            return f"No matches for {pattern!r} in {scanned} text file(s)."
-        return f"{len(hits)} eşleşme:\n" + "\n".join(hits)
+        return a_dosya.ara(self.root, self.read_roots, pattern, path, max_results)
 
     def _tool_write_file(self, path: str, content: str) -> str:
-        target = self._resolve(path)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(content, encoding="utf-8")
-        return f"Wrote {len(content)} characters to {target.relative_to(self.root)}"
+        return a_dosya.yaz(self.root, self.read_roots, path, content)
 
     def _tool_edit_file(self, path: str, old_text: str, new_text: str) -> str:
-        target = self._resolve(path)
-        if not target.is_file():
-            raise ToolError(f"File not found: {path}")
-        text = target.read_text(encoding="utf-8")
-        count = text.count(old_text)
-        if count != 1:
-            raise ToolError(f"old_text must occur exactly once, found {count} occurrences")
-        target.write_text(text.replace(old_text, new_text), encoding="utf-8")
-        return f"Edited {target.relative_to(self.root)}"
+        return a_dosya.duzenle(self.root, self.read_roots, path, old_text, new_text)
 
     def _run_process(self, argv: list[str], python: bool = False, env: dict | None = None) -> str:
-        try:
-            proc = subprocess.run(
-                argv, cwd=self.root, capture_output=True, text=True, timeout=COMMAND_TIMEOUT,
-                stdin=subprocess.DEVNULL, env=agent_env() if python else env, creationflags=NO_WINDOW,
-                encoding="utf-8", errors="replace",
-            )
-        except subprocess.TimeoutExpired:
-            raise ToolError(f"Timed out after {COMMAND_TIMEOUT} seconds") from None
-        out = f"exit code: {proc.returncode}\n"
-        if proc.stdout:
-            out += f"--- stdout ---\n{proc.stdout}"
-        if proc.stderr:
-            out += f"\n--- stderr ---\n{proc.stderr}"
-        return out
+        return a_komut.surec(argv, self.root, agent_env() if python else env, COMMAND_TIMEOUT)
 
     def _tool_run_command(self, command: str, purpose: str = "") -> str:
-        if sys.platform == "win32":  # Windows: PowerShell (sistem istemi modele Windows olduğunu söyler)
-            # Windows'ta çoğu zaman Python yok: `python` komutu paketteki Python'u (ve hazır kütüphaneleri) bulsun
-            import os
-
-            env = agent_env()
-            env["PATH"] = str(Path(python_exe()).parent) + os.pathsep + env.get("PATH", "")
-            return self._run_process(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", command],
-                                     env=env)
-        if re.search(r"\bsudo\b", command):
-            # terminal yok: sudo parolayı grafik pencereyle istesin (komut güvenlik ajanından geçti)
-            import os
-
-            env = {**os.environ, "SUDO_ASKPASS": _askpass_launcher(), "YA_SUDO_COMMAND": command}
-            command = re.sub(r"\bsudo\b(?!\s+-A)", "sudo -A", command)
-            return self._run_process(["bash", "-c", command], env=env)
-        return self._run_process(["bash", "-c", command])
+        return a_komut.komut_calistir(command, self.root, python_yolu=python_exe, ajan_ortami=agent_env,
+                                      askpass=_askpass_launcher, zaman_asimi=COMMAND_TIMEOUT)
 
     def _tool_run_python(self, code: str, purpose: str = "") -> str:
-        with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
-            f.write(unescape_code(code))
-            script = f.name
-        try:
-            result = self._run_process([python_exe(), script], python=True)
-        finally:
-            Path(script).unlink(missing_ok=True)
-        # küçük modeller aracı Python işlevi gibi çağırıyor (make_decor_model(...) → NameError, 2026-09-27)
-        wrong = re.search(r"NameError: name '(\w+)' is not defined", result)
-        if wrong and wrong.group(1) in REGISTRY.tools:
-            result += (f"\n\n{wrong.group(1)} is a TOOL, not a Python function: do not call it inside run_python code; "
-                       "call the tool itself with its arguments.")
-        return result
+        return a_komut.python_calistir(code, self.root, python_yolu=python_exe(), ortam=agent_env(),
+                                       arac_adlari=REGISTRY.tools, zaman_asimi=COMMAND_TIMEOUT)
 
     # ---- tarayıcı (browser.py; tarayıcı kendi iş parçacığında, turlar arasında açık kalır)
     def _tool_browser_open(self, url: str) -> str:
@@ -1245,44 +1122,10 @@ class Toolbox:
         return browser.get().back()
 
     def _tool_web_search(self, query: str, max_results: int = 5) -> str:
-        from ddgs import DDGS
-
-        try:
-            results = DDGS().text(query, max_results=min(max(max_results, 1), 10))
-        except Exception as e:  # ağ yok, hız sınırı, sonuç yok…
-            if "no results" in str(e).lower():
-                return "No results."
-            raise ToolError(f"Web search failed ({type(e).__name__}). Check the internet connection or retry with a "
-                            "different query.") from None
-        if not results:
-            return "No results."
-        return "\n\n".join(f"{r['title']}\n{r['href']}\n{r['body']}" for r in results)
+        return a_web.ara(query, max_results)
 
     def _tool_fetch_url(self, url: str) -> str:
-        if not url.startswith(("http://", "https://")):
-            raise ToolError("Only http(s) URLs are supported")
-        try:
-            resp = httpx.get(
-                url, follow_redirects=True, timeout=30,
-                headers={"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) yeni-nesil-cafer"},
-            )
-        except httpx.HTTPError as e:
-            raise ToolError(f"Could not reach {url} ({type(e).__name__}). Check the address or the internet "
-                            "connection.") from None
-        if resp.status_code >= 400:
-            raise ToolError(f"HTTP {resp.status_code}: the page could not be fetched ({url}). "
-                            "Try another URL or use web_search.")
-        if "html" not in resp.headers.get("content-type", "html"):
-            return resp.text
-        soup = BeautifulSoup(resp.text, "html.parser")
-        for tag in soup(["script", "style", "nav", "footer", "header", "noscript", "svg"]):
-            tag.decompose()
-        title = soup.title.get_text(strip=True) if soup.title else ""
-        if soup.title:
-            soup.title.decompose()  # başlık metinde bir daha geçmesin (üstte ayrıca yazılıyor)
-        lines = [line.strip() for line in soup.get_text("\n").splitlines()]
-        text = "\n".join(line for line in lines if line)
-        return f"{title}\n\n{text}" if title else text
+        return a_web.oku(url)
 
     def _tool_call_api(self, api: str, method: str = "GET", path: str = "", query: dict | None = None,
                        body: dict | None = None, purpose: str = "") -> str:

@@ -4,8 +4,8 @@ import threading
 
 from PySide6.QtCore import QThread, Signal
 
-from ..agent import Agent, Cancelled, describe_error
-from ..manager import Manager
+from ..agent import Agent
+from ..cekirdek import istek
 
 from .chat import tool_label, TOOL_LABELS
 
@@ -88,9 +88,9 @@ class AgentWorker(QThread):
         self.answer_approval(False)
 
     def run(self):
-        try:
-            Manager(self.agent).run(self.provider, self.messages, self.user_text)
-        except Cancelled:
+        # çalıştırma (yönetici döngüsü, durdurma ve hata metni) çekirdekte; burada yalnızca sinyale çevrilir
+        sonuc = istek.istegi_calistir(self.agent, self.provider, self.messages, self.user_text)
+        if sonuc.durum == "durduruldu":
             self.stopped.emit()
-        except Exception as e:
-            self.failed.emit(describe_error(e))
+        elif sonuc.durum == "hata":
+            self.failed.emit(sonuc.hata)

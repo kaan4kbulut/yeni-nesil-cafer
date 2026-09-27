@@ -66,7 +66,7 @@ class BarMixin:
 
     # ---- dikte: konuşarak yaz (asistan/dictation.py)
     def _toggle_dictation(self):
-        from ..dictation import Dictation
+        from .dikte_kaydi import Dictation
 
         if self.dictation is None:
             self.dictation = Dictation(lambda: self.settings, self._installed_models, self)

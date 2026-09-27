@@ -86,6 +86,10 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
 - Çekirdek döngü: `agent.py` (tek araç yolu `_execute_tool`, `_clean`, `fit_context`, `_compact`, `lean`), `manager.py`
   (plan/doğrulama/`_escalate`), `work.py` (iş klasörleri `chat_folder`, grup görevi), `storage.py` (sohbetler JSON),
   `choices.py` (sorudaki seçenekler → baloncuk), `suggest.py` (karşılama önerileri).
+- Çekirdek (`cekirdek/`, Qt/fastapi yasak): `ayar.py` (tek ayar kaynağı: `ayarlar.json` + `ayar.toml` + `CAFER_*`;
+  `config` eski yol), `saglayici/` (Ollama/Claude/OpenAI uyumlu/CLI: tek model çağrısı, `hata_metni`), `araclar/`
+  (dosya, komut/Python, web; `Toolbox` devreder), `istek.py` (ajanı kur + yöneticiyle çalıştır; masaüstü ve bulut).
+  `arayuz/masaustu` gui'yi sunar; `eski.py` taşınan adların eski yolu (2.8'de kalkar).
 - Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
   `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
   (uzman modele danışma), `profiles.py` (yardımcı ajanlar), `cli_agents.py`, `accounts.py` (OpenRouter OAuth, HF cihaz
@@ -96,7 +100,7 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
 - Hafıza/öğrenme: `memory_db.py`, `learning.py`.
 - Güvenlik: `permissions.py`, `security.py`, `askpass.py`, `keystore.py`.
 - Görsel/3D/ses: `imagegen.py`, `inspect_output.py`, `decor3d.py`, `figure3d.py` + `figure3d_worker.py`, `dictation.py` +
-  `dictation_server.py`, `gpu.py`.
+  `dictation_server.py` (mikrofon kaydı `gui/dikte_kaydi.py`), `gpu.py`.
 - Bulut: `cloud_server.py` (API, web, Telegram, kuyruk), `cloud_sync.py`; `sunucu/kur.sh`, `sunucu/BENIOKU.md`.
 - Sistem/dağıtım: `sysinfo.py` (sistem taraması), `power.py` (pilde hafif mod), `results.py`, `problem_report.py`,
   `updates.py`, `bootstrap.py` (yalnızca standart kütüphane), `config.py`; `paketleme/` (`aktar.sh`, `paketle.py`,

@@ -116,9 +116,11 @@ def _system(settings) -> str:
         gpu = out.stdout.strip()
     except (OSError, subprocess.TimeoutExpired):
         pass
-    try:
-        from PySide6 import __version__ as qt
-    except ImportError:
+    try:  # Qt'yi yüklemeden sürümünü oku (rapor sunucuda da yazılabilsin)
+        from importlib.metadata import PackageNotFoundError, version
+
+        qt = version("PySide6")
+    except (ImportError, PackageNotFoundError):
         qt = "?"
     ollama = ""
     try:

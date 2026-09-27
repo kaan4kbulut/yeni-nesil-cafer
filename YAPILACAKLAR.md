@@ -69,13 +69,13 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 ## Aşama K1 — Çekirdek / arayüz ayrımı
 **Hedef:** `asistan/cekirdek/` arayüz bilmez; masaüstü sadece çekirdeği çağırır.
 
-- [ ] `asistan/cekirdek/` ve `asistan/arayuz/masaustu/` klasörleri oluşturuldu
-- [ ] `ayar.py` tek ayar kaynağı (`ayar.toml` + `CAFER_*` env) — mevcut ayar okuma buraya taşındı, eski yol çalışır
-- [ ] Sağlayıcı arayüzü `saglayici/temel.py` (`sohbet`, `akis`, `saglik`, `maliyet`); mevcut Ollama/Claude/OpenAI-uyumlu/CLI-ajan kodu bu arayüze taşındı
-- [ ] Mevcut araçlar (dosya, komut, Python, web) çekirdeğe taşındı; UI'daki iş mantığı kalmadı
-- [ ] Masaüstü UI çekirdeği `import` ederek çalışıyor; kullanıcı açısından hiçbir şey değişmedi
-- [ ] `testler/test_cekirdek_ayrimi.py`: çekirdekte Qt import'u yok (grep tabanlı test)
-- [ ] Eski modül yolları için geçici uyumluluk (`from asistan.eski import X` → uyarı + yeni yola yönlendirme), bir sonraki sürümde kaldırılacak notu
+- [x] `asistan/cekirdek/` ve `asistan/arayuz/masaustu/` klasörleri oluşturuldu (`arayuz/masaustu` şimdilik `gui/`'yi sunar; fiziksel taşıma yok, gerekçe NOTLAR/2026-09-27-K1.md)
+- [x] `ayar.py` tek ayar kaynağı (`ayar.toml` + `CAFER_*` env) — mevcut ayar okuma buraya taşındı, eski yol çalışır (`config` aynı nesneleri dışa aktarır; ezilen değer `ayarlar.json`'a yazılmaz)
+- [x] Sağlayıcı arayüzü `saglayici/temel.py` (`sohbet`, `akis`, `saglik`, `maliyet`); mevcut Ollama/Claude/OpenAI-uyumlu/CLI-ajan kodu bu arayüze taşındı (tek model çağrısı sağlayıcıda, araç döngüsü `Agent`'ta; `maliyet` bulutta şimdilik `None`, fiyatlar K3)
+- [x] Mevcut araçlar (dosya, komut, Python, web) çekirdeğe taşındı (`cekirdek/araclar/`, `Toolbox` devreder); UI'daki iş mantığı kalmadı (ajan kurma + çalıştırma `cekirdek/istek.py`; arayüzde kalan ince akışlar: güncelleme sonrası yeniden başlatma, model indirme iş parçacıkları — ikisi de çekirdek işlevini çağırıyor)
+- [x] Masaüstü UI çekirdeği `import` ederek çalışıyor; kullanıcı açısından hiçbir şey değişmedi (ekransız pencereyle gerçek Ollama sohbeti + araç çağrısı; arayüz denetimi 712 eylem 0 hata)
+- [x] `testler/test_cekirdek_ayrimi.py`: çekirdekte Qt import'u yok (grep + Qt yasaklıyken bütün alt modülleri ayrı süreçte içe aktarma)
+- [x] Eski modül yolları için geçici uyumluluk (`from asistan.eski import X` → uyarı + yeni yola yönlendirme), bir sonraki sürümde kaldırılacak notu (`asistan/eski.py`, 2.8'de kalkar; şimdilik yalnızca `dictation.Dictation` taşındı)
 
 **Bitti sayılır:** Masaüstü uygulaması eskisi gibi açılıp sohbet ediyor; `/kontrol` 2, 3, 6 yeşil.
 
@@ -407,4 +407,5 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 ## Sonraya (aşamaları bölmemek için buraya)
 
 - 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP).
+- 2.8: `asistan/eski.py` ve K1 takma adlarını (`config`, `agent.describe_error/Cancelled/ollama_*`, `tools.ToolError/unescape_code`) kaldır; çağıranları `cekirdek/` yoluna geçir.
 - Beceriyi çok adımlı plan olarak saklamak.
