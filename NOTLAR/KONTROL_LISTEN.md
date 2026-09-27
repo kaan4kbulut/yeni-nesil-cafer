@@ -10,3 +10,9 @@
 - [ ] Durum çubuğundaki kademe laptop'unla uyuşuyor mu? (NOTLAR/<tarih>-K2.md ve .cafer/profil.json)
 - [ ] NOTLAR/MODELLER_ONERI.md'ye bak, ayar/modeller.json'daki geçici seçimleri beğenmediysen değiştir, "gecici" alanını sil.
 - [ ] K3: 8 madde açık kaldı; NOTLAR/ altındaki K3 notunu oku, gerekirse `/asama K3` ile bitirt.
+
+## K3 — Model yönlendirici (2026-09-28 00:09)
+- [ ] Programı aç: cevapların yanında 'sağlayıcı/model — neden' görünüyor mu?
+- [ ] Ollama'yı kapat, sohbet et → bulut anahtarı varsa buluta düşmeli, yoksa 'çevrimdışı' demeli.
+- [ ] Gizlilik modunu 'yerel' yap → bulut kullanılmamalı. Sonra 'karma'ya al.
+- [ ] K4: 9 madde açık kaldı; NOTLAR/ altındaki K4 notunu oku, gerekirse `/asama K4` ile bitirt.
