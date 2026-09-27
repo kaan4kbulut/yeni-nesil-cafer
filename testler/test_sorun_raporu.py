@@ -29,6 +29,7 @@ APP = QApplication.instance() or QApplication([])
 
 from asistan import learning  # noqa: E402
 from asistan import problem_report as pr  # noqa: E402
+from asistan import results  # noqa: E402
 from asistan.config import Settings  # noqa: E402
 
 ANAHTAR = "sk-ant-api03-GERCEKANAHTAR1234567890"
@@ -74,9 +75,9 @@ class RaporTesti(unittest.TestCase):
 
     def test_dosya_masaustune_ve_kopyasi(self):
         masa = Path(tempfile.mkdtemp())
-        with mock.patch.object(pr, "desktop", return_value=masa):
+        with mock.patch.object(results, "desktop", return_value=masa):
             path = pr.write("# rapor")
-        self.assertEqual(path.parent, masa)
+        self.assertEqual(path.parent, masa / "YENİ NESİL CAFER" / "Sorun Raporları")  # masaüstü dağılmasın
         self.assertTrue((pr.REPORTS_DIR / path.name).is_file())
         self.assertIn(str(path), pr.claude_prompt(path))
 
@@ -132,9 +133,9 @@ class OnizlemeTesti(unittest.TestCase):
             return 1
 
         with mock.patch.object(window_help.ReportPreview, "exec", onayla), \
-                mock.patch.object(pr, "desktop", return_value=masa), mock.patch.object(pr, "secrets", return_value=[]):
+                mock.patch.object(results, "desktop", return_value=masa), mock.patch.object(pr, "secrets", return_value=[]):
             self.pencere()._report_built("# rapor\nkişisel satır", "", card)
-        yazilan = next(masa.glob("*.md")).read_text()
+        yazilan = next(masa.rglob("*.md")).read_text()
         self.assertIn("kişisel satır silindi", yazilan)
         self.assertNotIn(ANAHTAR, yazilan)
         self.assertTrue(card.done.called)
@@ -145,9 +146,9 @@ class OnizlemeTesti(unittest.TestCase):
         card = mock.Mock()
         masa = Path(tempfile.mkdtemp())
         with mock.patch.object(window_help.ReportPreview, "exec", lambda dlg: 0), \
-                mock.patch.object(pr, "desktop", return_value=masa):
+                mock.patch.object(results, "desktop", return_value=masa):
             self.pencere()._report_built("# rapor", "", card)
-        self.assertEqual(list(masa.glob("*.md")), [])
+        self.assertEqual(list(masa.rglob("*.md")), [])
         self.assertTrue(card.cancelled.called)
 
 

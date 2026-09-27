@@ -26,7 +26,7 @@ if gh release view "v$SURUM" --repo "$REPO" >/dev/null 2>&1; then
         || hata "v$SURUM zaten yayımlanmış; önce sürümü artır."
     DEVAM=1
 fi
-CIKTI="$("$PY" -c "import sys; sys.path.insert(0, 'paketleme'); import paketle; print(paketle.masaustu())")/$PAKET"
+CIKTI="$("$PY" -c "import sys; sys.path.insert(0, 'paketleme'); import paketle; print(paketle.paket_klasoru())")/$PAKET"
 YAYIN="$CIKTI/github"
 
 # Bağlantı koparsa bekleyip yeniden dener (en çok ~1 saat)

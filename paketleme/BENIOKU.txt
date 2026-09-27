@@ -34,7 +34,12 @@ KURULUM · LINUX
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
-SÜRÜM 2.5.1'DE DÜZELTİLDİ
+SÜRÜM 2.6'DA YENİ
+  - Sonuçlar tek yerde: asistanın ürettiği resimler, 3D modeller, belgeler ve kodlar masaüstündeki
+    "YENİ NESİL CAFER/Sonuçlar" klasöründe konu konu (3D Modeller, Görseller, Belgeler, Kod…) toplanır.
+    Menü: Sohbet → Sonuçlar klasörü. Asıl dosyalar çalışma klasöründe kalır (asistan orada çalışmaya devam
+    eder); istemezsen Ayarlar'dan kapatabilirsin. Sorun raporları da masaüstüne dağılmaz,
+    "YENİ NESİL CAFER/Sorun Raporları"na yazılır.
   - 3D figür: beyaz ya da açık renkli bir figür açık renkli fonda (yer düzlemi, gölge) üretildiğinde zemin de
     figürün parçası sanılıyor, kedi yerine uzun bir blok çıkıyordu. Arka plan artık nesnenin dış hattına kadar
     siliniyor; ayrılamazsa asistan resmi yeniden üretiyor. Ekran kartı başka bir programla doluysa figür hata

@@ -702,6 +702,18 @@ class Agent:
         self.tools_used: set[str] = set()
         self.tool_errors = 0
 
+    def _collect_results(self) -> None:
+        """Bu turda üretilen görsel, 3D model, belge… masaüstündeki YENİ NESİL CAFER/Sonuçlar'a kopyalanır
+        (results.py; Ayarlar'dan kapatılabilir). Bulut kopyasında yok."""
+        if self.base_system or not (self.settings.extra or {}).get("sonuclari_topla", True):
+            return
+        from . import results
+
+        try:
+            results.collect(self.toolbox.root, self.settings.workspace, getattr(self, "run_started", time.time()))
+        except OSError:
+            pass  # masaüstü yazılamıyor: iş klasöründeki asıl dosyalar yerinde
+
     def _offer_decor(self, messages: list) -> None:
         """Sohbet 3D baskı ya da süs üzerineyse süs modeli aracını ekler (her sohbette talimatı büyütmesin diye
         yalnızca o zaman). Son birkaç kullanıcı mesajına bakılır: "daha burgulu yap" gibi takipte araç kaybolmasın."""
@@ -1296,6 +1308,8 @@ class Agent:
         except Cancelled:
             messages.append({"role": "assistant", "content": "[Kullanıcı tarafından durduruldu]"})
             raise
+        finally:
+            self._collect_results()
         if not step:
             last = messages[-1].get("content") if messages and messages[-1].get("role") == "assistant" else ""
             self._hook("Stop", answer=last if isinstance(last, str) else "")

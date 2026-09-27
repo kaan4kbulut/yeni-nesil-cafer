@@ -180,6 +180,10 @@ class SettingsDialog(QDialog):
         self.auto_update = QCheckBox("Güncellemeleri kendiliğinden denetle (günde bir kez; kurmadan önce sorar)")
         self.auto_update.setChecked(extra.get("guncelleme_otomatik", True))
         form.addRow("", self.auto_update)
+        self.collect_results = QCheckBox("İşlerin sonuçlarını (görsel, 3D model, belge) masaüstünde "
+                                         "YENİ NESİL CAFER/Sonuçlar klasöründe topla")
+        self.collect_results.setChecked(extra.get("sonuclari_topla", True))
+        form.addRow("", self.collect_results)
         form.addRow(QLabel("ONAYLAR — işlemlere kim izin versin", objectName="label"))
         self.approval = QComboBox()
         self.approval.addItem("🛡 Güvenlik ajanı onaylasın (varsayılan): engellediğinde nedenini gösterir", "guvenlik")
@@ -240,6 +244,7 @@ class SettingsDialog(QDialog):
         extra["dikte_dil"] = self.dictation_lang.currentData()
         extra["dikte_temizle"] = self.dictation_clean.isChecked()
         extra["guncelleme_otomatik"] = self.auto_update.isChecked()
+        extra["sonuclari_topla"] = self.collect_results.isChecked()
         if url and token:
             extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked()}
         else:

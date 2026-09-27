@@ -2,7 +2,7 @@
 
     .venv/bin/python paketleme/paketle.py   (--modelsiz: temel model olmadan, küçük paket)
 
-Çıktı: <Masaüstü>/YENI-NESIL-CAFER.v2.2/   (ad, asistan/__init__.py'deki tam sürümden gelir: sürüm değişince adlar da değişir)
+Çıktı: <Masaüstü>/YENİ NESİL CAFER/Kurulum Paketleri/YENI-NESIL-CAFER.v2.2/   (ad, asistan/__init__.py'deki tam sürümden gelir: sürüm değişince adlar da değişir)
     YENI-NESIL-CAFER.v2.2-Windows.zip   → çıkar, Kur.bat'a çift tıkla
     YENI-NESIL-CAFER.v2.2-Linux.tar.gz  → çıkar, kur.sh'ı çalıştır
     BENIOKU.txt                (paketleme/BENIOKU.txt; @PAKET@ ve @SURUM@ burada doldurulur)
@@ -159,6 +159,11 @@ def calisma_zamani_dosyalari(sistem: str):
             yield path, Path("program") / path.relative_to(kok)
 
 
+def paket_klasoru() -> Path:
+    """Paketler masaüstünde tek klasörde toplanır (kullanıcı masaüstünün dağılmasını istemedi, 2026-09-27)."""
+    return masaustu() / "YENİ NESİL CAFER" / "Kurulum Paketleri"
+
+
 def masaustu() -> Path:
     try:
         out = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True).stdout.strip()
@@ -226,7 +231,7 @@ def main():
     from asistan import SURUM_ADI, __version__
 
     model_dosyalari = [] if "--modelsiz" in sys.argv else gomulu_model() + dikte_modeli()
-    cikti = masaustu() / SURUM_ADI
+    cikti = paket_klasoru() / SURUM_ADI
     cikti.mkdir(parents=True, exist_ok=True)
     kok = SURUM_ADI
     benioku = cikti / "BENIOKU.txt"  # dosya adları ve sürüm her pakette doğru yazsın

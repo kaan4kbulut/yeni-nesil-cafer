@@ -318,6 +318,20 @@ kısaltma ("Resimler/resim-0.png") → `tools.missing_image` en yeni resimleri s
 çağırma → NameError'a "bu bir araç" notu; qwen2.5:14b planını bir kez Çince yazdı. Testler: kütüphane yolu her zaman
 gerçek kurulumdan (XDG_DATA_HOME başka test dosyasınca değiştirilmiş olabilir; 10 test sessizce atlanıyordu).
 
+## Sonuçlar ve masaüstü düzeni (2026-09-27, 2.6)
+
+Kullanıcının isteği: masaüstünde dağınık klasör olmasın, her şey `<masaüstü>/YENİ NESİL CAFER/` altında; işlerin
+sonuçları (görsel, 3D, belge, kod) orada `Sonuçlar/`da toplansın. `results.py`: `desktop()` (xdg-user-dir; Windows
+Desktop), `project_dir(alt)`, `collect(iş klasörü, çalışma klasörü, since)` → `Sonuçlar/<kategori>/<iş>/` içine KOPYA
+(asıl dosya iş klasöründe; ajan orada devam eder). `Agent._collect_results` her turun sonunda (`run` içinde `finally`;
+hata/durdurmada da), bulut kopyasında yok, `Settings.extra["sonuclari_topla"]` (varsayılan açık; Ayarlar'da onay
+kutusu). Kopyalanmayanlar: gizli dosya/klasör (.denetim, canlı önizleme), `-girdi.png`, `ekler/`, `tarayici-goruntu/`,
+JSON (resim yan dosyası), ASISTAN.md, turdan eski dosyalar; değişmeyen yeniden kopyalanmaz. Menü: Sohbet → Sonuçlar
+klasörü (`window_help._open_results`). Sorun raporları `YENİ NESİL CAFER/Sorun Raporları`, geliştiricinin paketleri
+`YENİ NESİL CAFER/Kurulum Paketleri/YENI-NESIL-CAFER.vX` (`paketle.paket_klasoru`, yayinla.sh da oradan okur).
+Örnek çıktılar (13 süs, 7 figür, önizlemeleriyle): `Sonuçlar/Örnekler`. İlk kurulumda sihirbaz çalışma klasörünü
+sorar (varsayılan `~/YeniNesilCafer`; bu bilgisayarda eski kurulumdan `~/YerelAsistan`).
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

@@ -4,7 +4,7 @@ doğrudan verebileceği tek bir Markdown dosyası hazırlar.
 İçerik: ne oldu + programın ön teşhisi (yerel model, kısa) · sürüm, sistem, ekran kartı, ayarların özeti (anahtarsız)
 · istek, sohbetin son bölümü (araç çağrıları ve hatalarıyla) · kullanılan modelin kartı · program günlüğünün sonu
 (yakalanmamış hatalar, crash_log) · son sorun kayıtları. API anahtarları ve parolalar dosyaya yazılmadan önce
-gizlenir (`redact`). Dosya masaüstüne (yoksa DATA_DIR/sorun-raporlari) yazılır, bir kopyası DATA_DIR'de kalır.
+gizlenir (`redact`). Dosya masaüstündeki YENİ NESİL CAFER/Sorun Raporları'na yazılır, bir kopyası DATA_DIR'de kalır.
 """
 
 import json
@@ -246,30 +246,20 @@ def build(kind: str, detail: str, request: str, model: str, settings, messages: 
     return redact(text)
 
 
-def desktop() -> Path:
-    try:
-        out = subprocess.run(["xdg-user-dir", "DESKTOP"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5).stdout.strip()
-        if out and Path(out).is_dir() and Path(out) != Path.home():
-            return Path(out)
-    except (OSError, subprocess.TimeoutExpired):
-        pass
-    for name in ("Desktop", "Masaüstü"):
-        if (Path.home() / name).is_dir():
-            return Path.home() / name
-    return REPORTS_DIR
-
-
 def write(text: str) -> Path:
-    """Raporu masaüstüne yazar (kopyası DATA_DIR/sorun-raporlari'nda); masaüstündeki dosyanın yolu döner."""
+    """Raporu masaüstündeki YENİ NESİL CAFER/Sorun Raporları'na yazar (kopyası DATA_DIR/sorun-raporlari'nda;
+    masaüstü dağılmasın diye doğrudan masaüstüne değil); yazılan dosyanın yolu döner."""
+    from . import results
+
     name = f"yeni-nesil-cafer-sorun-{time.strftime('%Y%m%d-%H%M%S')}.md"
     REPORTS_DIR.mkdir(parents=True, exist_ok=True)
     (REPORTS_DIR / name).write_text(text, encoding="utf-8")
-    target = desktop() / name
-    if target.parent != REPORTS_DIR:
-        try:
-            target.write_text(text, encoding="utf-8")
-        except OSError:
-            target = REPORTS_DIR / name
+    target = results.project_dir("Sorun Raporları") / name
+    try:
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(text, encoding="utf-8")
+    except OSError:
+        target = REPORTS_DIR / name
     return target
 
 

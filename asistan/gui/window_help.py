@@ -398,6 +398,14 @@ class HelpMixin:
         tour.mark_seen(self.settings)  # kapatılsa da bir daha çıkmasın
         tour.TourDialog(items, lambda name: getattr(self, name)(), self).exec()
 
+    def _open_results(self):
+        """Masaüstündeki YENİ NESİL CAFER/Sonuçlar: işlerin görselleri, 3D modelleri, belgeleri (results.py)."""
+        from .. import results
+
+        folder = results.results_dir()
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(folder)))
+
     def _tour_media(self):
         self._show_tab(self.right.media)
 

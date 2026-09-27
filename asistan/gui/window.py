@@ -510,6 +510,8 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
             ("Yeni sohbet", "Ctrl+N", lambda: self.new_conversation()),
             ("Sohbeti sil", None, self._delete_current),
             (None, None, None),
+            ("Sonuçlar klasörü", None, self._open_results),  # masaüstündeki YENİ NESİL CAFER/Sonuçlar (results.py)
+            (None, None, None),
             ("Ayarlar", "Ctrl+,", self._open_settings),
             ("Çıkış", "Ctrl+Q", self.close),
         ]:
