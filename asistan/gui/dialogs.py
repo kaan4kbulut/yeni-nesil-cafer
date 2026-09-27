@@ -51,7 +51,9 @@ class SettingsDialog(QDialog):
         form.setSpacing(12)
         self.ollama_url = QLineEdit(settings.ollama_url)
         self.num_ctx = QSpinBox()
-        self.num_ctx.setRange(2048, 131072)
+        from ..ctxprobe import FLOOR_CTX
+
+        self.num_ctx.setRange(FLOOR_CTX, 131072)  # daha azına talimat sığmaz (ctxprobe.FLOOR_CTX)
         self.num_ctx.setSingleStep(2048)
         self.num_ctx.setValue(settings.ollama_num_ctx)
         self.num_ctx.setToolTip("Büyük bağlam daha çok ekran kartı belleği ister.")

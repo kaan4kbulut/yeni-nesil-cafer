@@ -159,6 +159,17 @@ yazılmaz; arayüzde sağ tık "dosyayı aç". Beceriler: `beceriler/<ad>/SKILL.
 beceriyi tanıyıp tarifi aldı, başlıklara uydu, dosya adını tariften farklı seçti. Öğrenilen beceriler (learning.py)
 ayrıdır.
 
+## Arayüz denetimi (2026-09-26)
+
+`testler/arayuz_denetimi.py` (unittest değil): programı kullanıcının ayarlarının kopyasıyla ekransız açar; her görünen
+düğmeye, üst menüye, sekmeye, sağ tık menüsüne ve açılan pencerelerin düğmelerine basar. Sorular "Hayır", pencereler
+kapalı döner; tarayıcı/dosya açma, arka plan işleri ve komutlar kaydedilir, yapılmaz (nvidia-smi gibi salt okuyan
+sorgular gerçek). Her sürümden önce çalıştır: 0 hata beklenir (ilk tam tur: 626 eylem). Tuzaklar: PySide6'da
+`QMenu.exec` sınıftan değiştirilemez → modüllerde `QMenu` adı alt sınıfla değiştirilir; "Çıkış" gerçek `close`a
+bağlıdır (atlanır); aç/kapa seçenekleri iki kez tetiklenir. İlk turda bulunanlar: bozuk kartta ölçülen 2048 bağlam
+kalıcı ayar olmuştu (`ctxprobe.FLOOR_CTX` 8K); tarayıcı metni hep sayfa başından veriyordu (`browser._VISIBLE_TEXT_JS`,
+kaydırma işe yaramıyordu); anahtarsız bağlantı üst etiket ve uzmanlarda görünüyordu; model kartlarında ad sütunu ezik.
+
 ## Arayüz dosyaları (2026-09-26)
 
 `gui/window.py` (kurulum, menü, ortak yardımcılar, `closeEvent`) yalnızca çekirdek; `MainWindow` konu karışım

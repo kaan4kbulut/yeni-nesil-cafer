@@ -63,6 +63,12 @@ SÜRÜM 2.3'TE YENİ
   - Ekran kartının sürücüsü hata verirse (dizüstülerde ara sıra "sıfırlama gerekiyor" durumu) program
     bunu açıkça söyler: bilgisayarı yeniden başlat. O zamana kadar küçük model ve kısa bağlamla çalışır,
     dakikalarca bekletmez.
+  - Programın bütün düğmeleri ve menüleri (626 eylem) tek tek denendi; bulunan hatalar düzeltildi:
+      · bağlam hiçbir zaman talimatın sığmayacağı kadar küçülmez (bir ölçüm hatası 2K'ya indirmişti)
+      · asistan web sayfasında aşağı kaydırınca sayfanın devamını gerçekten okur; aradığını bulur
+      · anahtarsız bulut bağlantısı hiçbir yerde (üst menü, uzmanlar) seçili görünmez
+      · API ekleme penceresi anahtarın nereden alınacağını ve anahtarsız yolu gösterir
+      · model kartlarında model adları okunur
 
 SÜRÜM 2.2'DE YENİ
   - İşleri kendi başına çözer: bilmediği bir işi araştırır, gereken kütüphaneyi ya da uygulamayı kurar
