@@ -1,0 +1,16 @@
+{
+ "ad": "asallar",
+ "sira": 4,
+ "istek": "1 ile 100 arasındaki asal sayıları asallar.txt dosyasına yaz.",
+ "zaman_siniri_sn": 45,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "asallar.txt"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "asallar.py"
+  }
+ ]
+}

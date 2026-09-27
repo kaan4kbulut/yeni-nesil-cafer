@@ -1,0 +1,18 @@
+{
+ "ad": "ornekler-oku",
+ "sira": 6,
+ "istek": "Masaüstündeki YENİ NESİL CAFER/Sonuçlar/Örnekler klasöründe kaç dosya var?",
+ "hazirla": [
+  {
+   "hedef": "{proje}/Sonuçlar/Örnekler",
+   "kaynak": "ornekler"
+  }
+ ],
+ "zaman_siniri_sn": 30,
+ "bitti": [
+  {
+   "tur": "cevap_icerir",
+   "regex": "\\b7\\b|\\byedi\\b"
+  }
+ ]
+}

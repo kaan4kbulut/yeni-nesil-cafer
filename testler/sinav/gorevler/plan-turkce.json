@@ -1,0 +1,15 @@
+{
+ "ad": "plan-turkce",
+ "sira": 11,
+ "istek": "Önce selam.txt dosyasına Türkçe bir selamlama yaz, sonra veda.txt dosyasına bir veda cümlesi yaz, en son ikisini birleştirip hepsi.txt dosyasına kaydet.",
+ "zaman_siniri_sn": 60,
+ "bitti": [
+  {
+   "tur": "plan_dili_turkce"
+  },
+  {
+   "tur": "dosya_var",
+   "yol": "hepsi.txt"
+  }
+ ]
+}

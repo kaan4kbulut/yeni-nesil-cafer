@@ -1,0 +1,19 @@
+{
+ "ad": "devam-et",
+ "sira": 7,
+ "onceki_mesajlar": [
+  "hikaye.txt adında bir dosyaya, bir kedinin maceralarını anlatan kısa bir hikâye başlat; iki paragraf yaz."
+ ],
+ "istek": "devam et",
+ "zaman_siniri_sn": 60,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "hikaye.txt"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "uzadi.py"
+  }
+ ]
+}

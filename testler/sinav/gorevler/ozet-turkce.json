@@ -1,0 +1,23 @@
+{
+ "ad": "ozet-turkce",
+ "sira": 10,
+ "ekler": [
+  "uzun-metin.txt"
+ ],
+ "istek": "Ekteki metni üç cümleyle özetle.",
+ "zaman_siniri_sn": 30,
+ "bitti": [
+  {
+   "tur": "cevap_en_cok_kelime",
+   "n": 80
+  },
+  {
+   "tur": "cevap_icermez",
+   "regex": "[\\u3040-\\u30ff\\u3400-\\u4dbf\\u4e00-\\u9fff\\uac00-\\ud7af]"
+  },
+  {
+   "tur": "cevap_icerir",
+   "regex": "çay"
+  }
+ ]
+}

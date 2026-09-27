@@ -1,0 +1,16 @@
+{
+ "ad": "hesap",
+ "sira": 3,
+ "istek": "1234 × 5678 kaç eder?",
+ "zaman_siniri_sn": 30,
+ "bitti": [
+  {
+   "tur": "cevap_icerir",
+   "regex": "7[., ]?006[., ]?652"
+  },
+  {
+   "tur": "arac_cagrildi",
+   "ad": "run_python"
+  }
+ ]
+}

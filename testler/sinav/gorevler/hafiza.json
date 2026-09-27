@@ -1,0 +1,16 @@
+{
+ "ad": "hafiza",
+ "sira": 8,
+ "onceki_mesajlar": [
+  "Yazıcım Bambu Lab A1, bunu aklında tut."
+ ],
+ "yeni_sohbette": true,
+ "istek": "Yazıcım ne?",
+ "zaman_siniri_sn": 40,
+ "bitti": [
+  {
+   "tur": "cevap_icerir",
+   "metin": "A1"
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "ad": "uzun-baglam",
+ "sira": 9,
+ "gecmis": "uzun-gecmis.json",
+ "istek": "Bu arada, kedimin adı neydi?",
+ "etiketler": [
+  "uzun"
+ ],
+ "zaman_siniri_sn": 90,
+ "bitti": [
+  {
+   "tur": "cevap_icerir",
+   "metin": "Pamuk"
+  }
+ ]
+}

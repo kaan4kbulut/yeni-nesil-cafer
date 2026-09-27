@@ -1,0 +1,20 @@
+{
+ "ad": "iki-adim",
+ "sira": 2,
+ "istek": "İçinde beş sayı olan veriler.csv adında bir dosya oluştur, sonra bu sayıların toplamını ozet.txt dosyasına yaz.",
+ "zaman_siniri_sn": 45,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "veriler.csv"
+  },
+  {
+   "tur": "dosya_var",
+   "yol": "ozet.txt"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "toplam.py"
+  }
+ ]
+}

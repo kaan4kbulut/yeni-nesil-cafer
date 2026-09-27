@@ -1,0 +1,12 @@
+{
+ "ad": "api-cagri",
+ "sira": 14,
+ "istek": "{sunucu}/urun.json adresindeki JSON'da fiyat alanının değeri ne?",
+ "zaman_siniri_sn": 30,
+ "bitti": [
+  {
+   "tur": "cevap_icerir",
+   "regex": "42[.,]5\\b"
+  }
+ ]
+}

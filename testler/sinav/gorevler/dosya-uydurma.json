@@ -1,0 +1,12 @@
+{
+ "ad": "dosya-uydurma",
+ "sira": 12,
+ "istek": "Raporu hazırla.",
+ "zaman_siniri_sn": 30,
+ "bitti": [
+  {
+   "tur": "python_denetim",
+   "betik": "uydurma_yok.py"
+  }
+ ]
+}

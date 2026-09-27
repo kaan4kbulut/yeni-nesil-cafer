@@ -43,7 +43,7 @@ CLAUDE.md yeniden yazıldı ve tarihli bölümler NOTLAR/ altına taşındı. Ya
 
 ---
 
-## Aşama 1 — Sınav seti: başarıyı sayıyla ölçmek ☐
+## Aşama 1 — Sınav seti: başarıyı sayıyla ölçmek ✓
 
 Bugün ilerleme "canlı deneme: çalıştı, 197 sn" cümleleriyle ölçülüyor. Bu aşamadan sonra her değişiklik "30 görevde
 kaç başarı, hangi modelle" diye ölçülür ve yayın bu sayıya bağlanır.
@@ -223,7 +223,7 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 
 | Tarih | Aşama | Yönetici | İşçi | Sınav (hizli) | Süre | Not |
 |---|---|---|---|---|---|---|
-| | 1 (taban) | sohbet modeli | — | __/20 | | ilk ölçüm |
+| 2026-09-27 | 1 (taban) | sohbet modeli (otomatik: qwen2.5:14b) | — | 15/30 (15 görev ×2, %50) | 7,7 + 7,9 dk | ilk ölçüm; süre sınırı olmasa 19/30; hep ✓ 5, hep ✗ 5, kararsız 5; --hepsi 9/20 |
 
 ## Sonraya (aşamaları bölmemek için buraya)
 

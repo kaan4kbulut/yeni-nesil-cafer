@@ -1,0 +1,26 @@
+{
+ "ad": "figur-tilki",
+ "sira": 17,
+ "ekler": [
+  "tilki.png"
+ ],
+ "istek": "Ekteki tilki resminden 100 mm yüksekliğinde bir 3D figür yap.",
+ "etiketler": [
+  "gpu",
+  "motor"
+ ],
+ "zaman_siniri_sn": 240,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "make_3d_figure"
+  },
+  {
+   "tur": "stl_kapali",
+   "yol": "*.stl",
+   "en_cok_mm": 100,
+   "tek_parca": true,
+   "en_az_mm": 95
+  }
+ ]
+}

@@ -1,0 +1,16 @@
+{
+ "ad": "arac-fabrikasi",
+ "sira": 18,
+ "istek": "QR kod üreten bir araca ihtiyacım var; araç fabrikasından iste.",
+ "zaman_siniri_sn": 40,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "request_tool"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "fabrika_araci.py"
+  }
+ ]
+}

@@ -1,0 +1,19 @@
+{
+ "ad": "hepsiburada",
+ "sira": 20,
+ "istek": "Hepsiburada'da 'usb c kablo' ara, ilk 5 ürünün adını ve fiyatını yaz.",
+ "etiketler": [
+  "internet"
+ ],
+ "zaman_siniri_sn": 180,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "browser_*"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "bes_urun.py"
+  }
+ ]
+}

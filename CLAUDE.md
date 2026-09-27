@@ -78,7 +78,8 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   Yeni metot konusunun dosyasına (`gui/window_*.py`); Qt sinyalleri yalnızca `MainWindow` gövdesinde. 3D önizleme ekransız
   kipte çizilmez: 3D'yi gerçek ekranda doğrula.
 - Herkese açık GitHub deposu; sürümler kod paketiyle (`updates.py`, 15 sn açık kalamazsa geri alma); büyük paket yalnızca ilk
-  kurulum. Yayın `paketleme/yayinla.sh` (testler geçmeden yayın yok).
+  kurulum. Yayın `paketleme/yayinla.sh`: testler geçmeden, atlanan test varken ya da sınav (`testler/sinav`) eşiğin
+  altındayken yayın yok (`--deneme` yalnızca kapıyı dener).
 
 ## Dosya haritası (`asistan/`)
 
@@ -105,8 +106,10 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   `work.py` (grup alanı), `dialogs.py`, `setup_wizard.py` (ilk kurulum), `tour.py` (sürüm tanıtımı), `model_advisor.py`,
   `cards_dialog`/`categories_dialog`/`factory_dialog`/`learning_dialog.py` (pencereler), `share.py` (paylaş),
   `sysmon.py` (durum çubuğu), `theme.py` + `icons.py` + `widgets.py` (görünüm), `assets/model3d.qml`.
-- Testler: `testler/` (unittest), `testler/arayuz_denetimi.py` (her sürümden önce, 0 hata). Komut:
-  `~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v` (kurulu kopya yoksa `.venv/bin/python`).
+- Testler: `testler/` (unittest), `testler/arayuz_denetimi.py` (her sürümden önce, 0 hata), `testler/sinav/` (gerçek
+  görevli sınav: `calistir.py --hizli`, RAPOR.md, eşik `esik.json`). Komut, HEP kurulu programın Python'uyla (`.venv`
+  3.14: ajan kütüphaneleri yüklenmez, 3D testleri atlanır):
+  `~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v`.
 
 ## Aşamalar (ayrıntı: `NOTLAR/mimari-ayrintilar.md`)
 
@@ -138,9 +141,8 @@ etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` �
 
 ## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`)
 
-1. Sınav seti: gerçek görevlerle ölçülen başarı oranı; yayın kapısı.
-2. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı.
-3. Araç çağıramayan modeller için şema-kısıtlı karar.
-4. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak.
-5. Bulut sunucuyu gerçek sunucuda kurmak.
-6. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları).
+1. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı.
+2. Araç çağıramayan modeller için şema-kısıtlı karar.
+3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak.
+4. Bulut sunucuyu gerçek sunucuda kurmak.
+5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları).

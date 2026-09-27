@@ -1,32 +1,41 @@
 #!/usr/bin/env bash
 # Yeni sürümü GitHub'da yayımlar (asistan/__init__.py'deki __version__ ve GITHUB_REPO):
-#   testler → git etiketi ve gönderme → internet kurulum dosyaları (~1 MB; gerisini kurulum indirir) → kod
-#   güncelleme paketi → GitHub sürümü (notlar BENIOKU'nun "SÜRÜM x'DE YENİ" bölümünden).
+#   testler + sınav kapısı → git etiketi ve gönderme → internet kurulum dosyaları (~1 MB; gerisini kurulum indirir)
+#   → kod güncelleme paketi → GitHub sürümü (notlar BENIOKU'nun "SÜRÜM x'DE YENİ" bölümünden).
 # Bağlantı koparsa her dosya kendiliğinden yeniden denenir; betik yarıda kalırsa yeniden çalıştır: yüklenmiş
 # dosyaları atlayıp kaldığı yerden devam eder. Sürüm, her şey yüklenene kadar taslaktır (kimse yarım sürümü görmez).
-# Kullanım: paketleme/yayinla.sh [--tam | --paketsiz]
+# Kullanım: paketleme/yayinla.sh [--tam | --paketsiz | --deneme]
 #   (varsayılan: küçük kurulum dosyaları + kod güncellemesi; --tam: ayrıca ~8 GB'lık tam paketler 2 GB'lık
-#    parçalar halinde, saatler sürebilir; --paketsiz: yalnızca kod güncellemesi)
+#    parçalar halinde, saatler sürebilir; --paketsiz: yalnızca kod güncellemesi; --deneme: yalnızca testler ve sınav
+#    kapısı — git etiketi, gönderme ve yükleme yok)
+# Yayın kapısı: testler geçmeli, atlanan test olmamalı, sınav (testler/sinav, --hizli, ~10 dk) başarısı
+# testler/sinav/esik.json'daki eşiğin altında olmamalı. Testler ve sınav kurulu programın Python'uyla çalışır (ajan
+# kütüphaneleri ona göre derlenmiş; .venv'in Python'uyla 18 test sessizce atlanıyordu).
 # Gerekenler: gh (pkexec pacman -S github-cli) ve bir kez `gh auth login`.
 set -euo pipefail
 KAYNAK="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$KAYNAK"
 PY="$KAYNAK/.venv/bin/python"
+TPY="$HOME/.local/share/yeni-nesil-cafer-app/python/bin/python3"  # testler ve sınav: kurulu programın Python'u
 yaz() { printf '\n  \033[33m%s\033[0m\n' "$*"; }
 hata() { printf '\n  \033[31m%s\033[0m\n' "$*"; exit 1; }
+DENEME=0
+[ "${1:-}" = "--deneme" ] && DENEME=1
 
 SURUM=$("$PY" -c "import asistan; print(asistan.__version__)")
 PAKET=$("$PY" -c "import asistan; print(asistan.SURUM_ADI)")
 REPO=$("$PY" -c "import asistan; print(asistan.GITHUB_REPO)")
-[ -n "$REPO" ] || hata "asistan/__init__.py içinde GITHUB_REPO boş (ör. kullanici/yeni-nesil-cafer)."
-command -v gh >/dev/null || hata "gh yok: pkexec pacman -S github-cli, sonra gh auth login"
-gh auth status >/dev/null 2>&1 || hata "GitHub'a giriş yapılmamış: gh auth login"
-git diff --quiet && git diff --cached --quiet || hata "Commit edilmemiş değişiklik var; önce commit et."
 DEVAM=0
-if gh release view "v$SURUM" --repo "$REPO" >/dev/null 2>&1; then
-    [ "$(gh release view "v$SURUM" --repo "$REPO" --json isDraft -q .isDraft)" = "true" ] \
-        || hata "v$SURUM zaten yayımlanmış; önce sürümü artır."
-    DEVAM=1
+if [ "$DENEME" = 0 ]; then
+    [ -n "$REPO" ] || hata "asistan/__init__.py içinde GITHUB_REPO boş (ör. kullanici/yeni-nesil-cafer)."
+    command -v gh >/dev/null || hata "gh yok: pkexec pacman -S github-cli, sonra gh auth login"
+    gh auth status >/dev/null 2>&1 || hata "GitHub'a giriş yapılmamış: gh auth login"
+    git diff --quiet && git diff --cached --quiet || hata "Commit edilmemiş değişiklik var; önce commit et."
+    if gh release view "v$SURUM" --repo "$REPO" >/dev/null 2>&1; then
+        [ "$(gh release view "v$SURUM" --repo "$REPO" --json isDraft -q .isDraft)" = "true" ] \
+            || hata "v$SURUM zaten yayımlanmış; önce sürümü artır."
+        DEVAM=1
+    fi
 fi
 CIKTI="$("$PY" -c "import sys; sys.path.insert(0, 'paketleme'); import paketle; print(paketle.paket_klasoru())")/$PAKET"
 YAYIN="$CIKTI/github"
@@ -47,8 +56,26 @@ if [ "$DEVAM" = 1 ] && [ -d "$YAYIN" ]; then
 else
 
 yaz "1/5 Testler"
-QT_QPA_PLATFORM=offscreen "$PY" -m unittest discover -s testler 2>&1 | tail -3
-QT_QPA_PLATFORM=offscreen "$PY" -m unittest discover -s testler >/dev/null 2>&1 || hata "Testler geçmedi; yayımlanmadı."
+[ -x "$TPY" ] || hata "Kurulu program yok ($TPY): testler ve sınav onun Python'uyla çalışır."
+TEST_KOD=0
+TEST_CIKTI=$(QT_QPA_PLATFORM=offscreen "$TPY" -m unittest discover -s testler 2>&1) || TEST_KOD=$?
+printf '%s\n' "$TEST_CIKTI" | tail -3
+if [ "$TEST_KOD" != 0 ]; then
+    printf '%s\n' "$TEST_CIKTI" | grep -E "^(FAIL|ERROR):" | head -20
+    hata "Testler geçmedi; yayımlanmadı."
+fi
+ATLANAN=$(printf '%s\n' "$TEST_CIKTI" | grep -o 'skipped=[0-9]*' | tail -1 | cut -d= -f2 || true)  # yoksa grep 1 döner
+[ "${ATLANAN:-0}" = 0 ] || hata "$ATLANAN test atlandı; atlanan test varken yayın yok. Nedenleri: $TPY -m unittest discover -s testler -v 2>&1 | grep skipped"
+
+yaz "1/5 Sınav (--hizli, ~10 dk; eşik testler/sinav/esik.json)"
+if ! "$TPY" testler/sinav/calistir.py --hizli; then
+    cat testler/sinav/RAPOR.md
+    hata "Sınav eşiğin altında ya da çalışamadı; yayımlanmadı (rapor yukarıda: testler/sinav/RAPOR.md)."
+fi
+if [ "$DENEME" = 1 ]; then
+    yaz "Deneme bitti: testler ve sınav kapısı geçti; yayın yapılmadı. RAPOR.md güncellendi (commit etmeyi unutma)."
+    exit 0
+fi
 
 yaz "2/5 Git: v$SURUM etiketi ve gönderme"
 git tag -f "v$SURUM"

@@ -1,0 +1,22 @@
+{
+ "ad": "spiral-lamba",
+ "sira": 15,
+ "istek": "120 mm yüksekliğinde, spiral dilimli bir gece lambası modeli yap.",
+ "etiketler": [
+  "gpu"
+ ],
+ "zaman_siniri_sn": 150,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "make_decor_model"
+  },
+  {
+   "tur": "stl_kapali",
+   "yol": "*.stl",
+   "en_cok_mm": 120,
+   "tek_parca": true,
+   "en_az_mm": 114
+  }
+ ]
+}

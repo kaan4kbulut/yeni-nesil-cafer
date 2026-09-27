@@ -1,8 +1,7 @@
 """Dikte (asistan/dictation.py) testleri.
 
-Uçtan uca test gerçek sesle çalışır: piper (Türkçe ses tr_TR-dfki-medium) bir cümle seslendirir, dikte onu
-yazıya çevirir. Piper, ses dosyaları ya da ses modeli yoksa o test atlanır; YA_PIPER_SES ortam değişkeni sesin
-.onnx dosyasını gösterir.
+Gerçek sesle uçtan uca test (piper seslendirir, dikte yazıya çevirir) unittest'te değil: piper ve ses dosyası
+gerektirdiği için testler/dikte_uctan_uca.py, elle çalıştırılır.
 
 Çalıştırma (proje kökünde, programın Python'uyla):
     ~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v
@@ -10,7 +9,6 @@ yazıya çevirir. Piper, ses dosyaları ya da ses modeli yoksa o test atlanır; 
 
 import array
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -33,9 +31,7 @@ APP = QApplication.instance() or QApplication([])
 
 from asistan import dictation as d  # noqa: E402
 from asistan.config import Settings  # noqa: E402
-from asistan.tools import agent_env, python_exe  # noqa: E402
 
-CUMLE = "Merhaba, yarın sabah saat dokuzda toplantımız var."
 
 
 def dikte(fmt_kind=QAudioFormat.SampleFormat.Int16) -> d.Dictation:
@@ -120,35 +116,6 @@ class AyarTesti(unittest.TestCase):
         self.assertEqual((s.extra["dikte_dil"], s.extra["dikte_temizle"]), ("", False))
         again = SettingsDialog(s)
         self.assertEqual((again.dictation_lang.currentData(), again.dictation_clean.isChecked()), ("", False))
-
-
-def _piper_sesi() -> str:
-    ses = os.environ.get("YA_PIPER_SES", "")
-    return ses if ses and Path(ses).exists() else ""
-
-
-@unittest.skipUnless(_piper_sesi() and (d.MODEL_DIR / "model.bin").exists(),
-                     "piper sesi (YA_PIPER_SES) ya da dikte modeli yok")
-class UctanUcaTesti(unittest.TestCase):
-    def test_turkce_cumle_yaziya_cevrilir(self):
-        wav = Path(tempfile.mkdtemp()) / "cumle.wav"
-        subprocess.run([python_exe(), "-m", "piper", "-m", _piper_sesi(), "-f", str(wav)], input=CUMLE, text=True,
-                       env=agent_env(), check=True, capture_output=True)
-        started = time.monotonic()
-        result = d.SERVER.transcribe(str(wav), "tr")
-        ilk = time.monotonic() - started
-        started = time.monotonic()
-        tekrar = d.SERVER.transcribe(str(wav), "tr")  # model bellekte: çok daha hızlı
-        ikinci = time.monotonic() - started
-        d.SERVER.stop()
-        print(f"\n  cihaz: {result.get('device')}  ilk: {ilk:.1f} sn (model yükleme dahil)  ikinci: {ikinci:.1f} sn"
-              f"\n  metin: {result.get('text')}")
-        self.assertNotIn("error", result)
-        metin = result["text"].lower()
-        for kelime in ("merhaba", "yarın", "toplantı"):
-            self.assertIn(kelime, metin)
-        self.assertEqual(tekrar["text"], result["text"])
-        self.assertLess(ikinci, ilk)
 
 
 if __name__ == "__main__":

@@ -1,0 +1,17 @@
+{
+ "ad": "yaz-kaydet",
+ "sira": 1,
+ "istek": "Türkçe, dört dizelik kısa bir şiir yaz ve not.txt dosyasına kaydet.",
+ "zaman_siniri_sn": 45,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "not.txt"
+  },
+  {
+   "tur": "dosya_satir_sayisi",
+   "yol": "not.txt",
+   "en_az": 4
+  }
+ ]
+}

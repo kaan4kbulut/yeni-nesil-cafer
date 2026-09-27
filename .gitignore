@@ -5,3 +5,6 @@ __pycache__/
 paketleme/build/
 paketleme/dist/
 dist/
+
+# sınav setinin ayrıntılı kayıtları (RAPOR.md git'te)
+testler/sinav/sonuclar/

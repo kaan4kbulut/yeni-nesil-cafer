@@ -1,0 +1,20 @@
+{
+ "ad": "yazdi-ama-yapmadi",
+ "sira": 5,
+ "istek": "notlar adında bir klasör aç, içine a.txt, b.txt ve c.txt dosyalarını koy.",
+ "zaman_siniri_sn": 45,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "notlar/a.txt"
+  },
+  {
+   "tur": "dosya_var",
+   "yol": "notlar/b.txt"
+  },
+  {
+   "tur": "dosya_var",
+   "yol": "notlar/c.txt"
+  }
+ ]
+}

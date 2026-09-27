@@ -1,0 +1,23 @@
+{
+ "ad": "kup-delik",
+ "sira": 16,
+ "istek": "Ortasında 5 mm çapında delik olan 20 mm'lik bir küp yap ve STL olarak kaydet.",
+ "zaman_siniri_sn": 50,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "use_skill"
+  },
+  {
+   "tur": "stl_kapali",
+   "yol": "*.stl",
+   "en_az_mm": 19.5,
+   "en_cok_mm": 20.5,
+   "tek_parca": true
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "kup_delik.py"
+  }
+ ]
+}

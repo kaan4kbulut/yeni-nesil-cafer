@@ -1,0 +1,19 @@
+{
+ "ad": "duckduckgo",
+ "sira": 19,
+ "istek": "Tarayıcıda duckduckgo.com'u aç, 'Ollama' ara ve ilk 3 sonucun başlığını yaz.",
+ "etiketler": [
+  "internet"
+ ],
+ "zaman_siniri_sn": 150,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "browser_*"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "uc_baslik.py"
+  }
+ ]
+}
