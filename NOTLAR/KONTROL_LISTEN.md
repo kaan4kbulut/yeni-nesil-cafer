@@ -44,3 +44,8 @@
 ## K9 — Uzak mod ve senkron (2026-09-28 00:10)
 - [ ] Masaüstünde 'uzak sunucu' ayarına VPS adresi + token gir. Bilgisayar kapalıyken telefondan görev ver → açınca masaüstünde görünüyor mu?
 - [ ] K10: 7 madde açık kaldı; NOTLAR/ altındaki K10 notunu oku, gerekirse `/asama K10` ile bitirt.
+
+## K10 — Kurulum ve sadeleştirme (2026-09-28 00:10)
+- [ ] ayar.toml'da kademe_kilidi = "dusuk" yap, programı aç → sade arayüz, hızlı açılış, bulut anahtarıyla görev bitiyor mu? Sonra kilidi boşalt.
+- [ ] NOTLAR/SORULAR.md'deki soruları cevapla; geçici kararları beğenmediysen /hata-analiz ya da /asama ile düzelttir.
+- [ ] git checkout main && git merge k-serisi && git tag v3.0.0 && git push --tags
