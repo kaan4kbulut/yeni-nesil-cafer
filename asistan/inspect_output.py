@@ -45,6 +45,20 @@ fig.suptitle(f"{x} x {y} x {z} mm")
 fig.tight_layout(); fig.savefig(sys.argv[2]); print("ok")
 """
 
+# önizleme için yumuşak gölgeli GLB: STL'de her üçgen kendi köşelerini taşır, önizleme yüzeyi düz yamalar halinde
+# (köşeli, "kaba") çiziyordu (kullanıcı: "modelleri programda açtığımda çok kaba", 2026-09-27). Köşeler birleşir,
+# 35°'den keskin kenarlar keskin kalır; glTF y-yukarı olduğundan model dik durur.
+_SMOOTH_GLB = r"""
+import sys, numpy as np, trimesh
+m = trimesh.load(sys.argv[1], force="mesh")
+m.merge_vertices()
+s = trimesh.graph.smooth_shade(m, angle=np.radians(35))
+s.apply_transform(trimesh.transformations.rotation_matrix(-np.pi / 2, [1, 0, 0]))
+s.metadata.clear()  # trimesh yüz listelerini ek bilgi olarak GLB'ye yazıyor: dosya şişmesin
+open(sys.argv[2], "wb").write(s.export(file_type="glb", include_normals=True))
+print("ok")
+"""
+
 # videonun ortasından bir kare
 _VIDEO_FRAME = r"""
 import sys, cv2
@@ -67,6 +81,26 @@ def _run(code: str, *args: str) -> tuple[bool, str]:
     if out.returncode != 0:
         return False, (out.stderr.strip().splitlines() or ["?"])[-1]
     return True, out.stdout.strip()
+
+
+def smooth_preview(path: Path) -> Path | None:
+    """3D önizleme için yumuşak gölgeli GLB (programın önbelleğinde; kullanıcının klasörüne yazılmaz). Dosya
+    değişmediyse önbellekteki kullanılır; olmazsa None (önizleme dosyanın kendisini gösterir)."""
+    import hashlib
+
+    from .config import DATA_DIR
+
+    try:
+        info = path.stat()
+    except OSError:
+        return None
+    key = hashlib.sha1(f"{path.resolve()}|{info.st_mtime_ns}|{info.st_size}".encode()).hexdigest()[:20]
+    out = DATA_DIR / "onizleme-onbellegi" / f"{key}.glb"
+    if out.is_file():
+        return out
+    out.parent.mkdir(parents=True, exist_ok=True)
+    ok, _ = _run(_SMOOTH_GLB, str(path), str(out))
+    return out if ok and out.is_file() else None
 
 
 def _pdf(path: Path, png: Path) -> str:

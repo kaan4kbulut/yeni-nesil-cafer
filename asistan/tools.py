@@ -33,9 +33,12 @@ NO_WINDOW = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Win
 
 def program_roots(extra: str = "") -> list[Path]:
     """Asistanın okuyabildiği program klasörleri: kod, ayarlar, veriler (+ ayarlarda verilmişse kaynak klasörü)."""
+    from . import results
     from .config import CONFIG_DIR
 
-    roots = [PROGRAM_DIR, CONFIG_DIR, DATA_DIR] + ([Path(extra).expanduser()] if extra else [])
+    # programın masaüstündeki kendi klasörü (YENİ NESİL CAFER: Sonuçlar, Örnekler…): kullanıcı "bu dosyalara bak"
+    # diyor, okuyamayınca iş 25 dk "yol çalışma klasörünün dışında" hatasıyla döndü (2026-09-27)
+    roots = [PROGRAM_DIR, CONFIG_DIR, DATA_DIR, results.project_dir()] + ([Path(extra).expanduser()] if extra else [])
     return [r.resolve() for r in roots]
 
 

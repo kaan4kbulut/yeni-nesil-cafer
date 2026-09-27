@@ -23,6 +23,7 @@ class _Bridge(QObject):
 
     progress = Signal(str, int, str)  # model, yüzde (-1: bilinmiyor), durum
     done = Signal(str, str)  # model, hata metni ("" başarılı)
+    ollama = Signal(str, bool)  # Ollama kurulumu: durum metni, bitti mi
 
 
 class SetupWizard(QDialog):
@@ -37,6 +38,8 @@ class SetupWizard(QDialog):
         self.bridge = _Bridge()
         self.bridge.progress.connect(self._on_progress)
         self.bridge.done.connect(self._on_done)
+        self.bridge.ollama.connect(self._on_ollama)
+        self._ollama_busy = False
 
         outer = QVBoxLayout(self)
         outer.setContentsMargins(28, 24, 28, 20)
@@ -177,10 +180,25 @@ class SetupWizard(QDialog):
             f"<tr><td style='color:{C['muted']}'>ollama</td><td>"
             + ("çalışıyor ✓" if info.ollama_running else ("kurulu, çalışmıyor" if info.ollama_installed else "kurulu değil"))
             + "</td></tr></table>")
+        if not info.ollama_running and info.ollama_installed and not getattr(self, "_started", False):
+            # kurulu ama çalışmıyor: kullanıcıya komut yazdırmadan program başlatır (bir kez)
+            self._started = True
+            self.ollama_text.setText("Ollama başlatılıyor…")
+            QApplication.processEvents()
+            if sysinfo.ensure_ollama(self.settings.ollama_url):
+                return self._scan()
         if info.ollama_running:
             self.ollama_text.setText(f"Hazır. Kurulu modeller: {', '.join(info.ollama_models) or 'henüz yok'}.")
             self.ollama_cmd.hide()
             self.copy_btn.hide()
+        elif not info.ollama_installed:
+            # kurulum yarım kaldıysa ya da internet paketinden: program kendisi indirip kurar (asistan/bootstrap.py)
+            self.ollama_text.setText("Ollama kurulu değil. Program resmi sürümü indirip kendisi kurabilir (~1,4 GB, "
+                                     "SHA-256 doğrulamalı). Ollama olmadan da bulut modelleriyle (Claude, Gemini, GPT) "
+                                     "kullanabilirsin; bu adımı geçebilirsin.")
+            self.ollama_cmd.hide()
+            self.copy_btn.show()
+            self.copy_btn.setText("Ollama'yı indir ve kur")
         else:
             hint, target = sysinfo.install_hint(info)
             if info.ollama_installed:
@@ -194,12 +212,43 @@ class SetupWizard(QDialog):
             self.copy_btn.setText("indirme sayfasını aç" if target.startswith("http") else "komutu kopyala")
 
     def _ollama_action(self):
+        if self.info and not self.info.ollama_installed:
+            return self._install_ollama()
         target = self.ollama_cmd.text()
         if target.startswith("http"):
             QDesktopServices.openUrl(QUrl(target))
         else:
             QApplication.clipboard().setText(target)
             self.copy_btn.setText("kopyalandı ✓")
+
+    def _install_ollama(self):
+        if self._ollama_busy:
+            return
+        from .. import bootstrap
+
+        self._ollama_busy = True
+        self.copy_btn.setEnabled(False)
+        self.next_btn.setEnabled(False)
+
+        def work():
+            try:
+                bootstrap.ollama(sysinfo.APP_DIR, ilerleme=lambda _pct, text: self.bridge.ollama.emit(text, False))
+                sysinfo.ensure_ollama(self.settings.ollama_url)
+                self.bridge.ollama.emit("", True)
+            except (Exception, SystemExit) as e:  # noqa: BLE001 — metin kullanıcıya gösterilir
+                self.bridge.ollama.emit(f"Ollama kurulamadı: {str(e).strip()[:160]}", True)
+
+        threading.Thread(target=work, daemon=True).start()
+
+    def _on_ollama(self, text: str, finished: bool):
+        if text:
+            self.ollama_text.setText(text)
+        if finished:
+            self._ollama_busy = False
+            self.copy_btn.setEnabled(True)
+            self.next_btn.setEnabled(True)
+            if not text:
+                self._scan()
 
     # ---- 3: önerilen modeller
     def _page_models(self) -> QWidget:

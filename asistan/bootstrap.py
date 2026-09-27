@@ -45,8 +45,9 @@ def _sure(saniye: float) -> str:
     return f"{saniye / 60:.0f} dk" if saniye >= 90 else f"{saniye:.0f} sn"
 
 
-def indir(url: str, hedef: Path, sha256: str, etiket: str) -> None:
-    """Kaldığı yerden süren indirme (bağlantı koparsa yeniden dener), canlı ilerleme, SHA-256 doğrulaması."""
+def indir(url: str, hedef: Path, sha256: str, etiket: str, ilerleme=None) -> None:
+    """Kaldığı yerden süren indirme (bağlantı koparsa yeniden dener), canlı ilerleme, SHA-256 doğrulaması.
+    ilerleme(yüzde, metin) verilirse (kurulum sihirbazı) ekrana değil ona bildirilir."""
     hedef.parent.mkdir(parents=True, exist_ok=True)
     if hedef.is_file() and _sha(hedef) == sha256:
         return
@@ -73,9 +74,14 @@ def indir(url: str, hedef: Path, sha256: str, etiket: str) -> None:
                             hiz = (var - ilk) / max(son - bas, 0.001)
                             kalan = f" · ~{_sure((toplam - var) / hiz)} kaldı" if toplam and hiz > 0 else ""
                             yuzde = f"%{var * 100 // toplam:>3} · " if toplam else ""
-                            print(f"\r  {etiket}: {yuzde}{var / 1e6:,.0f} / {toplam / 1e6:,.0f} MB · "
-                                  f"{hiz / 1e6:.1f} MB/sn{kalan}      ", end="", flush=True)
-            print()
+                            metin = (f"{etiket}: {yuzde}{var / 1e6:,.0f} / {toplam / 1e6:,.0f} MB · "
+                                     f"{hiz / 1e6:.1f} MB/sn{kalan}")
+                            if ilerleme:
+                                ilerleme(var * 100 // toplam if toplam else -1, metin)
+                            else:
+                                print(f"\r  {metin}      ", end="", flush=True)
+            if not ilerleme:
+                print()
             break
         except urllib.error.HTTPError as e:
             if e.code == 416:  # tamamı zaten inmiş
@@ -166,8 +172,9 @@ def _ac_zst(arsiv: Path, hedef: Path) -> None:
         t.extractall(hedef, filter="tar")
 
 
-def ollama(uyg: Path, onbellek: Path | None = None) -> None:
-    """Ollama'yı program klasörüne kurar (sistemde kurulu olsa da: program kendi Ollama'sını en güçlü karta sabitler)."""
+def ollama(uyg: Path, onbellek: Path | None = None, ilerleme=None) -> None:
+    """Ollama'yı program klasörüne kurar (sistemde kurulu olsa da: program kendi Ollama'sını en güçlü karta sabitler).
+    Kurucu ve kurulum sihirbazı (Ollama eksik kaldıysa "indir ve kur" düğmesi) aynı yolu kullanır."""
     sistem = _sistem()
     hedef = uyg / "ollama"
     if (hedef / ".surum").is_file() and (hedef / ".surum").read_text() == OLLAMA_SURUM:
@@ -175,8 +182,8 @@ def ollama(uyg: Path, onbellek: Path | None = None) -> None:
     dosyalar = list(OLLAMA_DOSYALARI[sistem]) + ([OLLAMA_ROCM[sistem]] if _amd_kart() else [])
     onbellek = onbellek or uyg / "kurulum" / "indirilen"
     for dosya, sha in dosyalar:
-        indir(OLLAMA_URL.format(dosya), onbellek / dosya, sha, f"Ollama ({dosya})")
-    yaz("Ollama açılıyor…")
+        indir(OLLAMA_URL.format(dosya), onbellek / dosya, sha, f"Ollama ({dosya})", ilerleme)
+    (ilerleme or (lambda _p, m: yaz(m)))(-1, "Ollama açılıyor…")
     shutil.rmtree(hedef, ignore_errors=True)
     hedef.mkdir(parents=True)
     for dosya, _ in dosyalar:

@@ -332,6 +332,28 @@ klasörü (`window_help._open_results`). Sorun raporları `YENİ NESİL CAFER/So
 Örnek çıktılar (13 süs, 7 figür, önizlemeleriyle): `Sonuçlar/Örnekler`. İlk kurulumda sihirbaz çalışma klasörünü
 sorar (varsayılan `~/YeniNesilCafer`; bu bilgisayarda eski kurulumdan `~/YerelAsistan`).
 
+## İnternet kurulumu ve GitHub yayını (2026-09-27, 2.6)
+
+Kullanıcının isteği: GitHub'dan tek, olabildiğince küçük dosya; gerekenleri kurulum internetten indirsin (2 GB dosya
+sınırı; tam paket 8 GB). `paketle.py --internet` → `YENI-NESIL-CAFER.vX-Windows-internet.zip` / `-Linux-internet.tar.gz`
+(~1 MB: kod, betikler, `program/kurulum/{program,ajan}-kutuphaneleri.txt` = tam paketteki kurulu sürümler birebir,
+`kilit()`). kur.sh / kur.ps1: `program/python` yoksa internet kipi — python-build-standalone arşivi (adres + SHA-256
+paketlemede `@PY_URL_*@`/`@PY_SHA_*@` yerine yazılır; curl, Windows'ta System32\curl.exe + tar.exe) → `python -m
+asistan.bootstrap <hedef>` (YALNIZCA standart kütüphane): pip `--only-binary` kütüphaneler, Ollama v0.34.4 (sabit
+SHA-256, AMD'de ROCm eki; .tar.zst tar+zstd yoksa pip zstandard), Playwright Chromium; her parça işaret dosyasıyla
+atlanır, indirme kaldığı yerden. Modelleri sihirbaz indirir; sihirbaz Ollama yoksa `bootstrap.ollama` ile kurar,
+kapalıysa `ensure_ollama` ile başlatır (kullanıcıya komut yazdırmaz). Gerçek deneme (geçici HOME, Linux): 1 MB dosya
+→ 423 sn, 4,8 GB kurulum, program açıldı. Windows kurucusu burada denenemedi. `yayinla.sh`: varsayılan küçük dosyalar
++ kod paketi (yayınlanmış sürüm, taslak değil); `--tam` büyük parçalar.
+
+Aynı gün canlı kayıt (25 dk sonuçsuz sohbet): kullanıcı `YENİ NESİL CAFER/Sonuçlar/Örnekler`'i gösterdi, araçlar
+okuyamadı ("çalışma klasörünün dışında") → `program_roots` artık `results.project_dir()`'i içerir (salt okunur);
+planlayıcı dosya uydurdu (olasiliklar.txt, model_duzenleme.py) ve `_completion_check` onları istedi → adımda yalnızca
+kullanıcının kendi isteğinde geçen dosyalar istenir, planlayıcıya "yardımcı dosya uydurma"; iki adım başarısızsa kalan
+adımlar atlanır (`Manager.run`). "Programda kaba görünüyor": önizleme STL'yi düz yamalarla çiziyordu →
+`inspect_output.smooth_preview` (köşeler birleşir, 35° üstü kenarlar keskin, y-yukarı GLB, önbellek
+`DATA_DIR/onizleme-onbellegi`), `media_panel.ModelView` arka planda hazırlar (gerçek ekranda doğrulandı).
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

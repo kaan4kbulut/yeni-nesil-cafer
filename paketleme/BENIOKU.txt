@@ -8,33 +8,43 @@ web'de araştırır, işleri uzman ajanlara dağıtır. Yerel modellerle (Ollama
 reddedilir. Bir işlemi engellediğinde sohbette nedenini gösteren "Neden?" ve "Güvenliği Kapat" düğmeleri
 çıkar. Güvenliği kapatırsan (üstteki 🛡 düğmesi) her adım için senden onay ister.
 
-Kurulum için hiçbir şey indirmen ya da kurman gerekmez: Python, gerekli kütüphaneler, Ollama ve
-temel yapay zekâ modeli paketin içinde gelir. Kurulum internetsiz çalışır.
+Kurulum senden hiçbir şey kurmanı istemez. İki çeşit paket var:
+  - İnternet paketi (…-internet, yaklaşık 1 MB; GitHub'dan indirilen): Python, kütüphaneler, Ollama ve
+    tarayıcıyı (~2,5 GB) kurulum sırasında resmi kaynaklarından kendisi indirir ve doğrular. Yapay zekâ
+    modellerini ilk açılıştaki kurulum sihirbazı indirir. Kesilirse yeniden çalıştır, kaldığı yerden sürer.
+  - Tam paket (~8 GB): hepsi ve temel yapay zekâ modeli içinde gelir; kurulum internetsiz çalışır.
 
 
 KURULUM · WINDOWS 10 / 11
-  1. @PAKET@-Windows.zip dosyasına sağ tıkla → "Tümünü ayıkla…" → bir klasöre çıkar.
+  1. İndirdiğin @PAKET@-Windows….zip dosyasına sağ tıkla → "Tümünü ayıkla…" → bir klasöre çıkar.
      (Zip'in içinden çalıştırma, önce mutlaka çıkar.)
   2. Çıkan klasördeki "Kur.bat" dosyasına çift tıkla.
   3. Mavi bir "Windows bilgisayarınızı korudu" ekranı çıkarsa:
      "Ek bilgi" → "Yine de çalıştır". Program imzasız olduğu ve internetten indirildiği için
      Windows bu uyarıyı gösterir; zararlı bir şey yoktur, kurulum betiği açık metindir.
-  4. Kurulum 2-5 dakika sürer ve senden hiçbir şey istemez:
-     - Programı, içindeki Python'u ve Ollama'yı kurar (bilgisayarında ayrıca olması gerekmez).
-     - Temel yapay zekâ modelini kurar.
+  4. Kurulum senden hiçbir şey istemez (tam paket 2-5 dk; internet paketi indirme hızına göre 5-15 dk,
+     ilerlemesi pencerede görünür):
+     - Programı, kendi Python'unu ve Ollama'yı kurar (bilgisayarında ayrıca olması gerekmez).
+     - Tam pakette temel yapay zekâ modelini de kurar (internet paketinde sihirbaz indirir).
      - Masaüstüne ve Başlat menüsüne "YENİ NESİL CAFER" kısayolu ekler.
   5. Program kendiliğinden açılır. Kurulum sihirbazı sistemini tarar ve sana uygun modelleri önerir.
   Kaldırmak için "Kaldir.bat" (sohbetlerin ve ayarların silinmez).
 
 
 KURULUM · LINUX
-  1. Arşivi çıkar:   tar xzf @PAKET@-Linux.tar.gz
+  1. Arşivi çıkar:   tar xzf @PAKET@-Linux*.tar.gz
   2. Kur:            ./@PAKET@/kur.sh
   3. Uygulama menüsünden ya da masaüstünden "YENİ NESİL CAFER"i aç.
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
 
 SÜRÜM 2.6'DA YENİ
+  - GitHub'dan tek, küçük bir dosyayla (yaklaşık 1 MB) kurulum: gereken her şeyi kurulum kendisi indirir.
+  - 3D önizleme pürüzsüz: modeller artık köşeli yamalar halinde değil, gerçek yüzeyleriyle ve dik görünür.
+  - Uzun ve sonuçsuz işler düzeltildi: asistan YENİ NESİL CAFER klasöründeki dosyaları (Sonuçlar, Örnekler)
+    okuyabiliyor; plandaki iki adım yapılamazsa kalan adımlarla boşa uğraşmadan dürüstçe sonuç veriyor;
+    planda uydurulan dosyalar yüzünden "dosya yok, oluştur" döngüsüne girmiyor.
+  - Kurulum sihirbazı Ollama eksikse kendisi indirip kuruyor, kurulu ama kapalıysa kendisi başlatıyor.
   - Sonuçlar tek yerde: asistanın ürettiği resimler, 3D modeller, belgeler ve kodlar masaüstündeki
     "YENİ NESİL CAFER/Sonuçlar" klasöründe konu konu (3D Modeller, Görseller, Belgeler, Kod…) toplanır.
     Menü: Sohbet → Sonuçlar klasörü. Asıl dosyalar çalışma klasöründe kalır (asistan orada çalışmaya devam
@@ -155,13 +165,13 @@ GÖMÜLÜ TEMEL MODEL
 
 
 GEREKENLER
-  - Windows 10/11 ya da Linux (64 bit)
-  - Başka hiçbir şey: Python ve Ollama paketin içinde (bilgisayarında zaten varsa da sorun olmaz)
+  - Windows 10 (1803 ve sonrası) / 11 ya da Linux (64 bit); macOS desteği hazırlanıyor
+  - Başka hiçbir şey: Python ve Ollama ya paketin içinde ya da kurulumda kendiliğinden iner
+  - İnternet paketi için kurulum sırasında internet (~2,5 GB; modeller bilgisayarına göre 3-10 GB)
   - En az 8 GB RAM. Yerel modeller için önerilen: 16 GB RAM ve 8 GB+ ekran kartı.
     Daha zayıf bilgisayarlarda program küçük modelleri önerir.
-  - Boş alan: kurulum için yaklaşık 8 GB (kurulumdan sonra zip ve çıkan klasör silinebilir),
-    ek modeller için model başına 2–10 GB. İnternet yalnızca ek model indirmek ve bulut
-    modellerini kullanmak için gerekir.
+  - Boş alan: kurulum için yaklaşık 5-8 GB (kurulumdan sonra zip ve çıkan klasör silinebilir),
+    ek modeller için model başına 2–10 GB.
 
 
 İLK ADIMLAR

@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 # Yeni sürümü GitHub'da yayımlar (asistan/__init__.py'deki __version__ ve GITHUB_REPO):
-#   testler → git etiketi ve gönderme → kurulum paketleri (2 GB'lık parçalara bölünür) → kod güncelleme paketi
-#   → GitHub sürümü (notlar BENIOKU'nun "SÜRÜM x'DE YENİ" bölümünden).
+#   testler → git etiketi ve gönderme → internet kurulum dosyaları (~1 MB; gerisini kurulum indirir) → kod
+#   güncelleme paketi → GitHub sürümü (notlar BENIOKU'nun "SÜRÜM x'DE YENİ" bölümünden).
 # Bağlantı koparsa her dosya kendiliğinden yeniden denenir; betik yarıda kalırsa yeniden çalıştır: yüklenmiş
 # dosyaları atlayıp kaldığı yerden devam eder. Sürüm, her şey yüklenene kadar taslaktır (kimse yarım sürümü görmez).
-# Kullanım: paketleme/yayinla.sh [--paketsiz]   (--paketsiz: yalnızca kod güncellemesi; büyük paketler yüklenmez)
+# Kullanım: paketleme/yayinla.sh [--tam | --paketsiz]
+#   (varsayılan: küçük kurulum dosyaları + kod güncellemesi; --tam: ayrıca ~8 GB'lık tam paketler 2 GB'lık
+#    parçalar halinde, saatler sürebilir; --paketsiz: yalnızca kod güncellemesi)
 # Gerekenler: gh (pkexec pacman -S github-cli) ve bir kez `gh auth login`.
 set -euo pipefail
 KAYNAK="$(cd "$(dirname "$0")/.." && pwd)"
@@ -54,6 +56,11 @@ git push origin HEAD --tags
 
 rm -rf "$YAYIN"; mkdir -p "$YAYIN"
 if [ "${1:-}" != "--paketsiz" ]; then
+    yaz "3/5 Kurulum dosyaları (internet paketi)"
+    "$PY" paketleme/paketle.py --internet
+    cp "$CIKTI/$PAKET-Windows-internet.zip" "$CIKTI/$PAKET-Linux-internet.tar.gz" "$CIKTI/BENIOKU.txt" "$YAYIN/"
+fi
+if [ "${1:-}" = "--tam" ]; then
     # Paketler son program değişikliğinden sonra üretildiyse yeniden üretilmez (testler, CI ve bu betik sayılmaz)
     SON=$(git log -1 --format=%ct -- . ':!testler' ':!.github' ':!paketleme/yayinla.sh')
     if [ -f "$CIKTI/$PAKET-Linux.tar.gz" ] && [ -f "$CIKTI/$PAKET-Windows.zip" ] \
@@ -87,7 +94,6 @@ for first in *.tar.gz.001; do
 done
 SH
     chmod +x "$YAYIN/birlestir.sh"
-    cp "$CIKTI/BENIOKU.txt" "$YAYIN/"
 fi
 
 yaz "4/5 Kod güncelleme paketi"
@@ -108,10 +114,15 @@ print(f"## YENİ NESİL CAFER {surum}\n\n### Yenilikler\n" + "\n".join(
     "- " + satir.strip()[2:] if satir.strip().startswith("- ") else "  " + satir.strip() for satir in yeni.splitlines()))
 print(f"""
 ### Kurulum (ilk kez)
-1. Sistemine uygun parçaların **hepsini** ve birleştirme betiğini indir (Windows: `…Windows.zip.00*` +
-   `birlestir.bat`; Linux: `…Linux.tar.gz.00*` + `birlestir.sh`), aynı klasöre koy.
-2. Birleştir: Windows'ta `birlestir.bat`'a çift tıkla; Linux'ta `./birlestir.sh`.
-3. Windows: zip'i çıkar → `Kur.bat`. Linux: `tar xzf YENI-NESIL-CAFER.v{surum}-Linux.tar.gz && ./YENI-NESIL-CAFER.v{surum}/kur.sh`.
+Aşağıdaki **Assets** bölümünden sistemine uygun **tek dosyayı** indir (yaklaşık 1 MB). Kurulum gereken her şeyi
+(Python, kütüphaneler, Ollama, tarayıcı; ~2,5 GB) resmi kaynaklarından kendisi indirir; yapay zekâ modellerini ilk
+açılıştaki sihirbaz indirir. Kesilirse yeniden çalıştır, kaldığı yerden sürer.
+
+- **Windows 10 / 11:** `YENI-NESIL-CAFER.v{surum}-Windows-internet.zip` → sağ tık → **Tümünü ayıkla…** → çıkan klasörde
+  **`Kur.bat`**'a çift tıkla. "Windows bilgisayarınızı korudu" çıkarsa: **Ek bilgi → Yine de çalıştır**.
+- **Linux:** `tar xzf YENI-NESIL-CAFER.v{surum}-Linux-internet.tar.gz && ./YENI-NESIL-CAFER.v{surum}/kur.sh`
+
+Gerekenler: kurulum sırasında internet, en az 8 GB RAM (önerilen 16 GB ve 8 GB+ ekran kartı), ~15 GB boş alan.
 Ayrıntılar: `BENIOKU.txt`.
 
 ### Güncelleme (zaten kuruluysa)
@@ -126,7 +137,8 @@ declare -A VAR
 while IFS=$'\t' read -r ad boyut; do VAR["$ad"]=$boyut; done \
     < <(gh release view "v$SURUM" --repo "$REPO" --json assets -q '.assets[] | [.name, (.size|tostring)] | @tsv')
 DOSYALAR=("$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip "$YAYIN"/yeni-nesil-cafer-guncelleme-"$SURUM".zip.sha256)
-[ "${1:-}" != "--paketsiz" ] && DOSYALAR+=("$YAYIN"/*.00* "$YAYIN"/birlestir.bat "$YAYIN"/birlestir.sh "$YAYIN"/BENIOKU.txt)
+[ "${1:-}" != "--paketsiz" ] && DOSYALAR+=("$YAYIN"/*-internet.* "$YAYIN"/BENIOKU.txt)
+[ "${1:-}" = "--tam" ] && DOSYALAR+=("$YAYIN"/*.00* "$YAYIN"/birlestir.bat "$YAYIN"/birlestir.sh)
 SAYI=${#DOSYALAR[@]}; SIRA=0
 for f in "${DOSYALAR[@]}"; do
     SIRA=$((SIRA + 1)); ad=$(basename "$f")

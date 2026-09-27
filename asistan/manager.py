@@ -272,7 +272,9 @@ class Manager:
             "app handles it) or only for summarising (the app adds a summary). For each step give:\n"
             "- title: very short, in the user's language (usually Turkish)\n"
             "- do: a clear, self-contained instruction (exact file names and formats when files are wanted; plain "
-            "names relative to the workspace such as 'rapor.xlsx', never the full folder path)\n"
+            "names relative to the workspace such as 'rapor.xlsx', never the full folder path). Never invent helper "
+            "files, scripts or notes (e.g. 'plan.txt', 'duzenle.py') the user did not ask for: code runs with "
+            "run_python without saving a file, and results are the files the user wants\n"
             "- done_when: how to tell from tool results that the step is really done (e.g. 'rapor.xlsx exists and "
             "has a chart sheet')\n"
             'Respond as JSON: {"steps": [{"title": "...", "do": "...", "done_when": "..."}]}')
@@ -356,12 +358,19 @@ class Manager:
         self._emit("on_plan", self.plan)
         parent = a.cb
         try:
+            failed = 0
             for i, step in enumerate(self.plan):
                 if a.security_stop:
                     self._set(i, "skipped", "güvenlik ajanı işi durdurdu")
                     continue
+                if failed >= 2:
+                    # ilk adımlar yapılamadıysa sonrakiler onların üstüne kurulu: boşa uğraşma, dürüstçe bitir (canlı
+                    # kayıt: 1–2. adım başarısızken 3–5. adımlar 15 dk uydurma dosyalarla döndü, 2026-09-27)
+                    self._set(i, "skipped", "önceki iki adım yapılamadığı için atlandı")
+                    continue
                 with self._hands():
                     self._run_step(provider, messages, text, i, step, parent)
+                failed += step.get("status") == "failed"
             self._summary(provider, messages, text, parent)
         finally:
             a.cb = parent

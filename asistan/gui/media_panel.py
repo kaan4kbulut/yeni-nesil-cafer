@@ -197,10 +197,15 @@ class VideoView(QWidget):
 
 
 class ModelView(QWidget):
-    """3D model: Qt Quick 3D (RuntimeLoader: glTF/GLB, OBJ, STL, PLY). Fareyle döndür, tekerlekle yakınlaştır."""
+    """3D model: Qt Quick 3D (RuntimeLoader: glTF/GLB, OBJ, STL, PLY). Fareyle döndür, tekerlekle yakınlaştır.
+    STL/OBJ/PLY yumuşak gölgeli GLB kopyasıyla gösterilir (inspect_output.smooth_preview; arka planda hazırlanır)."""
+
+    smoothed = Signal(str, str)  # istenen dosya, yumuşak gölgeli GLB ("" hazırlanamadı)
 
     def __init__(self):
         super().__init__()
+        self._wanted = ""
+        self.smoothed.connect(self._on_smoothed)
         from PySide6.QtQuickWidgets import QQuickWidget
 
         lay = QVBoxLayout(self)
@@ -224,10 +229,27 @@ class ModelView(QWidget):
         return self.quick.rootObject()
 
     def show_path(self, path: str) -> bool:
-        root = self.root()
-        if root is None:  # QML yüklenemedi (ör. Qt Quick 3D yok)
+        if self.root() is None:  # QML yüklenemedi (ör. Qt Quick 3D yok)
             self.info.setText("3D görüntüleyici açılamadı.")
             return False
+        self._wanted = path
+        if Path(path).suffix.lower() in (".stl", ".obj", ".ply"):
+            import threading
+
+            from ..inspect_output import smooth_preview
+
+            self.info.setText("hazırlanıyor…")
+            threading.Thread(target=lambda: self.smoothed.emit(path, str(smooth_preview(Path(path)) or "")),
+                             daemon=True).start()
+            return True
+        return self._load(path)
+
+    def _on_smoothed(self, path: str, glb: str):
+        if path == self._wanted:  # bu arada başka bir model istenmediyse
+            self._load(glb or path)
+
+    def _load(self, path: str) -> bool:
+        root = self.root()
         root.setProperty("dims", "")
         root.setProperty("source", QUrl())  # aynı dosya değişince yeniden yüklensin
         root.setProperty("source", QUrl.fromLocalFile(path))

@@ -1049,8 +1049,11 @@ class Agent:
 
         Hiçbir işlem çalışmadıysa ya da istenen dosyalar çalışma klasöründe yoksa modele bir kez daha iş verilir.
         Yalnızca asistan bir işlem denediyse ya da istek açıkça bir iş (dosya, kurulum…) ise devreye girer."""
-        request = self.focus or learning.original_request(self.user_text)  # yönetici adımında: yalnızca o adım
-        wanted = dict.fromkeys(self._FILE_RX.findall(request))
+        original = learning.original_request(self.user_text)
+        request = self.focus or original  # yönetici adımında: yalnızca o adım
+        # adımdaki dosya adlarından yalnızca kullanıcının kendi isteğinde geçenler istenir: planlayıcının uydurduğu
+        # "olasiliklar.txt / model_duzenleme.py" için model 20 dk "dosya yok, oluştur" döngüsüne girdi (2026-09-27)
+        wanted = dict.fromkeys(f for f in self._FILE_RX.findall(request) if not self.focus or f in original)
         acting = self.actions_tried > 0 or (is_task_request(request) and bool(wanted))
         if (not acting or self.gate_actions or self.no_tools or self.check_nudges > 2
                 or self.user_text.startswith("📈")):

@@ -21,22 +21,30 @@ istersen Claude, GPT, Gemini gibi bulut modellerine de bağlanır. Arayüz ve ko
 
 ## Kurulum
 
-[Sürümler (Releases)](../../releases/latest) sayfasından sistemine uygun dosyaları indir. Paketler kendi kendine
-yeter: Python, gerekli kütüphaneler, Ollama, temel yapay zekâ modeli ve ses tanıma modeli içindedir; kurulum
-internetsiz çalışır. Paket ~8 GB olduğu için 2 GB'lık parçalara bölünmüştür:
+[Sürümler (Releases)](../../releases/latest) sayfasından sistemine uygun **tek dosyayı** indir (yaklaşık 1 MB).
+Kurulum gereken her şeyi (Python, kütüphaneler, Ollama, tarayıcı; ~2,5 GB) resmi kaynaklarından **kendisi indirir**,
+doğrular ve kurar; senden hiçbir şey kurmanı istemez. Yapay zekâ modellerini ilk açılıştaki kurulum sihirbazı
+bilgisayarına uygun olanları seçip indirir.
 
-**Windows 10/11**
-1. `YENI-NESIL-CAFER.v…-Windows.zip.001`, `.002`, … parçalarının **hepsini** ve `birlestir.bat`'ı aynı klasöre indir.
-2. `birlestir.bat`'a çift tıkla → tek bir `.zip` oluşur.
-3. Zip'e sağ tık → "Tümünü ayıkla…" → çıkan klasörde `Kur.bat`.
+**Windows 10 / 11**
+1. `YENI-NESIL-CAFER.v…-Windows-internet.zip` dosyasını indir → sağ tık → **Tümünü ayıkla…**
+2. Çıkan klasördeki **`Kur.bat`**'a çift tıkla. "Windows bilgisayarınızı korudu" çıkarsa: **Ek bilgi → Yine de
+   çalıştır** (program imzasız olduğu için Windows bu uyarıyı gösterir; kurulum betiği açık metindir).
+3. Kurulum internet hızına göre 5–15 dakika sürer; ilerlemeyi pencerede görürsün. Bitince program açılır.
 
 **Linux (64 bit)**
 ```sh
-./birlestir.sh                                   # parçalarla aynı klasörde
-tar xzf YENI-NESIL-CAFER.v*-Linux.tar.gz && ./YENI-NESIL-CAFER.v*/kur.sh
+tar xzf YENI-NESIL-CAFER.v*-Linux-internet.tar.gz
+./YENI-NESIL-CAFER.v*/kur.sh
 ```
 
-Gerekenler: en az 8 GB RAM (önerilen 16 GB ve 8 GB+ ekran kartı), kurulum için ~10 GB boş alan.
+Kurulum yarıda kesilirse aynı dosyayı yeniden çalıştır: inenler korunur, kaldığı yerden sürer.
+
+Gerekenler: kurulum sırasında internet (kurulum ~2,5 GB, modeller bilgisayarına göre 3–10 GB), en az 8 GB RAM
+(önerilen 16 GB ve 8 GB+ ekran kartı), ~15 GB boş alan. macOS desteği hazırlanıyor.
+
+İnternetsiz kurulum için her şeyi içeren tam paket de var (~8 GB, GitHub sınırı yüzünden 2 GB'lık parçalar); isteyene
+elden verilir.
 
 ## Güncelleme
 

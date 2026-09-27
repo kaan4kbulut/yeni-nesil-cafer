@@ -139,6 +139,17 @@ class YoneticiDongusu(unittest.TestCase):
         self.assertEqual(ajan.cb.steps[-1], (1, "done"))
         self.assertIn("✗", ajan.cagrilar[-1][0])  # son özet başarısız adımı biliyor
 
+    def test_iki_adim_basarisizsa_kalanlar_atlanir(self):
+        # canlı kayıt (2026-09-27): 1–2. adım yapılamadı, 3–5. adımlar 15 dk uydurma dosyalarla döndü
+        plan = {"steps": [{"title": f"A{i}", "do": f"adım {i}", "done_when": "bitti"} for i in range(1, 5)]}
+        hata = [("run_python", "Error: Traceback …\nPermissionError: x", True)]
+        ajan = _SahteAjan(self.root, [hata, hata, hata, hata, []])  # 2 adım × (deneme + düzeltme), sonra özet
+        messages = []
+        with _cevaplar(plan):
+            manager.Manager(ajan).run("claude", messages, ISTEK)
+        self.assertEqual([s["status"] for s in messages[0]["_plan"]], ["failed", "failed", "skipped", "skipped"])
+        self.assertEqual(len(ajan.cagrilar), 5)  # atlanan adımlar için model çalıştırılmadı; son özet var
+
     def test_tek_adimlik_plan_plansiz_calisir(self):
         ajan = _SahteAjan(self.root, [])
         messages = []
