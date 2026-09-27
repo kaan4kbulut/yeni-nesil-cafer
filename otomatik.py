@@ -243,6 +243,12 @@ ASAMALAR = [
     ]),
     ("K10", "Kurulum ve sadeleştirme", [
         lambda: p_asama("K10"),
+    ], [
+        "ayar.toml'da kademe_kilidi = \"dusuk\" yap, programı aç → sade arayüz, hızlı açılış, bulut anahtarıyla görev bitiyor mu? Sonra kilidi boşalt.",
+    ]),
+    ("K11", "Dağıtım (Windows · macOS · Linux)", [
+        lambda: p_asama("K11", "Yerleşik sağlayıcı (llama-cpp-python) için CI'da indirilen küçük bir test GGUF'u kullan; büyük model dosyasını repoya KOYMA. paketle.py'yi bu makinede --dry-run ile koş; gerçek paketi üretmeye çalışma (uzun sürer), sadece betiklerin ve workflow'un hazır olduğunu göster."),
+        lambda: p_denetci("K11", "Özellikle: model dosyası ya da 50 MB üstü bir şey git'e girmiş mi (git ls-files ile boyut kontrolü), boyut kapısı gerçekten çalışıyor mu, güncelleyici modeli silmiyor mu."),
         lambda: (
             "Kapanış: docs/MIMARI.md'yi gerçekle karşılaştır, yapılmayan/değişen kararları dokümana işle ('değişti: …'). "
             "/kontrol'ün yaptığı kontrolleri koş, tamamen yeşil olana kadar düzelt. NOTLAR/ altına K serisi kapanış notu yaz "
@@ -250,9 +256,10 @@ ASAMALAR = [
             "kullanıcının cevaplaması gereken soruları en üste toparla."
         ),
     ], [
-        "ayar.toml'da kademe_kilidi = \"dusuk\" yap, programı aç → sade arayüz, hızlı açılış, bulut anahtarıyla görev bitiyor mu? Sonra kilidi boşalt.",
+        "Kendi makinende: `python dagitim/paketle.py --tam` ile Tam paketi üret (uzun sürer); temiz bir kullanıcı hesabında ya da sanal makinede internet KAPALIYKEN kur, sohbet et.",
+        "Sihirbazda sistem analizi, 'yerleşik modelle başla' ve eklenti önerileri ekranları geliyor mu?",
         "NOTLAR/SORULAR.md'deki soruları cevapla; geçici kararları beğenmediysen /hata-analiz ya da /asama ile düzelttir.",
-        "git checkout main && git merge k-serisi && git tag v3.0.0 && git push --tags",
+        "git checkout main && git merge k-serisi && git tag v3.0.0 && git push --tags  → Actions üç platformda derleyip Release'e 6 dosya yüklemeli.",
     ]),
 ]
 KODLAR = [a[0] for a in ASAMALAR]
@@ -433,7 +440,10 @@ Kurulum görevi:
 3. .claude/settings.json'daki hook ve statusLine komutlarını bu makinede bir kez çalıştırıp test et (bildir.py'ye {"hook_event_name":"Stop","last_assistant_message":"kurulum tamam"} ver; bildirim çıkmazsa bu işletim sisteminde çalışan yöntemle düzelt).
 4. Hiçbir Python dosyasına (asistan/ altı) dokunma.
 """
-        claude_kos("KUR", prompt, args, ad="kurulum")
+        kodu, cikti = claude_kos("KUR", prompt, args, ad="kurulum")
+        if limit_mi(kodu, cikti):
+            yaz("✖ Claude Code çalışamadı (limit ya da oturum sorunu). Limit dolunca tekrar `python otomatik.py`.")
+            sys.exit(2)
         git("add", "-A")
         git("commit", "-m", "K serisi kurulum: CLAUDE.md ve YAPILACAKLAR.md birleştirildi")
     yaz("✔ kurulum tamam\n")
@@ -481,8 +491,8 @@ class Cubuk:
         sys.stdout.flush()
 
 
-def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | None = None) -> str:
-    """Taze bir claude -p oturumu. Çıktıyı döner ve NOTLAR/otomatik/ altına loglar."""
+def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | None = None) -> tuple[int, str]:
+    """Taze bir claude -p oturumu. (çıkış kodu, çıktı) döner ve NOTLAR/otomatik/ altına loglar."""
     LOGLAR.mkdir(parents=True, exist_ok=True)
     zaman = time.strftime("%Y-%m-%d_%H-%M-%S")
     log = LOGLAR / f"{zaman}_{kod}_{ad or 'kosu'}.log"
@@ -511,7 +521,7 @@ def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | Non
     yaz(f"   └ log: {log.relative_to(KOK)}")
     if kodu != 0:
         yaz(f"   ⚠ claude {kodu} ile çıktı")
-    return cikti
+    return kodu, cikti
 
 
 # ----------------------------------------------------------------------------------------------
@@ -547,6 +557,30 @@ def kontrol(kod: str) -> list[str]:
     return sorun
 
 
+LIMIT_DESENI = re.compile(
+    r"(usage limit|rate limit|limit reached|hit your limit|out of (usage|credits|quota)|quota|resets? at|"
+    r"kullan[ıi]m limit|limit doldu|overloaded|too many requests|not logged in|please (log|sign) in|"
+    r"authentication|invalid api key|credit balance)", re.I,
+)
+
+
+def limit_mi(kodu: int, cikti: str) -> str | None:
+    """Claude koşusu limit/oturum hatasıyla boş döndüyse nedeni; değilse None."""
+    kisa = cikti.strip()
+    if LIMIT_DESENI.search(kisa[:1500]) and len(kisa) < 2500:
+        return kisa.splitlines()[0][:160] if kisa else "limit"
+    if kodu != 0 and len(kisa) < 400:
+        return f"claude {kodu} ile çıktı: {kisa[:160]}"
+    if not kisa:
+        return "claude boş çıktı verdi"
+    return None
+
+
+def degisiklik_var() -> bool:
+    _, c = git("status", "--porcelain")
+    return bool(c.strip())
+
+
 def asama_kos(idx: int, args) -> bool:
     kod, baslik, kosular, elle = ASAMALAR[idx]
     d = json_oku(DURUM)
@@ -554,18 +588,38 @@ def asama_kos(idx: int, args) -> bool:
     yaz(f" AŞAMA {kod} — {baslik}   ({idx + 1}/{len(ASAMALAR)})")
     yaz("━" * 70)
     baslangic = time.time()
+
+    def durdur(neden: str) -> bool:
+        yaz(f"   ✖ {kod} DURDU: {neden}")
+        if degisiklik_var():
+            git("add", "-A")
+            git("commit", "-m", f"{kod}: yarım — {neden[:60]} (otomatik)")
+        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU:** {neden}. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.")
+        d2 = json_oku(DURUM)
+        d2["basarisiz"] = kod
+        d2["durma_nedeni"] = neden
+        json_yaz(DURUM, d2)
+        bildir(f"{kod} durdu", neden[:80])
+        return False
+
     for n, uret in enumerate(kosular, 1):
         yaz(f"▸ koşu {n}/{len(kosular)}")
         cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
-        claude_kos(kod, ONSOZ + "\n" + uret(), args, ad=f"kosu{n}", cubuk_obj=cb)
+        kodu, cikti = claude_kos(kod, ONSOZ + "\n" + uret(), args, ad=f"kosu{n}", cubuk_obj=cb)
+        neden = limit_mi(kodu, cikti)
+        if neden:
+            return durdur(neden)
 
     for deneme in range(1, args.deneme + 1):
         sorun = kontrol(kod)
         acik = acik_kutular(kod)
-        if not sorun and (acik == 0 or deneme == args.deneme):
-            if acik:
-                yaz(f"   ⚠ {kod}: {acik} madde açık kaldı — NOTLAR/'daki aşama notuna bak.")
-                ek_not(KONTROL_LISTEN, f"- [ ] {kod}: {acik} madde açık kaldı; NOTLAR/ altındaki {kod} notunu oku, gerekirse `/asama {kod}` ile bitirt.")
+        if not sorun and acik == 0:
+            break
+        if not sorun and deneme == args.deneme:
+            if not degisiklik_var() and not (KOK / "NOTLAR").exists():
+                return durdur(f"{acik} madde açık ve hiçbir dosya değişmedi")
+            yaz(f"   ⚠ {kod}: {acik} madde açık kaldı — NOTLAR/'daki aşama notuna bak.")
+            ek_not(KONTROL_LISTEN, f"- [ ] {kod}: {acik} madde açık kaldı; NOTLAR/ altındaki {kod} notunu oku, gerekirse `/asama {kod}` ile bitirt.")
             break
         yaz(f"   ✖ kontrol ({deneme}/{args.deneme}): " + ("; ".join(s.splitlines()[0] for s in sorun) or f"{acik} açık madde"))
         if deneme == args.deneme:
@@ -580,7 +634,15 @@ def asama_kos(idx: int, args) -> bool:
             + (f"\n\nYAPILACAKLAR.md'de {kod} altında {acik} madde hâlâ [ ]." if acik else "") \
             + "\n\nÖnce bunları düzelt (kök neden, semptom değil), sonra aşamanın kalan maddelerini bitir, /kontrol'ün yaptığı kontrolleri koş, NOTLAR'ı güncelle."
         cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
-        claude_kos(kod, duzelt, args, ad=f"duzeltme{deneme}", cubuk_obj=cb)
+        kodu, cikti = claude_kos(kod, duzelt, args, ad=f"duzeltme{deneme}", cubuk_obj=cb)
+        neden = limit_mi(kodu, cikti)
+        if neden:
+            return durdur(neden)
+
+    # Hiçbir dosya değişmemiş ve commit'lenecek bir şey yoksa bu aşama gerçekten yapılmadı
+    _, son_commit = git("log", "-1", "--format=%s")
+    if not degisiklik_var() and kod not in son_commit:
+        return durdur("Claude hiçbir dosyayı değiştirmedi (limit ya da oturum sorunu olabilir; NOTLAR/otomatik/ logunu oku)")
 
     git("add", "-A")
     git("commit", "-m", f"{kod}: {baslik} (otomatik)")
@@ -592,6 +654,7 @@ def asama_kos(idx: int, args) -> bool:
         d["tamamlanan"].append(kod)
     d.setdefault("sureler", {})[kod] = sure
     d.pop("basarisiz", None)
+    d.pop("durma_nedeni", None)
     json_yaz(DURUM, d)
     if elle:
         ek_not(KONTROL_LISTEN, f"\n## {kod} — {baslik} ({time.strftime('%Y-%m-%d %H:%M')})")
@@ -647,6 +710,11 @@ def main():
         secilen = [KODLAR.index(args.asama.upper())]
     else:
         bas = KODLAR.index(args.baslangic.upper()) if args.baslangic else 0
+        if args.baslangic:
+            # bu aşamadan itibaren "tamamlandı" işaretlerini kaldır (yanlışlıkla bitti sayılanlar için)
+            d["tamamlanan"] = [k for k in d.get("tamamlanan", []) if KODLAR.index(k) < bas]
+            d.pop("basarisiz", None)
+            json_yaz(DURUM, d)
         secilen = [i for i in range(bas, len(KODLAR)) if KODLAR[i] not in d.get("tamamlanan", [])]
         if not secilen:
             yaz("Tüm aşamalar tamamlanmış görünüyor. Belirli birini tekrar için: --asama K<n>")
