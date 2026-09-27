@@ -91,7 +91,10 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   (dosya, komut/Python, web; `Toolbox` devreder), `istek.py` (ajanı kur + yöneticiyle çalıştır; masaüstü ve bulut),
   `profil.py` (donanım → `DATA_DIR/profil.json`, kademe, kilit, `acik_mi`), `modeller.py` (`asistan/ayar/modeller.json`:
   bütün model adları), `yonlendirici.py` (K3: `Secim{saglayici, model, neden}`, sağlık önbelleği, yedekleme zinciri,
-  bulut tavanı, gizlilik; yönetici seçimi burada, `roster.manager_for`/`stronger` devreder). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
+  bulut tavanı, gizlilik; yönetici seçimi burada, `roster.manager_for`/`stronger` devreder), `yapisal.py` (şema-kısıtlı
+  üretim: Ollama `format`, json_schema, Claude zorunlu araç + 1 düzeltme), `semalar/` (JSON şemaları + doğrulayıcı),
+  `gorev/` (K4 görev motoru: anlayici → planlayici → yurutucu → dogrulayici, `durum` = `DATA_DIR/gorevler.db`, `ajan`
+  araçları `_execute_tool` izin hattından koşar, `komut` = `python -m asistan gorev`; masaüstü `gui/gorevler_dialog.py`). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
   adların eski yolu (2.8'de kalkar).
 - Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
   `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
@@ -144,13 +147,14 @@ etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` �
   (`STALL_SECONDS`, `NUM_PREDICT`, `_CLAIMS_WORK`). Kartlar: gemma3/dolphin3 araç 0/3, sansürsüz gemma4 1/3.
 - Sistem talimatı + araç tanımları ~5.600 token; 8K bağlamda geçmişe ~1.100 token kalır → `LEAN_CTX` altında `agent.lean`.
 - 4B modeller işçi ve denetçi olarak zayıf; yönetici artık yönlendiriciden (K3: Claude Code → bulut → 6/6 yerel), sınavda
-  bulut/CLI kapalı olduğundan yerel. Şema-kısıtlı karar: YAPILACAKLAR K4.
+  bulut/CLI kapalı olduğundan yerel. Araç sınavını tam geçemeyen model (işçi yoksa) araç seçici kipinde çalışır
+  (`agent._run_selector`: şema-kısıtlı karar, ilk karar araç olmak zorunda).
 - Küçük modeller dosya adını kısaltır, aracı `run_python` içinde işlev gibi çağırır, planı ara sıra Çince yazar.
 
 ## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`, K serisi)
 
 1. Adımları kategorisine göre uzman modele dağıtmak (K3'ten kalan); bulut maliyetinin ₺ karşılığı (fiyat listesi).
-2. Araç çağıramayan modeller için şema-kısıtlı karar (K4).
+2. Görev motorunu masaüstü sohbetine bağlamak (şimdi yalnızca komut satırı + Görevler penceresi; NOTLAR K4).
 3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak (K5).
 4. Bulut sunucuyu gerçek sunucuda kurmak (K8).
 5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları) (Sonraya).

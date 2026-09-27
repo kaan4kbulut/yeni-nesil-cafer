@@ -38,6 +38,15 @@ from . import permissions
 from .permissions import is_action  # manager ve testler buradan da alır
 
 MAX_STEPS = 40  # tek bir kullanıcı mesajında en fazla model çağrısı
+SELECTOR_STEPS = 12  # araç seçici kipinde bir turda en çok araç kararı
+SELECTOR_PREDICT = 1500  # karar JSON'u kısa: uzun kod argümanı da sığsın
+SELECTOR_NOTE = (
+    "\n\n## How to use tools in this conversation\nYou do not call tools yourself. At each step answer with ONE JSON "
+    'decision: {{"eylem": "arac", "arac": <tool name>, "argumanlar": {{...}}, "gerekce": <why, short>}} to run a '
+    'tool, or {{"eylem": "cevap", "gerekce": ...}} when the work is done or no tool is needed. The program runs '
+    "the tool and shows you the result; then decide again. Tools:\n{tools}")
+SELECTOR_ANSWER = ("\n\nThe tools already ran; their results are in the conversation. Now write your answer to the "
+                   "user. You cannot run tools in this answer.")
 THINK_LIMIT = 6000  # yerel modelin gizli düşünmesi için karakter sınırı (~30 sn); aşılırsa düşünmeden cevaplar
 THINK_SECONDS = 240  # pilde yavaş modelde karakter sınırına varmadan dakikalarca düşünebilir: süre sınırı da var
 STALL_SECONDS = 150  # Ollama'dan bu kadar süre tek parça gelmezse çağrı takılmış sayılır (model yükleme dahil sığar)
@@ -145,6 +154,10 @@ _ACTION = re.compile(r"uygula|çalıştır|kur\b|kurul|başlat|oluştur|yaz\b|si
 _TASK = re.compile(r"\b(kur(\b|ar m|abilir|ul|mak|ar\b)|yükle|indir|kaldır|sil(\b|er m|ebilir|mek)|başlat|durdur|"
                    r"çalıştır|oluştur|yaz(\b|ar m|abilir|mak)|düzenle|değiştir|taşı|kopyala|yedekle|gönder|ayarla|"
                    r"güncelle|temizle|düzelt|ekle|kapat|uygula|dönüştür|üret|hazırla|çiz|analiz et)", re.I)
+
+# araç gerektiren ama iş (değişiklik) sayılmayan istekler: okumak, aramak, saymak (araç seçici kipi bunlarda da açılır)
+_NEEDS_TOOL = re.compile(r"\b(oku|bul|ara|araştır|listele|say\b|saydır|hesapla|incele|kontrol et|bak)|dosya|klasör|"
+                         r"internet|web|\b\w+\.(txt|md|csv|json|py|pdf|xlsx|docx|png|jpg)\b", re.I)
 
 
 PROGRAM = "_program"  # programın modele gönderdiği uyarı mesajlarının işareti (kullanıcının isteği değil)
@@ -926,17 +939,20 @@ class Agent:
 
     _gate_browser_type = _gate_browser_click
 
-    def _permit(self, call_id: str, name: str, args: dict) -> tuple[str, bool] | None:
-        """İzin hattının (`permissions.decide`) kararını uygular; çağrı çalışmayacaksa modele gidecek sonucu döndürür."""
+    def permission_context(self) -> "permissions.Context":
+        """İzin hattının bu ajan için bağlamı (görev motoru da planda `onay_gerekli` tahmini için kullanır)."""
         from .model_updates import is_uncensored
 
-        ctx = permissions.Context(
+        return permissions.Context(
             approval_mode=self.settings.approval_mode,
             # sansürsüz modelle güvenlik ajanı çalışamıyor (ikisi belleğe sığmıyor): o zaman kullanıcı onaylar
             uncensored=self._provider == "ollama" and is_uncensored(self.settings.ollama_model),
             confirm_commands=self.settings.confirm_commands, gate_actions=self.gate_actions,
             must_act=self.must_act, always_allowed=self.always_allowed, auto_approve=self.auto_approve)
-        decision = permissions.decide(name, args, ctx)
+
+    def _permit(self, call_id: str, name: str, args: dict) -> tuple[str, bool] | None:
+        """İzin hattının (`permissions.decide`) kararını uygular; çağrı çalışmayacaksa modele gidecek sonucu döndürür."""
+        decision = permissions.decide(name, args, self.permission_context())
         if decision.kind == permissions.DENY:  # yasak listesi: her kipte, güvenlik ajanının reddi gibi
             verdict = security.Verdict("reject", security.FORBIDDEN, f"Zararlı işlem: {decision.reason}.",
                                        [decision.reason])
@@ -1540,6 +1556,11 @@ class Agent:
         ]
         system = {"role": "system", "content": self._system()}
         caps = specialists._capabilities(self.settings.ollama_url, self.settings.ollama_model)
+        if tools and self._selector_turn():
+            # araç sınavını tam geçemeyen model, iş isteğinde: karar şema-kısıtlı, aracı program çalıştırır
+            self._compact(messages, system, [])
+            self._run_selector(url, system, messages, tools)
+            return
         if tools and caps and "tools" not in caps:
             tools = self._drop_tools(system)
         self._compact(messages, system, tools)
@@ -1678,6 +1699,115 @@ class Agent:
         names = [line.split(":", 1)[0].lstrip("- ").strip() for line in listing.splitlines() if line.startswith("- ")]
         return (head + " Before the first call to an API, call find_api with the topic to get its exact paths and "
                 "parameters.\nAvailable APIs: " + ", ".join(names))
+
+    # ---- şema-kısıtlı üretim ve araç seçici kipi (K4, eski Aşama 3) ----
+
+    def structured(self, messages: list, schema: dict, model: str | None = None, system: str = "") -> dict | None:
+        """Şema-kısıtlı tek cevap (`cekirdek/yapisal.py`): Ollama `format`, OpenAI uyumlu json_schema, Claude
+        zorunlu araç, CLI talimat. Program şemayı denetler; uymazsa bir düzeltme turu. Şemaya uyan nesne ya da None."""
+        from .cekirdek import yapisal
+
+        if self._provider == "ollama":
+            model = model or self.settings.ollama_model
+            sysinfo.make_room(self.settings.ollama_url, model)
+            num_ctx = power.num_ctx(self.settings)
+            sent = fit_context(messages, num_ctx, len(system) + len(json.dumps(schema)), _CTX_SCALE.get(model, 1.0))
+            saglayici = sg_ollama.OllamaSaglayici(self.settings.ollama_url, model)
+            return yapisal.uret(saglayici, sent, schema, system,
+                                ollama_ek={"num_ctx": num_ctx, "num_predict": SELECTOR_PREDICT}).veri
+        saglayici = sg.bul(self._provider, self.settings, self.connections)
+        return yapisal.uret(saglayici, _clean(messages), schema, system, model=model or self._model()).veri
+
+    def _selector_turn(self) -> bool:
+        """Bu turda araç seçici kipi mi? Yalnızca araç sınavını tam geçemeyen yerel model iş yaparken; sohbet
+        mesajında (selam, soru) model eskisi gibi doğrudan cevaplar. Kip seçimi roster'da, kullanıcıya görünmez."""
+        from . import roster
+
+        if self.json_format is not None or self.profile is not None and self.profile.tools == []:
+            return False
+        request = learning.original_request(self.user_text)
+        if not (self.must_act or self.focus or is_task_request(request) or _NEEDS_TOOL.search(request)):
+            return False
+        try:
+            return roster.arac_kipi(self.settings, self.settings.ollama_model) == "secici"
+        except Exception:
+            return False  # kart/Ollama okunamadı: eski yol
+
+    @staticmethod
+    def _selector_view(messages: list) -> list:
+        """Araç şablonu olmayan modele giden geçmiş: araç çağrıları ve sonuçları düz metin (kayıtlı geçmiş aynı)."""
+        out = []
+        for m in messages:
+            if m.get("role") == "assistant" and m.get("tool_calls"):
+                calls = "; ".join(f"{(c.get('function') or {}).get('name')} "
+                                  f"{json.dumps((c.get('function') or {}).get('arguments'), ensure_ascii=False)[:400]}"
+                                  for c in m["tool_calls"])
+                out.append({"role": "assistant", "content": ((m.get("content") or "") + f"\n[tool call: {calls}]")
+                            .strip()})
+            elif m.get("role") == "tool":
+                out.append({"role": "user", PROGRAM: True,
+                            "content": f"[result of {m.get('tool_name') or 'the tool'}]\n{m.get('content') or ''}"})
+            else:
+                out.append(m)
+        return out
+
+    def _run_selector(self, url: str, system: dict, messages: list, tools: list) -> None:
+        """Araç seçici kipi: her adımda model yalnızca şema-kısıtlı bir KARAR verir ({eylem: arac|cevap, arac: kayıtlı
+        araç adlarından biri, argumanlar, gerekce}); argümanlar aracın şemasına uymazsa ikinci çağrı o aracın kendi
+        şemasıyla. Aracı program `_execute_tool` ile çalıştırır (izin hattı aynı). "cevap" gelince cevap her zamanki
+        gibi akarak yazılır. Araç tanımları talimata yalnızca ad + ilk cümle olarak girer (lean bütçesi)."""
+        specs = {t["function"]["name"]: t["function"] for t in tools}
+        names = list(specs)
+        listing = "\n".join(f"- {n}: {self._first_sentence(specs[n].get('description') or '')}" for n in names)
+        decide = system["content"] + SELECTOR_NOTE.format(tools=listing)
+        def schema(first: bool) -> dict:
+            # bu turda henüz hiçbir araç çalışmadıysa "cevap" seçilemez: gemma3 / dolphin3 ilk kararda araçsız
+            # "cevap" deyip "dosya oluşturuldu" yazıyordu (2026-09-28 ölçümü, 0/6). Program kanıtla bilir: iş yapılmadı.
+            return {"type": "object", "properties": {
+                "eylem": {"type": "string", "enum": ["arac"] if first else ["arac", "cevap"]},
+                "arac": {"type": "string", "enum": names},
+                "argumanlar": {"type": "object"},
+                "gerekce": {"type": "string"}},
+                "required": ["eylem", "arac", "gerekce"] if first else ["eylem", "gerekce"]}
+
+        model = self.settings.ollama_model
+        ran = 0  # bu turda program tarafından çalıştırılan araçlar
+        for step in range(1, SELECTOR_STEPS + 1):
+            self._check_cancel()
+            self.cb.on_model_start(step)
+            started = time.monotonic()
+            decision = self.structured(self._selector_view(messages), schema(ran == 0), model, decide)
+            self.cb.on_model_end({"model": model, "input_tokens": 0, "output_tokens": 0, "load_seconds": 0,
+                                  "seconds": time.monotonic() - started, "tokens_per_sec": 0})
+            if not decision or decision.get("eylem") != "arac" or decision.get("arac") not in specs:
+                break
+            name = decision["arac"]
+            args = decision.get("argumanlar") if isinstance(decision.get("argumanlar"), dict) else {}
+            problem = validate_input(name, dict(args))
+            if problem:  # argümanlar aracın şemasına uymuyor: o aracın kendi şemasıyla ikinci karar
+                ask = self._selector_view(messages) + [{"role": "user", PROGRAM: True, "content": (
+                    f"Give the arguments for the tool {name} ({problem}). Tool: "
+                    f"{specs[name].get('description', '')[:600]}")}]
+                args = self.structured(ask, specs[name]["parameters"], model, decide) or args
+            call = {"id": uuid.uuid4().hex, "function": {"name": name, "arguments": args}}
+            messages.append({"role": "assistant", "content": "", "tool_calls": [call]})
+            self._run_calls([call], messages, ollama=True)
+            ran += 1
+            if self._stopped_by_security():
+                return
+            if self.gate_actions and self.blocked_calls >= 2:
+                break  # onay bekleyen işlemde ısrar etmesin: planı yazsın
+            self.cb.on_text("\n\n")
+        self._check_cancel()
+        self.cb.on_model_start(SELECTOR_STEPS + 1)
+        answer = {"role": "system", "content": system["content"] + SELECTOR_ANSWER}
+        content, _, final = self._ollama_step(url, answer, self._selector_view(messages), [])
+        messages.append({"role": "assistant", "content": content})
+
+    @staticmethod
+    def _first_sentence(text: str) -> str:
+        first = text.strip().split("\n")[0]
+        return (first.split(". ")[0] + ".")[:200] if ". " in first else first[:200]
 
     def _drop_tools(self, system: dict) -> list:
         """Araç desteklemeyen model (ör. gemma3): araç listesi gönderilmez, yalnızca sohbet edilir."""

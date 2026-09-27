@@ -38,7 +38,7 @@ SAGLIKSIZ_SN = 60  # sağlıksız sonuç daha kısa: Ollama yeniden açılınca 
 BASARISIZ_ESIGI = 2  # aynı modelde bu kadar başarısızlık → zincirde bir üst basamak
 EXTRA_GIZLILIK = "gizlilik"  # Settings.extra anahtarları (arayüzün yazdığı; ayar.toml önce gelir)
 EXTRA_POLITIKA = "yonetici_politikasi"
-EXTRA_KAYNAK = "istek_kaynagi"  # "kuyruk" | "zamanli": CLI ajanları seçilmez (CLAUDE.md)
+EXTRA_KAYNAK = "istek_kaynagi"  # "kuyruk" | "zamanli" | "komut": CLI ajanları seçilmez (CLAUDE.md)
 
 
 # ---------------------------------------------------------------- ayarlar
@@ -71,8 +71,9 @@ def politika(ayarlar=None) -> str:
 
 
 def kullanici_istegi(ayarlar=None) -> bool:
-    """İstek kullanıcının sohbetinden mi geliyor? Kuyruk ve zamanlanmış işte CLI ajanı seçilmez."""
-    return _extra(ayarlar).get(EXTRA_KAYNAK) not in ("kuyruk", "zamanli")
+    """İstek kullanıcının sohbetinden mi geliyor? Kuyruk, zamanlanmış iş ve görev motoru (komut satırı, Görevler
+    penceresi) sohbet değil: CLI ajanı seçilmez."""
+    return _extra(ayarlar).get(EXTRA_KAYNAK) not in ("kuyruk", "zamanli", "komut")
 
 
 # ---------------------------------------------------------------- veri
@@ -531,7 +532,9 @@ def devret(kayit: dict) -> str:
     import importlib.util
 
     try:
-        if importlib.util.find_spec("asistan.analiz.hata") is not None:
+        # üst paket yokken find_spec("asistan.analiz.hata") ModuleNotFoundError fırlatır: önce paket
+        if importlib.util.find_spec("asistan.analiz") is not None and \
+                importlib.util.find_spec("asistan.analiz.hata") is not None:
             hata = importlib.import_module("asistan.analiz.hata")
             isle = getattr(hata, "isle", None)
             if callable(isle):

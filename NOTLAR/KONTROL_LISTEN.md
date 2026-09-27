@@ -53,3 +53,8 @@
 ## K2 — Donanım profili ve kademe (2026-09-28 01:31)
 - [ ] Durum çubuğundaki kademe laptop'unla uyuşuyor mu? (NOTLAR/<tarih>-K2.md ve .cafer/profil.json)
 - [ ] NOTLAR/MODELLER_ONERI.md'ye bak, ayar/modeller.json'daki geçici seçimleri beğenmediysen değiştir, "gecici" alanını sil.
+
+## K3 — Model yönlendirici (2026-09-28 01:54)
+- [ ] Programı aç: cevapların yanında 'sağlayıcı/model — neden' görünüyor mu?
+- [ ] Ollama'yı kapat, sohbet et → bulut anahtarı varsa buluta düşmeli, yoksa 'çevrimdışı' demeli.
+- [ ] Gizlilik modunu 'yerel' yap → bulut kullanılmamalı. Sonra 'karma'ya al.

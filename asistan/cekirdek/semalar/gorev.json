@@ -1,0 +1,87 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yeni-nesil-cafer/semalar/gorev.json",
+  "title": "Görev planı (docs/SEMALAR.md §2)",
+  "type": "object",
+  "required": ["gorev_id", "istek", "olusturma", "kademe", "anlayis", "adimlar", "durum", "checkpoint", "hatalar", "rapor"],
+  "properties": {
+    "gorev_id": {"type": "string", "minLength": 1},
+    "istek": {"type": "string"},
+    "olusturma": {"type": "string"},
+    "kademe": {"type": "string", "enum": ["dusuk", "orta", "yuksek", "sunucu"]},
+    "anlayis": {"$ref": "#/$defs/anlayis"},
+    "adimlar": {"type": "array", "items": {"$ref": "#/$defs/adim"}},
+    "durum": {"$ref": "#/$defs/durum"},
+    "checkpoint": {
+      "type": "object",
+      "required": ["son_adim", "zaman"],
+      "properties": {
+        "son_adim": {"type": "integer", "minimum": 0},
+        "zaman": {"type": ["string", "null"]}
+      }
+    },
+    "hatalar": {"type": "array", "items": {"$ref": "#/$defs/hata"}},
+    "rapor": {"type": ["string", "null"]}
+  },
+  "$defs": {
+    "durum": {
+      "type": "string",
+      "enum": ["planlandi", "calisiyor", "bekliyor_onay", "bekliyor_kullanici", "tamamlandi", "basarisiz", "iptal"]
+    },
+    "anlayis": {
+      "type": "object",
+      "required": ["niyet", "kisitlar", "belirsizlikler", "gereken_yetenekler", "eksik_yetenekler"],
+      "properties": {
+        "niyet": {"type": "string"},
+        "kisitlar": {"type": "array", "items": {"type": "string"}},
+        "belirsizlikler": {"type": "array", "items": {"type": "string"}},
+        "gereken_yetenekler": {"type": "array", "items": {"type": "string"}},
+        "eksik_yetenekler": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "secim": {
+      "type": "object",
+      "required": ["saglayici", "model", "neden"],
+      "properties": {
+        "saglayici": {"type": ["string", "null"]},
+        "model": {"type": ["string", "null"]},
+        "neden": {"type": "string"}
+      }
+    },
+    "adim": {
+      "type": "object",
+      "required": ["id", "amac", "yetenek", "girdi", "basari_olcutu", "bagimli", "deneme_hakki", "onay_gerekli",
+                   "secim", "durum"],
+      "properties": {
+        "id": {"type": "integer", "minimum": 1},
+        "amac": {"type": "string", "minLength": 1},
+        "yetenek": {"type": "string", "minLength": 1},
+        "girdi": {"type": "object"},
+        "basari_olcutu": {"type": "string"},
+        "bagimli": {"type": "array", "items": {"type": "integer", "minimum": 1}},
+        "deneme_hakki": {"type": "integer", "minimum": 0},
+        "onay_gerekli": {"type": "boolean"},
+        "secim": {"$ref": "#/$defs/secim"},
+        "durum": {"$ref": "#/$defs/durum"},
+        "sonuc_ozeti": {"type": "string"},
+        "sure_sn": {"type": "number", "minimum": 0}
+      }
+    },
+    "hata": {
+      "type": "object",
+      "required": ["adim", "zaman", "sinif", "belirti"],
+      "properties": {
+        "adim": {"type": "integer"},
+        "zaman": {"type": "string"},
+        "sinif": {
+          "type": "string",
+          "enum": ["model_yetersiz", "eksik_bagimlilik", "eksik_yetenek", "izin", "ag", "mantik", "veri", "kaynak"]
+        },
+        "belirti": {"type": "string"},
+        "kanit": {"type": "string"},
+        "eylem": {"type": "object"},
+        "sonuc": {"type": "string"}
+      }
+    }
+  }
+}

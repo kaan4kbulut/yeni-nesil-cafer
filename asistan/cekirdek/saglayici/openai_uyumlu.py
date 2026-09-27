@@ -29,11 +29,14 @@ class OpenAIUyumluSaglayici(Saglayici):
         return {"Authorization": f"Bearer {anahtar}"} if anahtar else {}
 
     def istek(self, mesajlar: list, sistem: str = "", araclar: list | None = None, *, model: str = "",
-              json_bicimi: bool = False) -> dict:
+              json_bicimi: bool = False, json_semasi: dict | None = None) -> dict:
         payload = {"model": model or self.model,
                    "messages": [{"role": "system", "content": sistem}, *mesajlar] if sistem else list(mesajlar),
                    "stream": True}
-        if json_bicimi:
+        if json_semasi:  # şema-kısıtlı üretim (cekirdek/yapisal.py); desteklemeyen bağlantı 400 döner
+            payload["response_format"] = {"type": "json_schema",
+                                          "json_schema": {"name": "cevap", "schema": json_semasi, "strict": False}}
+        elif json_bicimi:
             payload["response_format"] = {"type": "json_object"}
         if araclar:
             payload["tools"] = araclar

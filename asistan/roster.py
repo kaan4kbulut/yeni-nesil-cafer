@@ -257,6 +257,20 @@ def _tools_ok(settings: Settings, model: str) -> int:
     return 2 if "tools" in specialists._capabilities(settings.ollama_url, model) else 0
 
 
+def arac_kipi(settings: Settings, model: str) -> str:
+    """Yerel modelin araç kullanma yolu (K4, eski Aşama 3; kullanıcıya görünmez):
+    "yerlesik" — araç sınavını tam geçti (3/3): modelin kendi araç çağrısı · "secici" — geçemedi ya da hiç araç
+    desteklemiyor: program turu karar (şema-kısıtlı JSON) + araç çalıştırma olarak böler (`Agent._run_selector`).
+    Kart da Ollama beyanı da okunamadıysa "yerlesik" (bilinmiyor: eski yol)."""
+    level = cards.tools_level(model)
+    if level is not None:
+        return "yerlesik" if level == 2 else "secici"
+    caps = specialists._capabilities(settings.ollama_url, model)
+    if not caps:
+        return "yerlesik"
+    return "yerlesik" if "tools" in caps else "secici"
+
+
 def worker_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str] | None:
     """İşi yapacak (araç çağıracak) model. Sohbet modeli araç sınavını geçtiyse kendisi (ekran kartında modeller
     arasında gidip gelinmesin); geçemediyse sınavı geçen en uygun yerel model. Hiçbiri yoksa None.

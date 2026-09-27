@@ -616,6 +616,9 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         cats_action = QAction("Ajan kategorileri…", self)
         cats_action.triggered.connect(self.open_categories)
         h.addAction(cats_action)
+        tasks_action = QAction("Görevler…", self)  # görev motoru (K4): plan, adım durumu, devam, onay
+        tasks_action.triggered.connect(self.open_tasks)
+        h.addAction(tasks_action)
         cards_action = QAction("Model kartları…", self)
         cards_action.triggered.connect(self.open_cards)
         h.addAction(cards_action)

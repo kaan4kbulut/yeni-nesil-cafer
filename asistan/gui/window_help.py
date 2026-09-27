@@ -166,6 +166,12 @@ class HelpMixin:
         self.profiles = load_profiles()  # kategori ajanları eklenmiş olabilir
         self._refresh_sidebar()
 
+    def open_tasks(self):
+        """Görev motorunun görevleri (K4): ayrı pencere; sağ panel üç sekme kalır."""
+        from .gorevler_dialog import GorevlerDialog
+
+        GorevlerDialog(self.settings, getattr(self, "connections", None), self).exec()
+
     def open_cards(self):
         from .cards_dialog import CardsDialog
 

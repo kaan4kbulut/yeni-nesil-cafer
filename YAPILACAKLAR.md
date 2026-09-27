@@ -151,20 +151,27 @@ yöneticiyi gösteriyor; anahtarsız bağlantı hiçbir zaman yönetici seçilmi
 ## Aşama K4 — Görev motoru (Anla → Planla → Uygula → Doğrula)
 **Hedef:** Çok adımlı istekler planlanır, adım adım koşar, kaldığı yerden devam eder.
 
-- [ ] `cekirdek/semalar/gorev.json` (JSON Schema) — `docs/SEMALAR.md` §2 ile birebir
-- [ ] `gorev/anlayici.py`: niyet, kısıtlar, belirsizlikler, gereken/eksik yetenekler; belirsizlik yüksekse tek soru
-- [ ] `gorev/planlayici.py`: şema kısıtlı plan üretimi (varsa mevcut "şema kısıtlı araç seçimi" aşamasının kodu buraya taşınır); şemaya uymayan plan → 1 düzeltme turu → yine uymuyorsa `model_yetersiz`
-- [ ] `gorev/yurutucu.py`: adım koşma, `{{adim_N.sonuc}}` çözümleme, checkpoint, `onay_gerekli` adımlarda bekleme
-- [ ] `gorev/dogrulayici.py`: `basari_olcutu` kontrolü (kural tabanlı + gerekirse `hizli` modele sor)
-- [ ] `gorev/durum.py`: SQLite görev deposu; "yarım görevler" listesi; "devam et"
-- [ ] `cafer gorev "…"` CLI; masaüstünde Görevler sekmesi (liste, adım durumu, onay düğmesi)
-- [ ] Testler: sahte yeteneklerle 3 adımlı görev; ortada kapatıp devam ettirme; doğrulama başarısız → tekrar deneme
-- [ ] Şema-kısıtlı üretim (`agent.structured`) ve araç çağıramayan modeller için araç seçici kipi — mevcut plandan taşındı
-      (eski Aşama 3, talimat aşağıda; henüz kodu yok). `gorev/planlayici.py`'nin şema kısıtlı plan üretimi bu yolu kullanır.
+- [x] `cekirdek/semalar/gorev.json` (JSON Schema) — `docs/SEMALAR.md` §2 ile birebir (test SEMALAR'daki örneği doğruluyor;
+      doğrulayıcı `semalar/__init__.py`, `jsonschema` bağımlılığı eklenmedi)
+- [x] `gorev/anlayici.py`: niyet, kısıtlar, belirsizlikler, gereken/eksik yetenekler; belirsizlik yüksekse tek soru
+- [x] `gorev/planlayici.py`: şema kısıtlı plan üretimi (şema-kısıtlı kod `cekirdek/yapisal.py`'de; eski `manager` yolu
+      aynen çalışıyor); şemaya uymayan plan → 1 düzeltme turu → yine uymuyorsa `model_yetersiz`
+- [x] `gorev/yurutucu.py`: adım koşma, `{{adim_N.sonuc}}` çözümleme, checkpoint, `onay_gerekli` adımlarda bekleme
+- [x] `gorev/dogrulayici.py`: `basari_olcutu` kontrolü (kural tabanlı + gerekirse `hizli` modele sor)
+- [x] `gorev/durum.py`: SQLite görev deposu (`DATA_DIR/gorevler.db`); "yarım görevler" listesi; "devam et"
+- [x] `cafer gorev "…"` CLI (`python -m asistan gorev`); masaüstünde Görevler **penceresi** (Yardım → Görevler…; sağ
+      panele sekme değil, SORULAR K4/K5/K7) — liste, adım durumu, Devam/Onayla/Reddet/İptal. **Kalan:** sohbet yolu hâlâ
+      Manager; motoru sohbete bağlamak (bayrak + `_gorev_id` + "devam et") NOTLAR/2026-09-28-K4.md
+- [x] Testler: sahte yeteneklerle 3 adımlı görev; ortada kapatıp devam ettirme; doğrulama başarısız → tekrar deneme
+      (`test_gorev_motoru.py`, `test_yapisal.py`, `test_arac_secici.py`, `test_gorevler_penceresi.py`)
+- [x] Şema-kısıtlı üretim (`agent.structured`, `cekirdek/yapisal.py`) ve araç çağıramayan modeller için araç seçici kipi
+      (`agent._run_selector`, `roster.arac_kipi`) — mevcut plandan taşındı (eski Aşama 3). Ölçüm: gemma3 0→6/6,
+      dolphin3 0→6/6, sansürsüz gemma4 4→5/6. **Kalan:** `yazdi-ama-yapmadi` sınav görevi işçi yokken Gemma'nın kendisiyle
+      ölçülmedi (sınav işi araç sınavını geçen işçiye veriyor); tam sınav koşusu yok (3/3'te kip seçilmez: yapı + test)
 
 **Bitti sayılır:** "Çalışma klasöründeki .txt dosyalarını say, en büyüğünü özetle" gibi 2–3 adımlı bir istek plan olarak görünüyor, adım adım koşuyor, program kapatılıp açılınca devam ediyor. Taşınan eski Aşama 3'ün bitti ölçütü de sağlanmış.
 
-### Mevcut plandan taşındı: eski Aşama 3 — Araç çağıramayan modeller için şema-kısıtlı karar ☐
+### Mevcut plandan taşındı: eski Aşama 3 — Araç çağıramayan modeller için şema-kısıtlı karar ✓ (kalan: NOTLAR K4)
 
 Gemma 4, gemma3, dolphin3 araç çağrısını metin olarak yazıyor. Ollama'nın `format` alanına JSON şeması verilince model
 gramer kısıtıyla üretir; "yazdı ama yapmadı" büyük ölçüde biter. Plan zaten JSON; aynı yolu araç seçimine de uygula.
@@ -173,6 +180,7 @@ gramer kısıtıyla üretir; "yazdı ama yapmadı" büyük ölçüde biter. Plan
 Şema-kısıtlı üretim. `agent.structured(messages, schema, model)`: Ollama'da `format=<JSON şeması>`; OpenAI uyumlu
 bağlantıda `response_format: {type: "json_schema"}`; desteklemeyen sağlayıcıda talimat + ayrıştırma + bir kez yeniden deneme.
 Kullan: `manager.needs_plan`, plan üretimi, `_completion_check` kararı (üçü zaten JSON istiyor; şemayı kesinleştir).
+(K4 notu: JSON'lu denetim `Manager.check`; `agent._completion_check` düzenli ifadeyle çalışıyor.)
 Araç seçici kipi: kartında araç puanı 3/3 olmayan modeller için turu iki parçaya böl:
   a) karar — şema: {"eylem": "arac" | "cevap", "arac": <kayıtlı araç adlarından biri, enum>, "argumanlar": {…},
      "gerekce": <kısa>}; `registry`'deki şemalar argümanlar için birleştirilir (araç enum'una göre koşullu şema, olmuyorsa

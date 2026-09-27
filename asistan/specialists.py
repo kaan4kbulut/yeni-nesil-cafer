@@ -5,6 +5,7 @@ Her rol için ayarlardan seçilen model kullanılır; seçilmemişse kurulu mode
 """
 
 import base64
+import json
 import re
 import mimetypes
 from functools import lru_cache
@@ -221,6 +222,13 @@ def ask(settings: Settings, connections: list[Connection], provider: str, model:
         if resp.status_code != 200:
             raise RuntimeError(f"{model} hatası ({resp.status_code}): {resp.text[:300]}")
         return resp.json().get("message", {}).get("content", "").strip()
+    if schema and not images and (provider == "claude" or provider.startswith("api:")):
+        # şema-kısıtlı üretim (K4): Claude'da zorunlu araç, OpenAI uyumluda json_schema; program şemayı denetler
+        from .cekirdek import saglayici as sg, yapisal
+
+        sonuc = yapisal.uret(sg.bul(provider, settings, connections), [{"role": "user", "content": prompt}], schema,
+                             system, model=model)
+        return json.dumps(sonuc.veri, ensure_ascii=False) if sonuc.veri is not None else sonuc.ham.strip()
     if provider == "claude":
         import anthropic
 
