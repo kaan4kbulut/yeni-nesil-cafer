@@ -31,12 +31,27 @@ KURULUM · WINDOWS 10 / 11
   Kaldırmak için "Kaldir.bat" (sohbetlerin ve ayarların silinmez).
 
 
+KURULUM · macOS (Apple Silicon M1 ve sonrası: macOS 14+ · Intel Mac: macOS 12+)
+  1. @PAKET@-macOS-internet.zip dosyasını çift tıklayarak aç.
+  2. Çıkan klasördeki "Kur.command" dosyasına sağ tıkla → Aç → Aç. (Program imzasız olduğu için ilk
+     seferde böyle açılır. "Apple doğrulayamadı" derse: Sistem Ayarları → Gizlilik ve Güvenlik → Yine de Aç.)
+  3. Terminal penceresinde kurulum ilerler (5-15 dk): Python, kütüphaneler, Ollama ve tarayıcı iner.
+     Bitince program açılır; Uygulamalar klasöründe ve masaüstünde "YENİ NESİL CAFER" olarak durur.
+  Intel Mac'lerde yerel modeller yalnızca işlemcide ve yavaş çalışır; bulut modelleri hızlıdır.
+  Kaldırmak için "Kaldir.command" (sohbetlerin ve ayarların silinmez).
+
+
 KURULUM · LINUX
   1. Arşivi çıkar:   tar xzf @PAKET@-Linux*.tar.gz
   2. Kur:            ./@PAKET@/kur.sh
   3. Uygulama menüsünden ya da masaüstünden "YENİ NESİL CAFER"i aç.
   Kaldırmak için:    ./@PAKET@/kaldir.sh
 
+
+SÜRÜM 2.7'DE YENİ
+  - macOS desteği: Apple Silicon (M1 ve sonrası, macOS 14+) ve Intel Mac (macOS 12+). GitHub'dan tek küçük dosya
+    (…-macOS-internet.zip); Kur.command gereken her şeyi indirir, Uygulamalar klasörüne programı ekler.
+    Apple Silicon'da yerel modeller Metal ile hızlı çalışır; model önerileri birleşik belleğe göre yapılır.
 
 SÜRÜM 2.6'DA YENİ
   - GitHub'dan tek, küçük bir dosyayla (yaklaşık 1 MB) kurulum: gereken her şeyi kurulum kendisi indirir.
@@ -165,7 +180,7 @@ GÖMÜLÜ TEMEL MODEL
 
 
 GEREKENLER
-  - Windows 10 (1803 ve sonrası) / 11 ya da Linux (64 bit); macOS desteği hazırlanıyor
+  - Windows 10 (1803 ve sonrası) / 11, Linux (64 bit) ya da macOS (Apple Silicon 14+, Intel 12+)
   - Başka hiçbir şey: Python ve Ollama ya paketin içinde ya da kurulumda kendiliğinden iner
   - İnternet paketi için kurulum sırasında internet (~2,5 GB; modeller bilgisayarına göre 3-10 GB)
   - En az 8 GB RAM. Yerel modeller için önerilen: 16 GB RAM ve 8 GB+ ekran kartı.

@@ -121,6 +121,9 @@ açılıştaki sihirbaz indirir. Kesilirse yeniden çalıştır, kaldığı yerd
 - **Windows 10 / 11:** `YENI-NESIL-CAFER.v{surum}-Windows-internet.zip` → sağ tık → **Tümünü ayıkla…** → çıkan klasörde
   **`Kur.bat`**'a çift tıkla. "Windows bilgisayarınızı korudu" çıkarsa: **Ek bilgi → Yine de çalıştır**.
 - **Linux:** `tar xzf YENI-NESIL-CAFER.v{surum}-Linux-internet.tar.gz && ./YENI-NESIL-CAFER.v{surum}/kur.sh`
+- **macOS** (Apple Silicon: macOS 14+, Intel: macOS 12+): `YENI-NESIL-CAFER.v{surum}-macOS-internet.zip` → çift tıkla →
+  çıkan klasörde **`Kur.command`**'a **sağ tık → Aç → Aç** (imzasız olduğu için; "Apple doğrulayamadı" derse Sistem
+  Ayarları → Gizlilik ve Güvenlik → Yine de Aç).
 
 Gerekenler: kurulum sırasında internet, en az 8 GB RAM (önerilen 16 GB ve 8 GB+ ekran kartı), ~15 GB boş alan.
 Ayrıntılar: `BENIOKU.txt`.

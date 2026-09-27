@@ -40,7 +40,12 @@ PY_URL = ("https://github.com/astral-sh/python-build-standalone/releases/downloa
           "cpython-{surum}+{etiket}-{hedef}-install_only_stripped.tar.gz")
 # internet paketinin kurucusu Python arşivini bu özetle doğrular (kur.sh / kur.ps1'e paketlemede yazılır)
 PY_SHA = {"windows": "7c45c9622400d578709a9b2cddbe8124cc21d382409d9f13406d706d28e31b14",
-          "linux": "72748da13197c1fb161e3afeef20a6a385ff24f2165e6e2758e47008e7faba4c"}
+          "linux": "72748da13197c1fb161e3afeef20a6a385ff24f2165e6e2758e47008e7faba4c",
+          "mac_arm64": "81a359f1cfadd4da11766534c5913791cea55f26e1bb902cacd2a531bb1e4b2b",
+          "mac_x86_64": "65b195c9cedc1fef6767f044f9822069adbd1bd9204d424ece4628776fdc04bb"}
+# macOS yalnızca internet paketiyle (burada Mac yok: tam paket üretilemez, denenemez). Kütüphaneler bu sürümler için
+# çözülür; Apple Silicon'da onnxruntime macOS 12 paketi yok, bütün M serisi Mac'ler 14'ü çalıştırır.
+MAC = {"arm64": ("aarch64-apple-darwin", "macosx_14_0_arm64"), "x86_64": ("x86_64-apple-darwin", "macosx_12_0_x86_64")}
 OLLAMA_SURUM = "v0.34.4"  # asistan/bootstrap.py'deki sürüm ve özetlerle aynı olmalı
 OLLAMA_URL = "https://github.com/ollama/ollama/releases/download/{surum}/{dosya}"
 PLATFORM = {
@@ -167,14 +172,15 @@ def calisma_zamani_dosyalari(sistem: str):
 
 
 def py_url(sistem: str) -> str:
-    return PY_URL.format(etiket=PY_ETIKET, surum=PY_SURUM, hedef=PLATFORM[sistem]["py"])
+    hedef = MAC[sistem[4:]][0] if sistem.startswith("mac_") else PLATFORM[sistem]["py"]
+    return PY_URL.format(etiket=PY_ETIKET, surum=PY_SURUM, hedef=hedef)
 
 
 def betik(path: Path) -> bytes:
     """Kurulum betiği; internet kurulumunun Python adresi ve SHA-256 yer tutucuları doldurulur."""
     ps1 = path.suffix == ".ps1"
     text = path.read_text(encoding="utf-8-sig" if ps1 else "utf-8")
-    for sistem in ("linux", "windows"):
+    for sistem in ("linux", "windows", "mac_arm64", "mac_x86_64"):
         text = text.replace(f"@PY_URL_{sistem.upper()}@", py_url(sistem)).replace(f"@PY_SHA_{sistem.upper()}@",
                                                                                    PY_SHA[sistem])
     return text.encode("utf-8-sig" if ps1 else "utf-8")  # PowerShell 5.1 BOM'suz dosyayı ANSI sanar
@@ -198,6 +204,35 @@ def kilit(sistem: str) -> dict[str, bytes]:
     kok = calisma_zamani(sistem)
     return {"program-kutuphaneleri.txt": liste(kok / "python" / PLATFORM[sistem]["site"]),
             "ajan-kutuphaneleri.txt": liste(ajan_kutuphaneleri(sistem))}
+
+
+def kilit_mac(mimari: str) -> dict[str, bytes]:
+    """macOS kütüphane listeleri: pip hedef Mac için hazır paketleri çözer (kurmadan, --dry-run). Doğrudan kullanılan
+    paketler tam paketteki sürümlere sabitlenir; yan paketleri pip Mac'e uygun seçer (Linux'un sabit yan paketleri —
+    ör. secretstorage/cryptography, onnxruntime — Mac'te çözümsüz kalıyordu)."""
+    import json
+    import tempfile
+
+    linux, platform_etiketi = kilit("linux"), MAC[mimari][1]
+    pip = calisma_zamani("linux") / "python" / "bin" / "python3"
+    cikti = {}
+    for ad, kaynak in (("program-kutuphaneleri.txt", PROJE / "requirements.txt"),
+                       ("ajan-kutuphaneleri.txt", PAKET / "ajan-kutuphaneleri.txt")):
+        dogrudan = {re.split(r"[<>=!~\[ ;]", s.strip())[0].lower().replace("_", "-")
+                    for s in kaynak.read_text().splitlines() if s.strip() and not s.lstrip().startswith("#")}
+        with tempfile.TemporaryDirectory() as g:
+            sabit = Path(g, "sabit.txt")
+            sabit.write_text("\n".join(s for s in linux[ad].decode().splitlines()
+                                        if s.split("==")[0].lower().replace("_", "-") in dogrudan) + "\n")
+            rapor = Path(g, "rapor.json")
+            subprocess.run([str(pip), "-m", "pip", "install", "--dry-run", "--ignore-installed", "--quiet",
+                            "--disable-pip-version-check", "--report", str(rapor), "--target", str(Path(g, "h")),
+                            "--only-binary=:all:", "--python-version", "3.12", "--implementation", "cp",
+                            "--platform", platform_etiketi, "-r", str(kaynak), "-c", str(sabit)], check=True)
+            paketler = sorted(f"{i['metadata']['name']}=={i['metadata']['version']}"
+                              for i in json.loads(rapor.read_text())["install"])
+        cikti[ad.replace(".txt", f"-mac-{mimari}.txt")] = ("\n".join(paketler) + "\n").encode()
+    return cikti
 
 
 def paket_klasoru() -> Path:
@@ -291,7 +326,20 @@ def internet_paketleri(cikti: Path, kok: str, benioku: Path, surum_adi: str) -> 
             bilgi.size, bilgi.mode, bilgi.mtime = len(veri), kip, int(time.time())
             t.addfile(bilgi, io.BytesIO(veri))
         t.add(benioku, f"{kok}/BENIOKU.txt")
-    return [zip_yolu, tar_yolu]
+    mac_yolu = cikti / f"{surum_adi}-macOS-internet.zip"
+    with zipfile.ZipFile(mac_yolu, "w", zipfile.ZIP_DEFLATED, compresslevel=9) as z:
+        for src, rel in program_dosyalari():
+            z.write(src, f"{kok}/{rel.as_posix()}")
+        for mimari in MAC:
+            for ad, veri in kilit_mac(mimari).items():
+                z.writestr(f"{kok}/program/kurulum/{ad}", veri)
+        for name in ("Kur.command", "Kaldir.command"):
+            bilgi = zipfile.ZipInfo(f"{kok}/{name}", time.localtime()[:6])
+            bilgi.external_attr = 0o100755 << 16  # Finder'da çift tıklanabilsin (çalıştırma izni)
+            bilgi.compress_type = zipfile.ZIP_DEFLATED
+            z.writestr(bilgi, betik(PAKET / "mac" / name))
+        z.write(benioku, f"{kok}/BENIOKU.txt")
+    return [zip_yolu, tar_yolu, mac_yolu]
 
 
 def main():

@@ -103,13 +103,20 @@ def _gpu() -> tuple[str, float]:
         except (OSError, ValueError):
             continue
     if platform.system() == "Darwin" and platform.machine() == "arm64":
-        return "Apple Silicon (birleşik bellek)", 0.0
+        # birleşik bellek: Metal varsayılan olarak yaklaşık üçte ikisini kullanabilir (0 GB sayılınca 32 GB'lık M
+        # serisi Mac'e bile yalnızca en küçük modeller önerilirdi)
+        try:
+            import psutil
+
+            return "Apple Silicon (birleşik bellek)", psutil.virtual_memory().total / 1024 ** 3 * 0.65
+        except Exception:
+            return "Apple Silicon (birleşik bellek)", 0.0
     return "", 0.0
 
 
 def ollama_path() -> str:
     """Önce pakete gömülü Ollama, sonra PATH, sonra bilinen kurulum yerleri (PATH güncellenmemiş olabilir)."""
-    candidates = [OLLAMA_DIR / "ollama.exe", OLLAMA_DIR / "bin" / "ollama"]
+    candidates = [OLLAMA_DIR / "ollama.exe", OLLAMA_DIR / "bin" / "ollama", OLLAMA_DIR / "ollama"]  # son: macOS arşivi
     found = shutil.which("ollama")
     if found:
         candidates.append(Path(found))

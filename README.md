@@ -38,10 +38,17 @@ tar xzf YENI-NESIL-CAFER.v*-Linux-internet.tar.gz
 ./YENI-NESIL-CAFER.v*/kur.sh
 ```
 
+**macOS** (Apple Silicon M1 ve sonrası: macOS 14+; Intel Mac: macOS 12+)
+1. `YENI-NESIL-CAFER.v…-macOS-internet.zip` dosyasını indir → çift tıkla (açılır).
+2. Çıkan klasördeki **`Kur.command`**'a **sağ tık → Aç → Aç** (program imzasız olduğu için ilk seferde böyle açılır;
+   "Apple doğrulayamadı" derse: Sistem Ayarları → Gizlilik ve Güvenlik → **Yine de Aç**).
+3. Terminal penceresinde kurulum ilerler (5–15 dk); bitince program açılır. Uygulamalar klasöründe ve masaüstünde
+   "YENİ NESİL CAFER" olarak durur. Intel Mac'lerde yerel modeller yalnızca işlemcide ve yavaş çalışır.
+
 Kurulum yarıda kesilirse aynı dosyayı yeniden çalıştır: inenler korunur, kaldığı yerden sürer.
 
 Gerekenler: kurulum sırasında internet (kurulum ~2,5 GB, modeller bilgisayarına göre 3–10 GB), en az 8 GB RAM
-(önerilen 16 GB ve 8 GB+ ekran kartı), ~15 GB boş alan. macOS desteği hazırlanıyor.
+(önerilen 16 GB ve 8 GB+ ekran kartı ya da 16 GB+ Apple Silicon Mac), ~15 GB boş alan.
 
 İnternetsiz kurulum için her şeyi içeren tam paket de var (~8 GB, GitHub sınırı yüzünden 2 GB'lık parçalar); isteyene
 elden verilir.

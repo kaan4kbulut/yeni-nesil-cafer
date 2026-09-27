@@ -41,8 +41,9 @@ FILES = [
 # modül adı → pip adı (torch ayrı: hangi sürümün kurulacağı ekran kartına bağlı)
 PACKAGES = {"omegaconf": "omegaconf", "einops": "einops", "transformers": "transformers",
             "huggingface_hub": "huggingface_hub", "mcubes": "PyMCubes"}
-TORCH_INDEX = {"cuda": "https://download.pytorch.org/whl/cu130", "cpu": "https://download.pytorch.org/whl/cpu"}
-TORCH_GB = {"cuda": 3.0, "cpu": 0.25}
+TORCH_INDEX = {"cuda": "https://download.pytorch.org/whl/cu130", "cpu": "https://download.pytorch.org/whl/cpu",
+               "mac": ""}  # macOS: PyPI'daki torch (Apple Silicon'da Metal/MPS destekli)
+TORCH_GB = {"cuda": 3.0, "cpu": 0.25, "mac": 0.2}
 
 
 def installed() -> bool:
@@ -53,8 +54,12 @@ def installed() -> bool:
 
 def _torch_kind() -> str:
     """NVIDIA kart varsa CUDA'lı torch (Blackwell dahil: cu130), yoksa işlemci sürümü."""
+    import sys
+
     from . import gpu
 
+    if sys.platform == "darwin":
+        return "mac"
     best = gpu.strongest()
     return "cuda" if best is not None and best.vendor == "nvidia" else "cpu"
 
@@ -111,8 +116,9 @@ def install(progress=None, cancelled=lambda: False) -> None:
     missing = missing_packages()
     if "torch" in missing:
         kind = _torch_kind()
-        _pip(["--index-url", TORCH_INDEX[kind], "torch"], f"torch ({'ekran kartı' if kind == 'cuda' else 'işlemci'} "
-             f"sürümü, ~{TORCH_GB[kind]:g} GB)", progress)
+        index = ["--index-url", TORCH_INDEX[kind]] if TORCH_INDEX[kind] else []
+        _pip([*index, "torch"], f"torch ({ {'cuda': 'ekran kartı', 'cpu': 'işlemci', 'mac': 'Mac'}[kind]} sürümü, "
+             f"~{TORCH_GB[kind]:g} GB)", progress)
     rest = [PACKAGES[m] for m in missing if m in PACKAGES]
     if rest:
         _pip(rest, "3D figür kütüphaneleri", progress)

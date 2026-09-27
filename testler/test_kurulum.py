@@ -63,6 +63,66 @@ class Indirme(unittest.TestCase):
             bootstrap.ollama(uyg)
 
 
+class MacKurulumu(unittest.TestCase):
+    """macOS burada çalıştırılamaz: Mac'miş gibi davranılarak seçimler, Ollama arşivi ve bilgi metinleri denenir."""
+
+    def mac(self, mimari="arm64"):
+        p1 = mock.patch.object(bootstrap.sys, "platform", "darwin")
+        p2 = mock.patch.object(bootstrap.platform, "machine", return_value=mimari)
+        p1.start(); p2.start()
+        self.addCleanup(p1.stop); self.addCleanup(p2.stop)
+
+    def test_cipe_gore_liste_ve_rocm_yok(self):
+        uyg = Path(tempfile.mkdtemp(dir=_GECICI))
+        (uyg / "kurulum").mkdir()
+        for ad in ("program-kutuphaneleri.txt", "program-kutuphaneleri-mac-arm64.txt"):
+            (uyg / "kurulum" / ad).write_text("x==1\n")
+        self.mac("arm64")
+        self.assertEqual(bootstrap._sistem(), "mac")
+        self.assertEqual(bootstrap._liste(uyg, "program-kutuphaneleri.txt").name, "program-kutuphaneleri-mac-arm64.txt")
+        self.assertFalse(bootstrap._amd_kart())
+        self.mac("x86_64")  # Intel listesi yoksa genel liste
+        self.assertEqual(bootstrap._liste(uyg, "program-kutuphaneleri.txt").name, "program-kutuphaneleri.txt")
+
+    def test_ollama_tgz_acilir_ve_bulunur(self):
+        import io
+        import tarfile
+
+        from asistan import sysinfo
+
+        uyg = Path(tempfile.mkdtemp(dir=_GECICI))
+        arsiv = Path(tempfile.mkdtemp(dir=_GECICI)) / "ollama-darwin.tgz"
+        with tarfile.open(arsiv, "w:gz") as t:  # gerçek arşiv gibi: ollama kökte
+            veri = b"#!/bin/sh\necho ollama\n"
+            bilgi = tarfile.TarInfo("ollama"); bilgi.size, bilgi.mode = len(veri), 0o755
+            t.addfile(bilgi, io.BytesIO(veri))
+        sha = hashlib.sha256(arsiv.read_bytes()).hexdigest()
+        self.mac("arm64")
+        with mock.patch.dict(bootstrap.OLLAMA_DOSYALARI, {"mac": [("ollama-darwin.tgz", sha)]}), \
+                mock.patch.object(bootstrap, "OLLAMA_URL", arsiv.parent.as_uri() + "/{}"):
+            bootstrap.ollama(uyg)
+        self.assertTrue((uyg / "ollama" / "ollama").is_file())
+        with mock.patch.object(sysinfo, "OLLAMA_DIR", uyg / "ollama"), mock.patch.object(sysinfo.shutil, "which",
+                                                                                         return_value=None):
+            self.assertEqual(sysinfo.ollama_path(), str(uyg / "ollama" / "ollama"))
+
+    def test_ekran_karti_bilgisi_ve_betik(self):
+        from asistan import gpu
+
+        with mock.patch.object(gpu.platform, "system", return_value="Darwin"), \
+                mock.patch.object(gpu.platform, "machine", return_value="arm64"):
+            rapor = gpu.check([], Settings(), False)
+        self.assertTrue(rapor.ok)
+        self.assertIn("Metal", rapor.text)
+        sys.path.insert(0, str(KOK / "paketleme"))
+        import paketle
+
+        metin = paketle.betik(KOK / "paketleme" / "mac" / "Kur.command").decode()
+        self.assertNotIn("@PY_", metin)
+        self.assertIn(paketle.PY_SHA["mac_arm64"], metin)
+        self.assertIn("aarch64-apple-darwin", metin)
+
+
 class SihirbazOllama(unittest.TestCase):
     def sihirbaz(self, kurulu: bool, calisiyor: bool = False):
         from asistan import sysinfo

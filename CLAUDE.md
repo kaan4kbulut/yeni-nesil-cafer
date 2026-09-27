@@ -354,6 +354,22 @@ adımlar atlanır (`Manager.run`). "Programda kaba görünüyor": önizleme STL'
 `inspect_output.smooth_preview` (köşeler birleşir, 35° üstü kenarlar keskin, y-yukarı GLB, önbellek
 `DATA_DIR/onizleme-onbellegi`), `media_panel.ModelView` arka planda hazırlar (gerçek ekranda doğrulandı).
 
+## macOS (2026-09-27, 2.7)
+
+Kullanıcı macOS için de yayın istedi. Yalnızca internet paketi (`…-macOS-internet.zip`; burada Mac yok, tam paket
+üretilemez ve denenemez). `paketleme/mac/Kur.command` (Finder'da çift tık; imzasız olduğundan ilk seferde sağ tık → Aç):
+`uname -m` → Apple Silicon (macOS 14+; onnxruntime'ın macOS 12 arm64 paketi yok) / Intel (12+), python-build-standalone
+darwin arşivi (`@PY_URL_MAC_ARM64@` vb., `shasum -a 256`), `xattr -dr com.apple.quarantine`, `bootstrap`, sonra
+`~/Applications/YENİ NESİL CAFER.app` (Info.plist + bash başlatıcı, sips/iconutil ile simge, mikrofon açıklaması) ve
+masaüstüne bağlantı. Program klasörü Linux'la aynı (`~/.local/share/yeni-nesil-cafer-app`), ayar/veri XDG yolları.
+Kütüphaneler `paketle.kilit_mac`: pip `--dry-run --report --platform macosx_14_0_arm64 | macosx_12_0_x86_64`, yalnızca
+DOĞRUDAN paketler tam paketteki sürüme sabit (Linux'un yan paketleri — secretstorage/cryptography, onnxruntime — Mac'te
+çözümsüzdü); listeler `kurulum/*-mac-<mimari>.txt`, `bootstrap._liste` seçer. Ollama `ollama-darwin.tgz` (160 MB,
+düz açılır: `ollama/ollama`, `sysinfo.ollama_path` son aday). `gpu.check` Darwin'de "Apple Silicon · Metal" / "Intel
+Mac · işlemci"; `sysinfo.gpu_info` Apple Silicon'da birleşik belleğin %65'ini ekran belleği sayar (öneriler için).
+figure3d torch'u Mac'te PyPI'dan. Mac'e özgü kod testlerde Mac taklidiyle denenir (`test_kurulum.MacKurulumu`);
+gerçek Mac'te denenmedi.
+
 ## Sorun raporu (2026-09-26)
 
 Kullanıcının kararı: program kendi kodunu DEĞİŞTİRMEZ; sorunu algılar ve geliştiriciye (Claude Code) verilecek raporu

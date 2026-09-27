@@ -30,6 +30,8 @@ OLLAMA_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_SURUM}
 OLLAMA_DOSYALARI = {  # sistem → [(dosya, sha256)]; ROCm yalnızca AMD kartta
     "windows": [("ollama-windows-amd64.zip", "535193f38f3344e5b08f5d1c171c31ce11aa17f0124ff69ae26d8ec7fe06fa62")],
     "linux": [("ollama-linux-amd64.tar.zst", "c238986e61d40c0cc5f4a9b9e40b9eea104350b77efa34741fc134e105cb9533")],
+    # macOS: Apple Silicon (Metal) ve Intel tek arşivde; düz açılır (ollama kökte)
+    "mac": [("ollama-darwin.tgz", "e9c8fddaab5f48f47f2c4ae3d23d0732f5182417125353faeed2188e34a22799")],
 }
 OLLAMA_ROCM = {
     "windows": ("ollama-windows-amd64-rocm.zip", "73b02b93f4d9335e29c467e54004fcd340db6efc0fb7f50dfef17597327c616b"),
@@ -111,11 +113,23 @@ def _sha(path: Path) -> str:
 
 
 def _sistem() -> str:
-    return "windows" if os.name == "nt" else "linux"
+    return "windows" if os.name == "nt" else ("mac" if sys.platform == "darwin" else "linux")
+
+
+def _liste(uyg: Path, ad: str) -> Path:
+    """Kütüphane listesi: macOS'ta çip türüne göre (…-mac-arm64.txt / …-mac-x86_64.txt), yoksa genel."""
+    kok = uyg / "kurulum"
+    if _sistem() == "mac":
+        ozel = kok / ad.replace(".txt", f"-mac-{platform.machine()}.txt")
+        if ozel.is_file():
+            return ozel
+    return kok / ad
 
 
 def _amd_kart() -> bool:
     """AMD ekran kartı var mı (Ollama'nın ROCm eki gerekir)?"""
+    if _sistem() == "mac":
+        return False  # Mac'te ROCm yok (Apple Silicon: Metal)
     if os.name == "nt":
         try:
             out = subprocess.run(["powershell", "-NoProfile", "-Command",
@@ -139,19 +153,19 @@ def _pip(python: str, argv: list[str], etiket: str) -> None:
 
 def kutuphaneler(uyg: Path) -> None:
     """Programın kendi kütüphaneleri (taşınabilir Python'a) ve ajanların kütüphaneleri (ajan-kutuphaneleri/)."""
-    liste = uyg / "kurulum"
+    program, ajan_listesi = _liste(uyg, "program-kutuphaneleri.txt"), _liste(uyg, "ajan-kutuphaneleri.txt")
     isaret = uyg / "python" / ".kutuphaneler"
-    imza = hashlib.sha256((liste / "program-kutuphaneleri.txt").read_bytes()).hexdigest()
+    imza = hashlib.sha256(program.read_bytes()).hexdigest()
     if not (isaret.is_file() and isaret.read_text() == imza):
-        _pip(sys.executable, ["-r", str(liste / "program-kutuphaneleri.txt")],
+        _pip(sys.executable, ["-r", str(program)],
              "Programın kütüphaneleri kuruluyor (~250 MB)…")
         isaret.write_text(imza)
     ajan = uyg / "ajan-kutuphaneleri"
     isaret = ajan / ".kuruldu"
-    imza = hashlib.sha256((liste / "ajan-kutuphaneleri.txt").read_bytes()).hexdigest()
+    imza = hashlib.sha256(ajan_listesi.read_bytes()).hexdigest()
     if not (isaret.is_file() and isaret.read_text() == imza):
         shutil.rmtree(ajan, ignore_errors=True)
-        _pip(sys.executable, ["--target", str(ajan), "--no-compile", "-r", str(liste / "ajan-kutuphaneleri.txt")],
+        _pip(sys.executable, ["--target", str(ajan), "--no-compile", "-r", str(ajan_listesi)],
              "Asistanın kütüphaneleri kuruluyor (Excel, Word, PDF, 3D, ses… ~700 MB)…")
         isaret.write_text(imza)
 
@@ -190,6 +204,9 @@ def ollama(uyg: Path, onbellek: Path | None = None, ilerleme=None) -> None:
         if dosya.endswith(".zip"):
             with zipfile.ZipFile(onbellek / dosya) as z:
                 z.extractall(hedef)
+        elif dosya.endswith(".tgz"):
+            with tarfile.open(onbellek / dosya) as t:
+                t.extractall(hedef, filter="tar")
         else:
             _ac_zst(onbellek / dosya, hedef)
     for dosya, _ in dosyalar:  # açıldı: indirilen arşiv yer kaplamasın

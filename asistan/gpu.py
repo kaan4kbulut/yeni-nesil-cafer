@@ -235,6 +235,10 @@ def check(running: list[dict], settings, program_owned: bool) -> Report:
 
     program_owned: Ollama'yı program başlattı (düzeltmeyi kendisi yapabilir: en güçlü karta sabitleyip yeniden
     başlatır); değilse sistem servisidir ve düzeltme kullanıcıya önerilir."""
+    if platform.system() == "Darwin":  # NVIDIA/AMD kartı yok: Apple Silicon'da Ollama Metal ile birleşik belleği kullanır
+        arm = platform.machine() == "arm64"
+        return Report(True, "Apple Silicon · Metal" if arm else "Intel Mac · işlemci",
+                      card="Apple Silicon" if arm else "işlemci")
     best = strongest()
     if best is None:
         return Report(True, "ekran kartı yok · işlemci")
