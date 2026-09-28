@@ -463,6 +463,14 @@ def cocuk(a) -> int:
 
     w._tool_started, w._failed, w._ask_approval = arac_basladi, hata, onay
     w.chat.show_plan, w.chat.update_step, w.chat.add_notice, w.chat.add_security_block = plan_geldi, adim, not_, engel
+    orj_gunluk = w.right.log.add
+
+    def gunluk(header, body=""):  # dürtü/denetim durumları (BÖLÜM 2-d: baloncukta değil günlükte) da kayda girsin
+        if str(header).startswith("· "):
+            K.notlar.append(f"durum: {str(header)[2:]}"[:300])
+        return orj_gunluk(header, body)
+
+    w.right.log.add = gunluk
 
     if not ollama_hazir(w.settings.ollama_url):
         print(f"Ollama yanıt vermiyor ({w.settings.ollama_url}); sınav yapılamaz.", flush=True)
