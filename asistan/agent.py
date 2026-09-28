@@ -1150,7 +1150,11 @@ class Agent:
                 f"ability (for images: {modeller.deger('gorme_uzmani')}; they can download it from the Models menu, "
                 "never give them a terminal command) and meanwhile do the best you can.")
         provider, model = found
-        answer = specialists.ask(self.settings, self.connections, provider, model, question, images)
+        try:
+            answer = specialists.ask(self.settings, self.connections, provider, model, question, images,
+                                     cancelled=getattr(self.cb, "is_cancelled", None))
+        except InterruptedError:  # K12-D8
+            raise Cancelled() from None
         return f"[{model} yanıtı]\n{answer}"
 
     def _generate_image(self, args: dict) -> str:

@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import cli_agents, learning, permissions, roster, specialists
 from .cekirdek import modeller, yonlendirici
-from .agent import Agent, is_action, is_task_request, _TASK
+from .agent import Agent, Cancelled, is_action, is_task_request, _TASK
 
 MAX_PLAN_STEPS = 5
 MAX_FIXES = 1  # bir adım en fazla kaç kez düzelttirilir
@@ -385,7 +385,9 @@ class Manager:
                 ask = prompt if attempt == 0 else prompt + "\n\nReturn ONLY valid JSON."
                 try:
                     answer = specialists.ask(a.settings, a.connections, provider_, model, ask, system=system,
-                                             schema=schema)
+                                             schema=schema, cancelled=getattr(a.cb, "is_cancelled", None))
+                except InterruptedError:  # K12-D8: ■ plan/denetim çağrısını da keser
+                    raise Cancelled() from None
                 except Exception as e:
                     if _unreachable(e):
                         yonlendirici.SAGLIK.bildir(provider_, False, str(e)[:200])

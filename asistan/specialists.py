@@ -222,9 +222,13 @@ def _image_parts(paths: list[Path]) -> list[tuple[str, str]]:
     return out
 
 
+STALL_SN = 150  # Ollama'dan parça başına en çok bu kadar beklenir (agent.STALL_SECONDS ile aynı; toplam 600 sn değil)
+
+
 def ask(settings: Settings, connections: list[Connection], provider: str, model: str, prompt: str,
-        images: list[Path] | None = None, system: str = "", schema: dict | None = None) -> str:
-    """Tek seferlik soru; yanıt metnini döndürür. schema verilirse yanıt JSON istenir (yerelde düşünmeden)."""
+        images: list[Path] | None = None, system: str = "", schema: dict | None = None, cancelled=None) -> str:
+    """Tek seferlik soru; yanıt metnini döndürür. schema verilirse yanıt JSON istenir (yerelde düşünmeden).
+    `cancelled()`: True dönerse (■) çağrı kesilir, `InterruptedError` (K12-D8: yönetici planı/denetimi 10 dk bekletiyordu)."""
     images = images or []
     parts = _image_parts(images)
     system = system or ("You are a specialist helping another AI assistant. Answer precisely and completely in the "
@@ -234,16 +238,28 @@ def ask(settings: Settings, connections: list[Connection], provider: str, model:
         msg = {"role": "user", "content": prompt}
         if parts:
             msg["images"] = [b64 for _, b64 in parts]
-        resp = httpx.post(settings.ollama_url.rstrip("/") + "/api/chat", json={
-            "model": model, "stream": False, "keep_alive": "10m",
-            "messages": [{"role": "system", "content": system}, msg],
-            # ana modelle aynıysa onun bağlamı: farklı bağlam modeli yeniden yükletir
-            "options": {"num_ctx": _ctx_for(settings, model)},
-            **({"format": schema, "think": False} if schema else {}),
-        }, timeout=httpx.Timeout(600, connect=10))
-        if resp.status_code != 200:
-            raise RuntimeError(f"{model} hatası ({resp.status_code}): {resp.text[:300]}")
-        return resp.json().get("message", {}).get("content", "").strip()
+        govde = {"model": model, "stream": True, "keep_alive": "10m",
+                 "messages": [{"role": "system", "content": system}, msg],
+                 # ana modelle aynıysa onun bağlamı: farklı bağlam modeli yeniden yükletir
+                 "options": {"num_ctx": _ctx_for(settings, model)},
+                 **({"format": schema, "think": False} if schema else {})}
+        parcalar = []  # K12-D8: akışlı — her satırda iptal denetlenir; okuma zaman aşımı parça başına
+        with httpx.stream("POST", settings.ollama_url.rstrip("/") + "/api/chat", json=govde,
+                          timeout=httpx.Timeout(STALL_SN, connect=10)) as resp:
+            if resp.status_code != 200:
+                resp.read()
+                raise RuntimeError(f"{model} hatası ({resp.status_code}): {getattr(resp, 'text', '')[:300]}")
+            for satir in resp.iter_lines():
+                if cancelled is not None and cancelled():
+                    raise InterruptedError("uzman çağrısı durduruldu")
+                if not satir.strip():
+                    continue
+                try:
+                    parca = json.loads(satir)
+                except ValueError:
+                    continue
+                parcalar.append(str((parca.get("message") or {}).get("content") or ""))
+        return "".join(parcalar).strip()
     if schema and not images and (provider == "claude" or provider.startswith("api:")):
         # şema-kısıtlı üretim (K4): Claude'da zorunlu araç, OpenAI uyumluda json_schema; program şemayı denetler
         from .cekirdek import saglayici as sg, yapisal

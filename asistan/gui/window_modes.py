@@ -76,6 +76,10 @@ class ModesMixin:
                 (installed[0] if installed else "")
             if not model:  # kurulu sansürsüz model yok: bilgisayara sığan en büyüğünü indirmeyi öner
                 info = self._system_info()
+                if info is None:  # K12-D3: tarama arka planda sürüyor
+                    self._notify("Sistem taranıyor; birkaç saniye sonra yeniden dene.")
+                    self._update_free_btn()
+                    return
                 budget = info.vram_gb * 0.92 if info.vram_gb else info.ram_gb * 0.5
                 fits = [u for u in model_updates.UNCENSORED_MODELS if u["size"] <= budget] or \
                     sorted(model_updates.UNCENSORED_MODELS, key=lambda u: u["size"])[:1]
@@ -148,7 +152,10 @@ class ModesMixin:
         self.conn_label.setText(f'<span style="color:{color}">●</span>&nbsp; {text}')
 
     def _refresh_models_status(self):
-        share = self.right.models.refresh()
+        """Model panelini arka planda yeniler (K12-D1); sonuç `_models_refreshed` ile gelir."""
+        self.right.models.refresh()
+
+    def _models_refreshed(self, share):
         self.gpu_share = share
         self._fix_gpu()
         self._update_context_label()

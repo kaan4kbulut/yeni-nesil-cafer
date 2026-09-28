@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 from pathlib import Path
 
+from .sidebar import run_in_background
 from .. import mcp, power
 from ..config import Settings
 from ..connections import load_connections
@@ -247,10 +248,9 @@ class SettingsDialog(QDialog):
 
         probe = type("S", (), {"extra": {"cloud": {"url": self.cloud_url.text().strip(),
                                                    "token": self.cloud_token.text().strip()}}})()
-        try:
-            self.cloud_status.setText("✓ " + cloud_sync.check(probe))
-        except Exception as e:
-            self.cloud_status.setText(f"✗ {e}")
+        self.cloud_status.setText("deneniyor…")
+        run_in_background(lambda: cloud_sync.check(probe),  # K12-D6: 25 sn zaman aşımı pencereyi dondurmasın
+                          lambda r, e: self.cloud_status.setText("✓ " + str(r) if e is None else f"✗ {e}"), self)
 
     def _open_mcp_config(self):
         try:

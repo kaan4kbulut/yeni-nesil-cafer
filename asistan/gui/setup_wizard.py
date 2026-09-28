@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from .sidebar import run_in_background
 from .. import sysinfo
 from ..config import Settings
 from .theme import C
@@ -379,9 +380,19 @@ class SetupWizard(QDialog):
             return
         from .. import model_updates
 
+        if getattr(self, "_models_yukleniyor", False):
+            return
+        self._models_yukleniyor = True
         self.reco_text.setText("güncel model listesi alınıyor…")
-        QApplication.processEvents()
-        live = model_updates.refresh()  # internet varsa günlük liste; yoksa eldeki / programla gelen liste
+        # K12-D5: 5+ HTTPS kaynağı (20 sn zaman aşımları) ana iş parçacığında sihirbazı dondurmasın
+        run_in_background(model_updates.refresh, self._fill_models_devam, self)
+
+    def _fill_models_devam(self, live, error=None):
+        from .. import model_updates
+
+        self._models_yukleniyor = False
+        if error is not None or live is None:
+            live = model_updates.load()  # eldeki / programla gelen liste
         text, suggestions = sysinfo.recommend(self.info, live)
         self.bundled = sysinfo.bundled_modelfile() is not None
         extra = "" if self.info.ollama_running else " <b>Ollama çalışmadığı için şimdi indirilemez</b>; " \

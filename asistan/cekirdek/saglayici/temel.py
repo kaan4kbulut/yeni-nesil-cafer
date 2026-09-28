@@ -63,16 +63,22 @@ class Saglayici(ABC):
 
         Çağıran akışı yarıda bırakacaksa üreteci kapatmalı (`contextlib.closing`): bağlantı kapanır, üretim durur."""
 
-    def sohbet(self, mesajlar: list, sistem: str = "", araclar: list | None = None, **secenek) -> Yanit:
-        """Tek model çağrısı, akışsız: bütün parçalar birleştirilir."""
+    def sohbet(self, mesajlar: list, sistem: str = "", araclar: list | None = None, iptal=None, **secenek) -> Yanit:
+        """Tek model çağrısı, akışsız: bütün parçalar birleştirilir. `iptal()` True dönerse akış kapatılır (bağlantı
+        kesilir, üretim durur) ve `Iptal` fırlatılır (K12-D8: görev motoru ■'a adım sınırında değil hemen uyar)."""
+        from contextlib import closing
+
         metin, dusunce, son = [], [], Parca(SON)
-        for parca in self.akis(mesajlar, sistem, araclar, **secenek):
-            if parca.tur == METIN:
-                metin.append(parca.metin)
-            elif parca.tur == DUSUNCE:
-                dusunce.append(parca.metin)
-            elif parca.tur == SON:
-                son = parca
+        with closing(self.akis(mesajlar, sistem, araclar, **secenek)) as akis:
+            for parca in akis:
+                if iptal is not None and iptal():
+                    raise Iptal()
+                if parca.tur == METIN:
+                    metin.append(parca.metin)
+                elif parca.tur == DUSUNCE:
+                    dusunce.append(parca.metin)
+                elif parca.tur == SON:
+                    son = parca
         return Yanit("".join(metin), son.araclar, son.son, "".join(dusunce))
 
     @abstractmethod

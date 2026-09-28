@@ -10,6 +10,8 @@ import os
 import platform
 import subprocess
 import time
+
+from .cekirdek.baglam import _tahmin_hatalari  # noqa: F401  (testler temizler)
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -127,36 +129,12 @@ def saving(settings) -> bool:
     return state().on_battery
 
 
-_tahmin_hatalari: dict = {}  # "model|vram" → zaman: Ollama kapalıyken her etiket güncellemesinde yeniden denenmez
-
-
 def model_ctx(settings) -> int:
-    """K12-C3: bu ajanın modeline (`settings.ollama_model`) özgü bağlam sınırı. Ölçüm (`ctx_probe`) varsa o; yoksa
-    `ctxprobe.tahmin` bir kez çağrılıp `ctx_probe`'a yazılır (sonraki save ile kalıcı); Ollama'ya ulaşılamazsa 10 dk
-    denenmez ve genel ayar kullanılır. Ölçülen/tahmin edilen sınır genel ayarı yalnızca AŞAĞI çeker."""
+    """K12-C3: bu ajanın modeline özgü bağlam sınırı (`cekirdek.baglam.model_ctx`; ölçüm varsa o, yoksa tahmin)."""
     from . import ctxprobe
+    from .cekirdek import baglam
 
-    genel = int(settings.ollama_num_ctx)
-    model = getattr(settings, "ollama_model", "") or ""
-    probe = getattr(settings, "ctx_probe", None)
-    if not model or not isinstance(probe, dict):
-        return genel
-    vram = ctxprobe.gpu_total_mib()
-    if not vram:  # ekran kartı yok: ölçüm/tahmin anlamsız, kullanıcının ayarı
-        return genel
-    key = ctxprobe.probe_key(model, vram)
-    kayit = probe.get(key)
-    if not isinstance(kayit, dict):
-        if time.time() - _tahmin_hatalari.get(key, 0) < 600:
-            return genel
-        try:
-            kayit = ctxprobe.tahmin(getattr(settings, "ollama_url", "http://127.0.0.1:11434"), model, vram)
-        except Exception:
-            _tahmin_hatalari[key] = time.time()
-            return genel
-        probe[key] = kayit
-    ctx = int(kayit.get("ctx") or 0)
-    return min(genel, max(ctx, ctxprobe.FLOOR_CTX)) if ctx else genel
+    return baglam.model_ctx(settings, tahmin_fn=ctxprobe.tahmin, vram_fn=ctxprobe.gpu_total_mib)
 
 
 def num_ctx(settings) -> int:

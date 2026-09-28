@@ -6,7 +6,7 @@ sağlık önbelleğine yazılır. Şema istenirse `yapisal.uret` (şema-kısıtl
 
 import logging
 
-from .. import yapisal, yonlendirici
+from .. import baglam, yapisal, yonlendirici
 from . import Cevap, ModelYok
 
 _gunluk = logging.getLogger(__name__)
@@ -34,6 +34,7 @@ class YonlendiriciModeli:
         self._kararlar: dict[str, yonlendirici.Secim] = {}
         self._tavan_red = False  # bu motorda tavan bir kez reddedildi: yeniden sorulmaz
         self.gorev_id: str | None = None  # yürütücü görev kimliğini verir: bulut sayacı görev başına, iş parçacığından bağımsız
+        self.iptal = None  # K12-D8: yürütücünün iptal işlevi; sağlayıcıya geçer, ■ parça gelir gelmez uyar
 
     def _karar(self, rol: str) -> yonlendirici.Secim:
         if rol not in self._kararlar:  # motorda CLI ajanı yalnızca kod rolünde (planlayıcı/denetçi olamaz)
@@ -57,6 +58,9 @@ class YonlendiriciModeli:
         tavan_notu = ""
         while not zincir.bitti:
             ad, model = zincir.su_an
+            if yonlendirici.SAGLIK.bilinen_sagliksiz(ad) and zincir.konum < len(zincir.sira) - 1:
+                zincir.atla("bilinen sağlıksız")  # K12-D7: her çağrıda bağlantı zaman aşımı ödenmesin; son seçenekse denenir
+                continue
             if _ucretli(ad) and not self._tavan_izni(ad, model):
                 if not tavan_notu:  # tavan onaylanmadı: yerel modeller sıranın sonuna
                     tavan_notu = "bulut tavanı aşıldı, yerel model"
@@ -69,15 +73,17 @@ class YonlendiriciModeli:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
                 # CLI ajanı: görevin iş klasöründe, dosya değiştiremez (onay adım adım yürütücüde)
                 ek = {"klasor": self.klasor or ".", "duzenleyebilir": False} if ad.startswith("cli:") else {}
-                # Ollama: ayarlardaki bağlam (düşük kademede 8K); verilmezse Ollama varsayılanı taşabilir
-                num_ctx = int(getattr(self.ayarlar, "ollama_num_ctx", 0) or 0)
+                if self.iptal is not None:
+                    ek["iptal"] = self.iptal
+                # Ollama: bu modele özgü bağlam (K12-C3: yönetici modeli sohbet modelinin 32K'sıyla karta sığmıyordu)
+                num_ctx = baglam.model_ctx(self.ayarlar) if ad == "ollama" else 0
                 ollama_ek = {"num_ctx": num_ctx} if ad == "ollama" and num_ctx else None
                 if sema is not None:  # yapisal.uret her çağrıyı (düzeltme turu dahil) deftere kendisi yazar
                     s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model, gorev_id=self.gorev_id,
                                      secenekler=ek, ollama_ek=ollama_ek)
                     metin, veri, hatalar = s.ham, s.veri, s.hatalar
                 else:
-                    yanit = saglayici.sohbet(mesajlar, sistem, model=model, **ek)
+                    yanit = saglayici.sohbet(mesajlar, sistem, model=model, **ek, **(ollama_ek or {}))
                     metin, veri, hatalar = yanit.metin, None, []
                     yapisal.harcama_yaz(saglayici, yanit, sistem, mesajlar, metin, self.gorev_id)
             except sg.Iptal:

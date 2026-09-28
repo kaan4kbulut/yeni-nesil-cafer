@@ -7,6 +7,7 @@ Onay (çalıştırmadan önce) `permissions.py` + güvenlik ajanında; burası y
 
 import os
 import re
+import signal
 import subprocess
 import sys
 import tempfile
@@ -44,21 +45,39 @@ def guvenli_ortam(kaynak: dict | None = None, ek: dict | None = None, izinli=())
     return ortam
 
 
-def surec(argv: list[str], kok: Path, ortam: dict | None = None, zaman_asimi: float = ZAMAN_ASIMI) -> str:
-    """Alt süreci çalıştırır; çıkış kodu + stdout + stderr metni döner (modele gider)."""
+def grubu_oldur(proc: subprocess.Popen) -> None:
+    """Süreci ve (posix'te) bütün süreç grubunu öldürür, sonra toplar (K12-D10: `bash -c "x &"` torunları öksüz kalıyordu)."""
     try:
-        proc = subprocess.run(
-            argv, cwd=kok, capture_output=True, text=True, timeout=zaman_asimi,
-            stdin=subprocess.DEVNULL, env=ortam, creationflags=PENCERESIZ,
-            encoding="utf-8", errors="replace",
-        )
+        if sys.platform == "win32":
+            proc.kill()
+        else:
+            os.killpg(proc.pid, signal.SIGKILL)
+    except (OSError, ProcessLookupError):
+        pass
+    try:
+        proc.communicate(timeout=5)
+    except (subprocess.TimeoutExpired, OSError, ValueError):
+        pass
+
+
+def surec(argv: list[str], kok: Path, ortam: dict | None = None, zaman_asimi: float = ZAMAN_ASIMI) -> str:
+    """Alt süreci çalıştırır; çıkış kodu + stdout + stderr metni döner (modele gider). Zaman aşımında süreç GRUBU
+    öldürülür (ayrı oturum: `start_new_session`)."""
+    proc = subprocess.Popen(
+        argv, cwd=kok, stdout=subprocess.PIPE, stderr=subprocess.PIPE, stdin=subprocess.DEVNULL, env=ortam,
+        creationflags=PENCERESIZ, text=True, encoding="utf-8", errors="replace",
+        start_new_session=sys.platform != "win32",
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=zaman_asimi)
     except subprocess.TimeoutExpired:
+        grubu_oldur(proc)
         raise AracHatasi(f"Timed out after {zaman_asimi} seconds") from None
     cikti = f"exit code: {proc.returncode}\n"
-    if proc.stdout:
-        cikti += f"--- stdout ---\n{proc.stdout}"
-    if proc.stderr:
-        cikti += f"\n--- stderr ---\n{proc.stderr}"
+    if stdout:
+        cikti += f"--- stdout ---\n{stdout}"
+    if stderr:
+        cikti += f"\n--- stderr ---\n{stderr}"
     return cikti
 
 

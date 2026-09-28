@@ -95,6 +95,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.new_conversation()
         self.right.set_root(self.settings.workspace)
         QTimer.singleShot(200, self._refresh_models_status)
+        QTimer.singleShot(2500, self._system_info)  # K12-D3: Offline menüsü açılmadan sistem taraması arka planda
         QTimer.singleShot(1500, self._check_context)
         # en iyi modellerin listesi: açılışta ve 6 saatte bir kontrol; 20 saatten eskiyse internetten yenilenir
         QTimer.singleShot(3000, self._daily_model_update)
@@ -408,6 +409,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
 
         # sağ panel
         self.right = RightPanel(self.settings)
+        self.right.models.refreshed.connect(self._models_refreshed)  # K12-D1: panel arka planda yenilenir
         self.right.setMinimumWidth(372)
         self.right.setMaximumWidth(760)  # canlı görüntü büyütülebilsin
         self.right.models.model_chosen.connect(self._choose_ollama_model)

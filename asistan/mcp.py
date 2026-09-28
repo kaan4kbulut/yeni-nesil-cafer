@@ -134,6 +134,10 @@ class _Stdio:
             self.proc.wait(timeout=3)
         except Exception:
             self.proc.kill()
+            try:
+                self.proc.wait(timeout=3)  # K12-D10: kill sonrası toplanmazsa zombi kalır
+            except Exception:
+                pass
         if self.proc.stdout:
             self.proc.stdout.close()
         self.log.close()
