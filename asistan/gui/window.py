@@ -626,6 +626,9 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         cards_action = QAction("Model kartları…", self)
         cards_action.triggered.connect(self.open_cards)
         h.addAction(cards_action)
+        models_action = QAction("Modeller…", self)  # K7: kademe listeleri, ölçümler, varsayılanı değiştir, listeyi yenile
+        models_action.triggered.connect(self.open_models)
+        h.addAction(models_action)
         learn = QAction("Hafıza ve öğrenme…", self)
         learn.triggered.connect(self.open_learning)
         h.addAction(learn)

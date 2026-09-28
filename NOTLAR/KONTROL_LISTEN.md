@@ -19,3 +19,13 @@
 ## K4 — Görev motoru (2026-09-28 03:24)
 - [ ] Programa yaz: 'Çalışma klasöründeki .txt dosyalarını say, en büyüğünü özetle.' Plan görünüyor mu?
 - [ ] Adım 1 bitince programı kapat/aç, 'devam et' de → kaldığı yerden sürüyor mu?
+
+## K6 — Hata analizi ve kendini genişletme (2026-09-28 sabah)
+- [ ] Bir yeteneğin pip paketini kaldır, o yeteneği kullan → görev "onay bekliyor: kurulum pip:…" demeli; onaylayınca kurup adımı tekrar etmeli.
+- [ ] Yeteneği olmayan bir iş iste ("şu PDF'in tablolarını Excel'e çıkar") → "… adında yetenek yok; üreteyim mi?" sorusu; onaylayınca üretip (sandbox testi) görevi bitirmeli. Yeni yetenek Yardım → Yetenekler'de `[üretildi, güvenilmez]`.
+- [ ] `ayar.toml`'a `[guvenlik] kurulum = "yasak"` yaz → kurulum "politikayla kapalı" diye reddedilmeli.
+
+## K7 — Ölçüm ve sınav (2026-09-28 sabah)
+- [ ] Yardım → Modeller…: tok/sn ve başarı sütunları dolu mu? "Varsayılan yap" listeyi değiştiriyor mu (DATA_DIR/modeller.json)? "Listeyi yenile" önerilen satırını dolduruyor mu?
+- [ ] `python -m asistan profil --benchmark` koş; küçük model yavaşsa (< 3 tok/sn) durum çubuğunda "📐 Kademe … → …" bildirimi ve profil özetinde "hız ölçümüyle ayarlandı".
+- [ ] `python testler/sinav/calistir.py --kademe dusuk --tekrar 1` → RAPOR.md'de "kademe × görev türü" tablosu; sonda "Yönlendirmeye geri beslendi" satırı.

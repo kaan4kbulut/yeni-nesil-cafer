@@ -225,6 +225,24 @@ class OnayKurali(unittest.TestCase):
         self.assertFalse(self.evet("browser_click", {"purpose": "Tarayıcı — satın alma / ödeme: …"}, ["internet"]))
 
 
+class Kademe(unittest.TestCase):
+    def test_kademe_secimi_ve_geri_besleme(self):
+        a = calistir.secenekler(["--kademe", "dusuk"])
+        adlar = [g["ad"] for g in calistir.secilenler(a)]
+        self.assertTrue(adlar and all(denetim.kademe(g) == "dusuk" for g in calistir.secilenler(a)))
+        self.assertEqual(calistir.kapsam(a), "kademe:dusuk+hizli")
+        self.assertGreater(len(calistir.secilenler(calistir.secenekler(["--kademe", "yuksek", "--hepsi"]))),
+                           len(calistir.secilenler(calistir.secenekler(["--kademe", "orta", "--hepsi"]))))
+        for g in denetim.yukle():  # her görevin kademesi ve türü var, geçerli
+            self.assertIn(denetim.kademe(g), denetim.KADEMELER)
+            self.assertIn(denetim.tur(g), denetim.TURLER_GOREV)
+        from asistan.cekirdek.analiz import olcum
+
+        with mock.patch.object(olcum, "sinav_geri_besle", return_value={"ozet": {"gecen": 0, "toplam": 2}}) as gb:
+            calistir.geri_besle([{"tur": "ozet", "gecti": False}], calistir.secenekler(["--kademe", "orta"]))
+        self.assertEqual(gb.call_args.args[1], "orta")
+
+
 class Rapor(unittest.TestCase):
     def test_son_kosu_ve_tekrar(self):
         klasor = Path(tempfile.mkdtemp(dir=_GECICI))
@@ -242,8 +260,9 @@ class Rapor(unittest.TestCase):
         metin = rapor.read_text(encoding="utf-8")
         self.assertIn("| m1 | sohbet modeli | hizli ×2 |", metin)  # yalnızca son koşu; tek görev denemesi rapora girmez
         self.assertNotIn("gorev:hesap", metin)
-        self.assertIn("| 3. hesap | 1/2 · 10 sn |", metin)
-        self.assertIn("| 1. yaz-kaydet | — |", metin)
+        self.assertIn("| 3. hesap · dusuk/cok_adimli | 1/2 · 10 sn |", metin)  # K7: görev kademesi/türü
+        self.assertIn("| 1. yaz-kaydet · dusuk/cok_adimli | — |", metin)
+        self.assertIn("| dusuk | cok_adimli | 1/2 | 50 |", metin)  # K7: kademe × görev türü tablosu
         self.assertIn("Özet: 1/2 geçti (%50)", metin)
         self.assertIn("çağrılmadı", metin)
 

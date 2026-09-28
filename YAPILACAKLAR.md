@@ -255,12 +255,12 @@ YAPMA: siteye özel seçici gömme (site adına göre if yok); giriş gerektiren
 ## Aşama K7 — Ölçüm, sınav seti ve kademe otomatik ayarı
 **Hedef:** Program kendi hızını ve başarısını ölçer; kademe gerçeğe göre kayar.
 
-- [ ] `analiz/olcum.py`: model başına tok/sn, ilk-token, başarı oranı (doğrulayıcıdan), süre; `profil.json → benchmark`
-- [ ] İlk kullanımda 30 sn benchmark; `/profil benchmark` ile elle
-- [ ] Kademe otomatik düşürme/yükseltme kuralı + kullanıcıya bildirim + kilit varsa dokunma
-- [ ] `testler/sinav/`: mevcut sınav seti kademe etiketlendi (hangi görev hangi kademede beklenir); `cafer sinav --kademe orta` koşar, başarı tablosu üretir
-- [ ] Sınav sonuçları yönlendirme tablosuna geri besleniyor (kademe × görev türü → tercih edilen rol)
-- [ ] Modeller sekmesi: `modeller.json` listesi, ölçümler, "varsayılanı değiştir"; "listeyi yenile" düğmesi (`modeller.json`'u katalogdan/elle güncelleme)
+- [x] `analiz/olcum.py`: model başına tok/sn, ilk-token, başarı oranı (doğrulayıcıdan), süre; `profil.json → benchmark`
+- [x] İlk kullanımda 30 sn benchmark; `/profil benchmark` ile elle
+- [x] Kademe otomatik düşürme/yükseltme kuralı + kullanıcıya bildirim + kilit varsa dokunma
+- [x] `testler/sinav/`: mevcut sınav seti kademe etiketlendi (hangi görev hangi kademede beklenir); `cafer sinav --kademe orta` koşar, başarı tablosu üretir
+- [x] Sınav sonuçları yönlendirme tablosuna geri besleniyor (kademe × görev türü → tercih edilen rol)
+- [x] Modeller penceresi (Yardım → Modeller…; sağ panele sekme eklenmez, SORULAR K4/K5/K7): `modeller.json` listesi, ölçümler, "varsayılanı değiştir"; "listeyi yenile" düğmesi (`modeller.json`'u katalogdan/elle güncelleme)
 
 **Bitti sayılır:** Sınav tablosu üretiliyor; küçük bir modeli yavaşlatınca (ya da sahte ölçümle) kademe düşüyor ve bildiriyor.
 

@@ -8,7 +8,8 @@ import sys
 
 KOMUTLAR = {"profil": "donanım profili ve kademe (--json, --kilitle <kademe>, --kilidi-ac)",
             "gorev": "\"<istek>\" çok adımlı görev; --liste, --goster/--devam/--onayla/--reddet/--iptal <id>",
-            "yetenek": "yetenekler: liste; --json, --dogrula, --duman [ad …]"}
+            "yetenek": "yetenekler: liste; --json, --dogrula, --duman [ad …]",
+            "sinav": "sınav seti (geliştirme kopyasında): --kademe orta, --hizli, --hepsi, --tekrar N (K7)"}
 
 
 def _yardim() -> str:
@@ -35,5 +36,19 @@ def ana(argv: list[str] | None = None) -> int:
         from ...cekirdek.yetenek import komut as yetenek_komutu
 
         return yetenek_komutu.komut(kalan)
+    if komut == "sinav":
+        return _sinav(kalan)
     print(f"Bilinmeyen komut: {komut}\n\n{_yardim()}", file=sys.stderr)
     return 2
+
+
+def _sinav(argv: list[str]) -> int:
+    """`cafer sinav --kademe orta`: testler/sinav/calistir.py (geliştirme kopyasında; kurulu programda yok)."""
+    import subprocess
+    from pathlib import Path
+
+    betik = Path(__file__).resolve().parents[3] / "testler" / "sinav" / "calistir.py"
+    if not betik.is_file():
+        print("Sınav seti bu kopyada yok (yalnızca geliştirme deposunda: testler/sinav/).", file=sys.stderr)
+        return 2
+    return subprocess.call([sys.executable, str(betik), *argv])

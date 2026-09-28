@@ -178,6 +178,12 @@ class HelpMixin:
 
         YeteneklerDialog(self).exec()
 
+    def open_models(self):
+        """K7: Modeller penceresi (kademe listeleri, ölçümler, varsayılan, listeyi yenile)."""
+        from .modeller_dialog import ModellerDialog
+
+        ModellerDialog(self.settings, self).exec()
+
     def open_cards(self):
         from .cards_dialog import CardsDialog
 

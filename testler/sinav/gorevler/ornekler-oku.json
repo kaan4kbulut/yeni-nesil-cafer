@@ -14,5 +14,7 @@
    "tur": "cevap_icerir",
    "regex": "\\b7\\b|\\byedi\\b"
   }
- ]
+ ],
+ "kademe": "orta",
+ "tur": "cok_adimli"
 }

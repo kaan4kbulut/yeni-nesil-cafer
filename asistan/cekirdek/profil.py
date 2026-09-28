@@ -319,7 +319,12 @@ def kilitle(kademe: str | None) -> None:
 def _kademe_yaz(profil: dict) -> dict:
     olculen, neden = kademe_hesapla(profil)
     kilitli = kilit()
-    profil["kademe"] = {"olculen": olculen, "kilitli": kilitli, "etkin": kilitli or olculen, "neden": neden}
+    eski = profil.get("kademe") or {}
+    otomatik = eski.get("otomatik") if eski.get("otomatik") in KADEMELER else None  # K7 ölçüm ayarı korunur
+    profil["kademe"] = {"olculen": olculen, "kilitli": kilitli, "etkin": kilitli or otomatik or olculen, "neden": neden}
+    if otomatik:
+        profil["kademe"]["otomatik"] = otomatik
+        profil["kademe"]["otomatik_neden"] = eski.get("otomatik_neden", "")
     return profil
 
 
@@ -362,10 +367,15 @@ def kaydet(profil: dict) -> Path:
 
 def guncelle(ollama_url: str | None = None, sunucu: bool | None = None) -> dict:
     """Ölç + yaz; önceki ölçümdeki `benchmark` korunur (K7 doldurur)."""
-    profil = olc(ollama_url, sunucu)
     eski = yukle() or {}
+    profil = olc(ollama_url, sunucu)
     if eski.get("benchmark"):
         profil["benchmark"] = eski["benchmark"]
+    if (eski.get("kademe") or {}).get("otomatik") in KADEMELER:  # K7: ölçüme dayalı kademe yeniden ölçümde kaybolmasın
+        profil["kademe"]["otomatik"] = eski["kademe"]["otomatik"]
+        profil["kademe"]["otomatik_neden"] = eski["kademe"].get("otomatik_neden", "")
+        if not profil["kademe"].get("kilitli"):
+            profil["kademe"]["etkin"] = eski["kademe"]["otomatik"]
     kaydet(profil)
     _onbellek_temizle()
     return profil
@@ -531,7 +541,8 @@ def kademe() -> str:
             return _etkin[1]
     etkin = kilit()
     if not etkin:
-        etkin = ((yukle() or {}).get("kademe") or {}).get("olculen")
+        k = (yukle() or {}).get("kademe") or {}
+        etkin = k.get("otomatik") if k.get("otomatik") in KADEMELER else k.get("olculen")  # K7: ölçüme göre kayar
         if etkin not in KADEMELER:
             etkin = _hafif_kademe()
     with _kilit:
@@ -576,7 +587,9 @@ def ozet(profil: dict) -> str:
     cpu, gpu, oll = profil.get("cpu") or {}, profil.get("gpu") or {}, profil.get("ollama")
     satirlar = [
         f"Kademe: {ADLAR.get(k.get('etkin'), '?')}"
-        + (f" (kilitli; ölçülen: {ADLAR.get(k.get('olculen'), '?')})" if k.get("kilitli") else " (ölçüldü)"),
+        + (f" (kilitli; ölçülen: {ADLAR.get(k.get('olculen'), '?')})" if k.get("kilitli")
+           else f" (hız ölçümüyle ayarlandı; donanıma göre: {ADLAR.get(k.get('olculen'), '?')} — {k.get('otomatik_neden', '')})"
+           if k.get("otomatik") else " (ölçüldü)"),
         f"Neden: {k.get('neden', '')}",
         f"İşletim sistemi: {profil.get('isletim', '?')}",
         f"İşlemci: {cpu.get('model', '?')} · {cpu.get('cekirdek', 0)} çekirdek / {cpu.get('iplik', 0)} iş parçacığı",

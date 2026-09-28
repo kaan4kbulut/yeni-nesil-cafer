@@ -61,6 +61,8 @@ def secenekler(argv=None):
     p.add_argument("--hepsi", action="store_true", help="bütün görevler")
     p.add_argument("--tekrar", type=int, default=1, help="her görev kaç kez")
     p.add_argument("--gorev", default="", help="yalnızca bu görevler (virgülle)")
+    p.add_argument("--kademe", default="", choices=("", "dusuk", "orta", "yuksek"),
+                   help="K7: program bu kademeye kilitli koşar, yalnızca o kademede beklenen görevler; sonuç yönlendirmeye geri beslenir")
     p.add_argument("--cocuk", type=int, default=0, help=argparse.SUPPRESS)  # bir tekrarı yürüten alt süreç
     p.add_argument("--kosu", default="", help=argparse.SUPPRESS)
     p.add_argument("--cikti", default="", help=argparse.SUPPRESS)
@@ -72,11 +74,14 @@ def kapsam(a) -> str:
         return "gorev:" + a.gorev
     if a.etiket:
         return "etiket:" + a.etiket
-    return "hepsi" if a.hepsi else "hizli"
+    on = f"kademe:{a.kademe}+" if getattr(a, "kademe", "") else ""
+    return on + ("hepsi" if a.hepsi else "hizli")
 
 
 def secilenler(a) -> list[dict]:
     gorevler = denetim.yukle()
+    if getattr(a, "kademe", ""):
+        gorevler = [g for g in gorevler if denetim.kademede(g, a.kademe)]
     if a.gorev:
         adlar = [x.strip() for x in a.gorev.split(",") if x.strip()]
         bilinmeyen = set(adlar) - {g["ad"] for g in gorevler}
@@ -118,6 +123,7 @@ def ana(a) -> int:
     if not satirlar:
         print("sonuç yok")
         return 2
+    geri_besle(satirlar, a)
     gecen, toplam = sum(s["gecti"] for s in satirlar), len(satirlar)
     oran = gecen / toplam
     dakika = sum(s["sure"] for s in satirlar) / 60
@@ -130,6 +136,24 @@ def ana(a) -> int:
         print(f"EŞİĞİN ALTINDA: %{100 * oran:.0f} < %{100 * esik:.0f} ({ESIK.name})", flush=True)
         return 1
     return 0
+
+
+def geri_besle(satirlar: list[dict], a) -> dict:
+    """K7: kademe × görev türü başarısı yönlendirme tablosuna (gerçek DATA_DIR/olcum.json; `--kademe` verilmediyse
+    programın etkin kademesi). Yönlendirici (`yonlendirici.sec`) %50 altındaki türlerde hızlı rol yerine yönetici seçer."""
+    try:
+        from asistan.cekirdek import profil
+        from asistan.cekirdek.analiz import olcum
+
+        kademe_ = getattr(a, "kademe", "") or profil.kademe()
+        tablo = olcum.sinav_geri_besle(satirlar, kademe_)
+        if tablo:
+            print("Yönlendirmeye geri beslendi (" + kademe_ + "): " + ", ".join(
+                f"{t} {v['gecen']}/{v['toplam']}" for t, v in sorted(tablo.items())), flush=True)
+        return tablo
+    except Exception as e:  # geri besleme sınavı düşürmez
+        print(f"geri besleme yapılamadı: {e}", flush=True)
+        return {}
 
 
 def oku(dosya: Path) -> list[dict]:
@@ -177,9 +201,17 @@ def rapor_yaz() -> None:
             hucreler.append(f"{gecen}/{len(gs)} · {ort:.0f} sn" if len(gs) > 1 else
                             f"{'✓' if gecen else '✗'} {ort:.0f} sn")
         etiket = f" [{', '.join(sorted(denetim.etiketler(g)))}]" if denetim.etiketler(g) else ""
-        y.append(f"| {g['sira']}. {g['ad']}{etiket} | " + " | ".join(hucreler) + " |")
-    if sutunlar:
+        y.append(f"| {g['sira']}. {g['ad']}{etiket} · {denetim.kademe(g)}/{denetim.tur(g)} | " + " | ".join(hucreler) + " |")
+    if sutunlar:  # K7: son koşunun kademe × görev türü tablosu (yönlendirmeye geri beslenen özet)
         kid, ss = max(sutunlar, key=lambda x: x[0])
+        gorev_bilgi = {g["ad"]: (denetim.kademe(g), denetim.tur(g)) for g in denetim.yukle()}
+        kt: dict[tuple, list[int]] = {}
+        for s in ss:
+            k, t = gorev_bilgi.get(s["gorev"], ("orta", "cok_adimli"))
+            kt.setdefault((k, t), []).append(int(s["gecti"]))
+        y += ["", f"## Son koşu ({kid}) — kademe × görev türü", "", "| Görev kademesi | Tür | Geçen | % |", "|---|---|---|---|"]
+        for (k, t), v in sorted(kt.items()):
+            y.append(f"| {k} | {t} | {sum(v)}/{len(v)} | {100 * sum(v) / len(v):.0f} |")
         gecen = sum(s["gecti"] for s in ss)
         y += ["", f"## Son koşu ({kid}) — düşen denetimler", ""]
         for s in ss:
@@ -287,6 +319,8 @@ def ortam_hazirla(g: Path, a) -> dict:
     for p in (ayar, veri / "yeni-nesil-cafer", masa, calisma):
         p.mkdir(parents=True)
     os.environ.update(XDG_CONFIG_HOME=str(ayar), XDG_DATA_HOME=str(veri), QT_QPA_PLATFORM="offscreen")
+    if getattr(a, "kademe", ""):  # K7: program bu kademeye kilitli koşar (cekirdek/profil.kilit → ayar.toml/ortam)
+        os.environ["CAFER_GENEL_KADEME_KILIDI"] = a.kademe
     (ayar / "user-dirs.dirs").write_text(f'XDG_DESKTOP_DIR="{masa}"\n', encoding="utf-8")  # results.desktop()
     bulut = bool(a.model) and ":" in a.model and not a.model.startswith("cli:")
     shutil.copytree(GERCEK_AYAR, ayar / "yeni-nesil-cafer",
@@ -576,6 +610,7 @@ def gorevi_yap(w, app, gorev: dict, sunucu: str, g: Path, results) -> dict:
     elif K.hatalar:
         dusen.append("program hatası: " + K.hatalar[0][:150])
     return {"gorev": gorev["ad"], "sira": gorev["sira"], "etiketler": sorted(K.etiketler), "gecti": not dusen,
+            "kademe": denetim.kademe(gorev), "tur": denetim.tur(gorev),
             "dusen": dusen, "sure": round(sure, 1), "zaman_asimi": hata == "zaman aşımı", "hata": hata,
             "cevap": cevap[:300], "araclar": K.araclar[:80],
             "plan": [a.get("title", "") for a in (K.planlar[-1] if K.planlar else [])], "adimlar": K.adimlar,

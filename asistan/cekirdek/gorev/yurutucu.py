@@ -254,6 +254,11 @@ class Yurutucu:
             if cikti.onay_bekliyor:
                 return self._bekle(gorev, adim)
             tamam, neden = dogrulayici.dogrula(adim, cikti, klasorler, self.model, self._salt_okur(adim["yetenek"]))
+            if adim["yetenek"] == METIN_URET and (adim.get("secim") or {}).get("model"):  # K7: başarı oranı
+                from ..analiz import olcum
+
+                olcum.basari_kaydet(adim["secim"].get("saglayici") or "", adim["secim"]["model"],
+                                    tamam and not neden.startswith(dogrulayici.SARTLI), time.monotonic() - basla)
             if tamam:
                 adim["durum"] = "tamamlandi"
                 if neden.startswith(dogrulayici.SARTLI):  # denetlenemedi: geçti sayılmaz, raporda ✓?

@@ -708,6 +708,14 @@ def sec(ayarlar, rol: str, sohbet: tuple[str, str] | None = None, durum_: Durum 
     d = durum_ or durum(ayarlar)
     if cli_yalnizca_kod and GOREV_ROLU.get(rol, rol) != "kod":
         d = replace(d, kullanici_istegi=False)  # havuz CLI adaylarını düşürür
+    if rol in GOREV_ROLU:  # K7: sınav bu kademede bu görev türünde "hızlı"nın yetmediğini gösterdiyse yönetici
+        from .analiz import olcum
+
+        tercih = olcum.tercih_rolu(d.kademe, rol)
+        if tercih:
+            s = karar(adaylar(ayarlar, d.kullanici_istegi), tercih, d, _bilinen_saglik, sohbet)
+            s.neden = f"sınav: {d.kademe} kademesinde '{rol}' türünde hızlı rol yetersizdi → {tercih}; " + s.neden
+            return s
     return karar(adaylar(ayarlar, d.kullanici_istegi), rol, d, _bilinen_saglik, sohbet)
 
 

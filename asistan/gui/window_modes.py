@@ -190,7 +190,18 @@ class ModesMixin:
     # ---- donanım kademesi (cekirdek/profil.py): açılışta ölçülür, durum çubuğunda görünür, elle kilitlenebilir
     def _measure_profile(self):
         self._update_tier_btn()
-        run_in_background(lambda: profil.guncelle(sunucu=False), lambda _p, _e: self._update_tier_btn(), self)
+        run_in_background(lambda: profil.guncelle(sunucu=False), self._profile_measured, self)
+
+    def _profile_measured(self, _p, _e):
+        self._update_tier_btn()
+        # K7: ilk kullanımda varsayılan yerel modelin 30 sn ölçümü, sonra kademe otomatik ayarı (kilit varsa dokunmaz)
+        from ..cekirdek.analiz import olcum
+
+        run_in_background(lambda: olcum.acilis(self.settings.ollama_url, self._tier_notice),
+                          lambda _s, _e2: self._update_tier_btn(), self)
+
+    def _tier_notice(self, metin: str):
+        QTimer.singleShot(0, lambda: self._notify("📐 " + metin, 20000))  # arka plan iş parçacığından arayüze
 
     def _update_tier_btn(self):
         p = profil.yukle() or {}
