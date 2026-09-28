@@ -73,3 +73,12 @@
 20:38:01 | 10876 MiB, 0 % | qwen2.5:14b 10GB 100% GPU 8192;
 20:38:21 | 10858 MiB, 0 % | qwen2.5:14b 10GB 100% GPU 8192;
 20:38:41 | 10840 MiB, 2 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:39:01 | 10858 MiB, 6 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:39:21 | 10864 MiB, 7 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:39:41 | 10845 MiB, 0 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:40:01 | 10841 MiB, 3 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:40:21 | 10818 MiB, 6 % | qwen2.5:14b 10GB 100% GPU 8192;
+20:40:41 | 11231 MiB, 97 % | qwen2.5:14b 10GB 100% GPU 8192;nomic-embed-text:latest 397MB 74%/26% CPU/GPU 2048;
+20:41:01 | 11204 MiB, 1 % | qwen2.5:14b 10GB 100% GPU 8192;nomic-embed-text:latest 397MB 74%/26% CPU/GPU 2048;
+20:41:21 | 11217 MiB, 2 % | qwen2.5:14b 10GB 100% GPU 8192;nomic-embed-text:latest 397MB 74%/26% CPU/GPU 2048;
+20:41:41 | 11227 MiB, 0 % | qwen2.5:14b 10GB 100% GPU 8192;nomic-embed-text:latest 397MB 74%/26% CPU/GPU 2048;

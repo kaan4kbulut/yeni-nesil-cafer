@@ -55,6 +55,6 @@
 ## K12 — Kod incelemesi ve düzeltme (2026-09-28)
 - [x] Sınav yeniden koşuldu (20:15/20:24): Manager 5/15, motor 5/15, takılma yok → B7: motor varsayılan AÇIK (RAPOR.md, SORULAR.md)
 - [x] `paketleme/aktar.sh` ile aktarıldı (3.0, yedek `yeni-nesil-cafer-app-yedek-20260928-201141`); programı aç: Offline menüsü ("sistem taranıyor…" → dolu), model paneli, Görevler penceresi, ■ ile durdurma
-- [ ] Kurulum paketlerini yeniden üret ve paylaş (NOTLAR/.cafer/sunucu artık pakete girmiyor — boyut küçülmeli)
+- [x] Kurulum paketleri: internet paketleri + CI Light paketleri v3.0-beta.1 ön sürümünde; 16 GB tam paketler elle (masaüstü klasörü)
 - [ ] Telegram eşleşmesi: yeni 12 karakterlik kod `bulut.json`'da; `/baglan <kod>` bir kez; 5 yanlışta 10 dk kilit
 - [ ] Kurulu Python'da `fastapi` yok: masaüstü kurulumunda web/sunucu kipi çalışmaz (isteğe bağlı bağımlılık); gerekiyorsa `paketleme` bağımlılık listesine ekle
