@@ -141,14 +141,14 @@ class B4WebFetch(unittest.TestCase):
             def __exit__(self, *a): return False
             def iter_bytes(self, n): yield b"<html><title>t</title>ok</html>"
 
-        def stream(method, url, **k):
-            cagrilar.append((url, k))
+        def akis(hedef, basliklar, ek):
+            cagrilar.append((hedef, {"headers": basliklar, "extensions": ek}))
             if len(cagrilar) == 1:
                 return Cevap(302, {"location": "http://127.0.0.1:11434/api/tags"})
             return Cevap(200, {"content-type": "text/html"})
 
         with mock.patch.object(web.socket, "getaddrinfo", self._addr("93.184.216.34")), \
-                mock.patch.object(web.httpx, "stream", stream):
+                mock.patch.object(web, "_akis", akis):
             with self.assertRaises(AracHatasi) as cm:
                 web.oku("http://example.com/yonlendir")
         self.assertIn("private", str(cm.exception).lower())
@@ -166,14 +166,14 @@ class B4WebFetch(unittest.TestCase):
             def __exit__(self, *a): return False
             def iter_bytes(self, n): yield b"<html><title>Basl</title><p>govde</p></html>"
 
-        def stream(method, url, **k):
-            cagrilar.append((url, k))
+        def akis(hedef, basliklar, ek):
+            cagrilar.append((hedef, {"headers": basliklar, "extensions": ek}))
             if len(cagrilar) == 1:
                 return Cevap(301, {"location": "https://www.example.com/son"})
             return Cevap(200, {"content-type": "text/html"})
 
         with mock.patch.object(web.socket, "getaddrinfo", self._addr("93.184.216.34")), \
-                mock.patch.object(web.httpx, "stream", stream):
+                mock.patch.object(web, "_akis", akis):
             metin = web.oku("https://example.com/ilk")
         self.assertIn("govde", metin)
         self.assertEqual(len(cagrilar), 2)

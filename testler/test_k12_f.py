@@ -114,9 +114,9 @@ class F8AsistanMdButcesi(unittest.TestCase):
         alt = kok / "kategori" / "is-1"
         alt.mkdir(parents=True)
         for d in (kok, kok / "kategori", alt):
-            (d / agent_mod.INSTRUCTIONS_FILE).write_text("x" * 3000, encoding="utf-8")
+            (d / agent_mod.INSTRUCTIONS_FILE).write_text("q" * 3000, encoding="utf-8")
         metin = agent_mod.instruction_files(str(alt), str(kok))
-        self.assertLessEqual(metin.count("x"), agent_mod.INSTRUCTIONS_LIMIT)
+        self.assertLessEqual(metin.count("q"), agent_mod.INSTRUCTIONS_LIMIT)
         self.assertEqual(metin.count("### "), 2)  # bütçe bitince kalan dosya alınmaz
 
 

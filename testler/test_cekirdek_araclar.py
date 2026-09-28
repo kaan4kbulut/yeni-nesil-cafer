@@ -162,7 +162,7 @@ class WebTesti(unittest.TestCase):
             def __exit__(self_, *a):
                 return False
 
-        return mock.patch.object(httpx, "stream", return_value=CM())
+        return mock.patch.object(web, "_akis", return_value=CM())
 
     def test_oku(self):
         with self.assertRaisesRegex(AracHatasi, "http"):
@@ -173,7 +173,7 @@ class WebTesti(unittest.TestCase):
             with self._akis(durum=404):
                 with self.assertRaisesRegex(AracHatasi, "HTTP 404"):
                     web.oku("http://x")
-            with mock.patch.object(httpx, "stream", side_effect=httpx.ConnectError("yok")):
+            with mock.patch.object(web, "_akis", side_effect=httpx.ConnectError("yok")):
                 with self.assertRaisesRegex(AracHatasi, "Could not reach"):
                     web.oku("http://x")
 

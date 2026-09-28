@@ -22,7 +22,9 @@ import sys
 import traceback
 
 
-_KOMUT_MODULLERI = {"_posixsubprocess", "_winapi", "_multiprocessing", "multiprocessing", "pty"}
+# komut izni yokken yeniden içe aktarılamayan alt süreç modülleri (yalnızca bu platformun gerçek modülü: posix'te
+# `import _winapi` denemesi ImportError ile normal biter, engellenirse zoneinfo/subprocess gibi kütüphaneler kırılır)
+_KOMUT_MODULLERI = {"_winapi"} if sys.platform == "win32" else {"_posixsubprocess"}
 
 
 def _kokler(liste) -> list[str]:

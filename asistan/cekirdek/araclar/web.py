@@ -3,6 +3,7 @@
 Tarayıcı otomasyonu (Playwright) ağır bağımlılık: çekirdekte değil, `browser.py`'de ve isteğe bağlı.
 """
 
+import contextlib
 import ipaddress
 import socket
 from urllib.parse import urljoin, urlsplit
@@ -59,6 +60,14 @@ def _sabit_istek(url: str, ip: str) -> tuple[str, dict, dict]:
     return hedef, {"User-Agent": TARAYICI_KIMLIGI, "Host": host}, ek
 
 
+@contextlib.contextmanager
+def _akis(hedef: str, basliklar: dict, ek: dict):
+    """Tek GET akışı (`sni_hostname` uzantısı yalnızca `Client.stream`'de; üst düzey `httpx.stream` almıyor)."""
+    with httpx.Client(follow_redirects=False, timeout=30) as istemci, \
+            istemci.stream("GET", hedef, headers=basliklar, extensions=ek) as resp:
+        yield resp
+
+
 def _indir(url: str) -> tuple[str, str]:
     """(içerik türü, metin): gövde en çok EN_COK_BAYT; fazlası atılır ve nota düşülür. Yönlendirmeler elle izlenir ve
     her hedef `_adres_denetle`'den geçer (K12-B4: `follow_redirects=True` özel ağa denetimsiz gidiyordu)."""
@@ -66,7 +75,7 @@ def _indir(url: str) -> tuple[str, str]:
     for _ in range(EN_COK_YONLENDIRME + 1):
         hedef, basliklar, ek = _sabit_istek(url, ip)
         try:
-            with httpx.stream("GET", hedef, follow_redirects=False, timeout=30, headers=basliklar, extensions=ek) as resp:
+            with _akis(hedef, basliklar, ek) as resp:
                 if 300 <= resp.status_code < 400 and resp.headers.get("location"):
                     url = urljoin(url, resp.headers["location"])
                     if not url.startswith(("http://", "https://")):

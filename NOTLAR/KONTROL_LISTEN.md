@@ -51,3 +51,9 @@
 - [ ] `pip install pyinstaller` → `python dagitim/paketle.py --hafif` → `dist/dagitim/YeniNesilCafer-3.0-Light-Linux.AppImage` (appimagetool yoksa tar.gz) açılıyor mu, sihirbaz geliyor mu?
 - [ ] `git tag v3.0 && git push origin v3.0` → Actions "Dağıtım" üç platformda geçiyor mu, taslak sürümde 3 paket + güncelleme zip'i var mı?
 - [ ] Full için küçük model kararı (SORULAR K11), sonra `python dagitim/paketle.py --tam` boyutu ≤ 1,9 GB mi?
+
+## K12 — Kod incelemesi ve düzeltme (2026-09-28)
+- [ ] Sınavı yeniden koş: `.venv/bin/python testler/sinav/calistir.py --hizli --motorsuz` ve `--motor` (C3/D8 sonrası; B7 kararı için) → RAPOR.md
+- [ ] `paketleme/aktar.sh` ile kurulu kopyaya aktar; programı aç: Offline menüsü ("sistem taranıyor…" → dolu), model paneli, Görevler penceresi, ■ ile durdurma
+- [ ] Kurulum paketlerini yeniden üret ve paylaş (NOTLAR/.cafer/sunucu artık pakete girmiyor — boyut küçülmeli)
+- [ ] Telegram eşleşmesi: yeni 12 karakterlik kod `bulut.json`'da; `/baglan <kod>` bir kez; 5 yanlışta 10 dk kilit

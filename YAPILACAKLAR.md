@@ -447,3 +447,13 @@ makinede açılıp sihirbazdan geçiyor; uygulama içi güncelleme yeni sürüm�
 - 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP).
 - 2.8: `asistan/eski.py` ve K1 takma adlarını (`config`, `agent.describe_error/Cancelled/ollama_*`, `tools.ToolError/unescape_code`) kaldır; çağıranları `cekirdek/` yoluna geçir.
 - Beceriyi çok adımlı plan olarak saklamak.
+
+## Aşama K12 — Kod incelemesi ve düzeltme (2026-09-28)
+**Hedef:** Üç alanda (çekirdek, araç katmanı, arayüz/dağıtım/bulut) bağımsız inceleme; bulunan gerçek hataların A→F sırasıyla, önce testle düzeltilmesi.
+
+- [x] İnceleme raporu `NOTLAR/inceleme-k12-2026-09-28.md` (63 madde, durum tablosu)
+- [x] A güvenlik/onay (13/13) · B sandbox/sırlar (10/11, 1 kabul) · C ayar/durum (3/3)
+- [x] D donmalar (8/10; D4, D9 ertelendi) · E döngü/güncelleme/bulut (9/10; E9 ertelendi) · F düşük (9/14; 4 ertelendi, 1 kabul)
+- [ ] Sınav karşılaştırması yeniden (B7 kararı) — elle, KONTROL_LISTEN
+
+**Bitti sayılır:** tam takım yeşil, `arayuz_denetimi` 0 hata, `/kontrol` yeşil, rapor tablosunda her madde düzeltildi/ertelendi/kabul.

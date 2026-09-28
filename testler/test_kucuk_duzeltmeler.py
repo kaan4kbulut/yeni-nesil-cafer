@@ -117,7 +117,7 @@ class WebOku(unittest.TestCase):
             def __exit__(self_, *a):
                 return False
 
-        return mock.patch.object(httpx, "stream", return_value=CM())
+        return mock.patch.object(web, "_akis", return_value=CM())
 
     def test_govde_siniri(self):
         buyuk = b"<title>T</title><p>" + b"a" * (web.EN_COK_BAYT + 100_000) + b"</p>"
