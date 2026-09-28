@@ -94,6 +94,12 @@ class ModelZinciri(unittest.TestCase):
             self.model("ozet", [{"role": "user", "content": "x"}])
         self.assertEqual(len(self.cagrilar), 6)
 
+    def test_ollama_semali_cagriya_num_ctx_gider(self):
+        with mock.patch.object(model_mod.yapisal, "uret",
+                               return_value=SimpleNamespace(ham="{}", veri={}, hatalar=[], deneme=1)) as u:
+            self.model("planlama", [{"role": "user", "content": "x"}], sema={"type": "object"})
+        self.assertEqual(u.call_args.kwargs.get("ollama_ek"), {"num_ctx": 4096})  # düşük kademede 8K bağlam taşmasın
+
     def test_sema_hatasi_zinciri_ilerletmez(self):
         # şemaya uymayan cevap: yapisal.uret hatalarla döner; bu "model olmadı" değildir, çağıran karar verir
         with mock.patch.object(model_mod.yapisal, "uret",

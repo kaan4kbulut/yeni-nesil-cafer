@@ -13,6 +13,9 @@ import httpx
 from .temel import ARAC, DUSUNCE, METIN, NABIZ, SON, Parca, Saglayici, SaglayiciHatasi, Saglik
 
 
+OKUMA_ZAMAN_ASIMI = 150  # tek parça gelmeden geçebilecek en uzun süre; Ollama ile aynı (600 sn bulutta zinciri kilitliyordu)
+
+
 class OpenAIUyumluSaglayici(Saglayici):
     def __init__(self, baglanti, model: str = ""):
         """`baglanti`: `connections.Connection` (name, base_url, key, models, usable, id)."""
@@ -51,7 +54,7 @@ class OpenAIUyumluSaglayici(Saglayici):
         ad = self.baglanti.name
         calls, usage, parca = {}, {}, 0
         with httpx.stream("POST", self.sohbet_adresi, json=payload, headers=self.basliklar(),
-                          timeout=httpx.Timeout(600, connect=15)) as resp:
+                          timeout=httpx.Timeout(600, connect=15, read=OKUMA_ZAMAN_ASIMI)) as resp:
             if resp.status_code != 200:
                 resp.read()
                 raise SaglayiciHatasi(resp.status_code, resp.text, ad)

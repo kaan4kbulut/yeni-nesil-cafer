@@ -45,8 +45,20 @@ def migrate_dir(new: Path, old: Path) -> bool:
     return True
 
 
-migrate_dir(CONFIG_DIR, _CONFIG_BASE / OLD_ID)
-migrate_dir(DATA_DIR, _DATA_BASE / OLD_ID)
+_tasindi = False
+
+
+def klasorleri_tasi() -> None:
+    """Eski adlı klasörleri (2.2'ye kadar `yerel-asistan`) yeni ada taşır; ilk ayar yüklemesinde bir kez. İçe aktarma
+    anında çalışmıyor: testler ve içe aktaran araçlar kullanıcı klasörlerine dokunmasın (BÖLÜM 2.7)."""
+    global _tasindi
+    if _tasindi:
+        return
+    _tasindi = True
+    migrate_dir(CONFIG_DIR, _CONFIG_BASE / OLD_ID)
+    migrate_dir(DATA_DIR, _DATA_BASE / OLD_ID)
+
+
 CONFIG_FILE = CONFIG_DIR / "ayarlar.json"
 CHATS_DIR = DATA_DIR / "sohbetler"
 
@@ -234,6 +246,7 @@ class Settings:
 
     @classmethod
     def load(cls) -> "Settings":
+        klasorleri_tasi()
         try:
             data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
         except (OSError, ValueError):
@@ -245,9 +258,11 @@ class Settings:
     @staticmethod
     def exists() -> bool:
         """Ayar dosyası var mı? Yoksa program ilk kez açılıyordur (kurulum sihirbazı)."""
+        klasorleri_tasi()
         return CONFIG_FILE.exists()
 
     def save(self) -> None:
+        klasorleri_tasi()
         data = asdict(self)
         ezilen = _ezilenler()
         if ezilen:  # ayar.toml / ortamdan gelen değer dosyaya işlenmesin: dosyadaki eski değer korunur

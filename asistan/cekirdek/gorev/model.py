@@ -69,9 +69,12 @@ class YonlendiriciModeli:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
                 # CLI ajanı: görevin iş klasöründe, dosya değiştiremez (onay adım adım yürütücüde)
                 ek = {"klasor": self.klasor or ".", "duzenleyebilir": False} if ad.startswith("cli:") else {}
+                # Ollama: ayarlardaki bağlam (düşük kademede 8K); verilmezse Ollama varsayılanı taşabilir
+                num_ctx = int(getattr(self.ayarlar, "ollama_num_ctx", 0) or 0)
+                ollama_ek = {"num_ctx": num_ctx} if ad == "ollama" and num_ctx else None
                 if sema is not None:  # yapisal.uret her çağrıyı (düzeltme turu dahil) deftere kendisi yazar
                     s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model, gorev_id=self.gorev_id,
-                                     secenekler=ek)
+                                     secenekler=ek, ollama_ek=ollama_ek)
                     metin, veri, hatalar = s.ham, s.veri, s.hatalar
                 else:
                     yanit = saglayici.sohbet(mesajlar, sistem, model=model, **ek)

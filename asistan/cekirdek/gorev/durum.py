@@ -9,8 +9,10 @@ kalan görev de yarımdır; `devam_noktasi` kaldığı adımı verir (`checkpoin
 """
 
 import json
+import logging
 import secrets
 import sqlite3
+import threading
 import time
 from contextlib import closing
 from datetime import datetime
@@ -38,7 +40,12 @@ def yeni_id() -> str:
     return datetime.now().strftime("%Y-%m-%dT%H-%M-%S") + "_" + secrets.token_hex(2)
 
 
+_gunluk = logging.getLogger(__name__)
+
+
 class Depo:
+    _kilit = threading.RLock()  # süreç içi (Görevler penceresi + sohbet); süreçler arası: BEGIN IMMEDIATE
+
     def __init__(self, yol: str | Path | None = None):
         self.yol = Path(yol) if yol else varsayilan_yol()
         self.yol.parent.mkdir(parents=True, exist_ok=True)
@@ -53,19 +60,39 @@ class Depo:
         return sqlite3.connect(str(self.yol), timeout=10)
 
     def kaydet(self, gorev: dict, sohbet_id: str | None = None) -> None:
-        """Görevi yazar (varsa üstüne). `sohbet_id` verilmezse eski değer korunur."""
-        with closing(self._baglan()) as b, b:
-            eski = b.execute("SELECT sohbet_id FROM gorevler WHERE gorev_id = ?", (gorev["gorev_id"],)).fetchone()
-            sid = sohbet_id if sohbet_id is not None else (eski[0] if eski else gorev.get("_sohbet_id", ""))
-            b.execute("INSERT OR REPLACE INTO gorevler VALUES (?, ?, ?, ?, ?, ?, ?)",
-                      (gorev["gorev_id"], gorev.get("durum", "planlandi"), gorev.get("istek", ""),
-                       gorev.get("olusturma", ""), time.time(), sid or "",
-                       json.dumps(gorev, ensure_ascii=False)))
+        """Görevi yazar (varsa üstüne). `sohbet_id` verilmezse eski değer korunur.
+
+        Oku-değiştir-yaz tek işlemde (`BEGIN IMMEDIATE` + süreç içi kilit): Görevler penceresi ile sohbet aynı görevi
+        aynı anda yazarsa satır bozulmaz; daha yeni bir kayıt eziliyorsa günlüğe uyarı düşer (`_surum` = yükleme zamanı)."""
+        with self._kilit, closing(self._baglan()) as b:
+            b.execute("BEGIN IMMEDIATE")
+            try:
+                eski = b.execute("SELECT sohbet_id, guncelleme FROM gorevler WHERE gorev_id = ?",
+                                 (gorev["gorev_id"],)).fetchone()
+                sid = sohbet_id if sohbet_id is not None else (eski[0] if eski else gorev.get("_sohbet_id", ""))
+                surum = gorev.get("_surum")
+                if eski and surum and float(eski[1]) > float(surum) + 1e-6:
+                    _gunluk.warning("görev %s başka yerden güncellenmiş (%.3f > %.3f); üstüne yazılıyor",
+                                    gorev["gorev_id"], eski[1], surum)
+                simdi_ = time.time()
+                b.execute("INSERT OR REPLACE INTO gorevler VALUES (?, ?, ?, ?, ?, ?, ?)",
+                          (gorev["gorev_id"], gorev.get("durum", "planlandi"), gorev.get("istek", ""),
+                           gorev.get("olusturma", ""), simdi_, sid or "",
+                           json.dumps({k: v for k, v in gorev.items() if k != "_surum"}, ensure_ascii=False)))
+                b.commit()
+            except BaseException:
+                b.rollback()
+                raise
+        gorev["_surum"] = simdi_
 
     def getir(self, gorev_id: str) -> dict | None:
         with closing(self._baglan()) as b:
-            satir = b.execute("SELECT veri FROM gorevler WHERE gorev_id = ?", (gorev_id,)).fetchone()
-        return json.loads(satir[0]) if satir else None
+            satir = b.execute("SELECT veri, guncelleme FROM gorevler WHERE gorev_id = ?", (gorev_id,)).fetchone()
+        if not satir:
+            return None
+        gorev = json.loads(satir[0])
+        gorev["_surum"] = float(satir[1])  # kaydet: daha yeni kayıt eziliyorsa uyarı
+        return gorev
 
     def listele(self, durumlar: tuple[str, ...] | None = None, sinir: int = 100) -> list[dict]:
         """En son güncellenen önce."""

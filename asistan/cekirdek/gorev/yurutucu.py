@@ -56,15 +56,23 @@ def siniflandir(neden: str, sonuc: str, model_adimi: bool) -> str:
         return "eksik_bagimlilik"
     if re.search(r"declined|reddetti|Permission denied|\b(izin|izni|onay)|REFUSED|BLOCKED", metin, re.I):
         return "izin"
-    if re.search(r"Timeout|timed out|ConnectError|zaman aşımı|bağlanılamadı|\b5\d\d\b", metin, re.I):
+    # 5xx yalnızca HTTP bağlamında ("512 bayt" ağ hatası değil); CUDA yalnızca bellek/hata bağlamında;
+    # "bulunamadı" yalnızca dosya/klasör için ("liste bulunamadı" mantık hatasıdır) — BÖLÜM 2.7 yanlış pozitifleri
+    if re.search(r"Timeout|timed out|ConnectError|zaman aşımı|bağlanılamadı|\bHTTP[ /]?5\d\d\b"
+                 r"|\b5\d\d (Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)"
+                 r"|status(?:_code)?[=: ]+5\d\d\b", metin, re.I):
         return "ag"
-    if re.search(r"MemoryError|out of memory|No space left|CUDA", metin):
+    if re.search(r"MemoryError|out of memory|No space left|CUDA (error|out of memory)|cudaError|CUBLAS_STATUS_ALLOC",
+                 metin, re.I):
         return "kaynak"
-    if re.search(r"No such file|FileNotFoundError|bulunamadı|dosya yok", metin):
+    if re.search(r"No such file|FileNotFoundError|(dosya|klasör|dizin) bulunamadı|dosya yok", metin, re.I):
         return "veri"
     if model_adimi and not (sonuc or "").strip():
         return "model_yetersiz"
     return "mantik"
+
+
+BAGIMLILIK_SINIFI = "mantik"  # "bağlı olduğu adım bitmedi" plan/mantık hatasıdır, girdi verisi eksikliği değil
 
 
 class Yurutucu:
@@ -181,7 +189,7 @@ class Yurutucu:
                 continue
             eksik = [b for b in adim.get("bagimli") or [] if adimlar[b - 1]["durum"] != "tamamlandi"]
             if eksik:
-                return self._basarisiz(gorev, adim, f"bağlı olduğu adım bitmedi: {eksik}", "", "veri")
+                return self._basarisiz(gorev, adim, f"bağlı olduğu adım bitmedi: {eksik}", "", BAGIMLILIK_SINIFI)
             if adim.get("onay_gerekli") and adim.get("onay") != "verildi":
                 return self._bekle(gorev, adim)
             sonuc = self._adim(gorev, adim)
@@ -211,6 +219,10 @@ class Yurutucu:
             tamam, neden = dogrulayici.dogrula(adim, cikti, klasorler, self.model, self._salt_okur(adim["yetenek"]))
             if tamam:
                 adim["durum"] = "tamamlandi"
+                if neden.startswith(dogrulayici.SARTLI):  # denetlenemedi: geçti sayılmaz, raporda ✓?
+                    adim["sartli"] = neden[len(dogrulayici.SARTLI):].lstrip(": ")
+                else:
+                    adim.pop("sartli", None)
                 adim["sonuc"] = (cikti.metin or "")[:SONUC_SINIRI]
                 adim["sonuc_ozeti"] = " ".join((cikti.metin or "").split())[:OZET_SINIRI]
                 adim["sure_sn"] = round(time.monotonic() - basla, 2)
@@ -276,8 +288,19 @@ class Yurutucu:
         satirlar = []
         for a in gorev["adimlar"]:
             isaret = {"tamamlandi": "✓", "basarisiz": "✗", "iptal": "–"}.get(a["durum"], "○")
+            if a["durum"] == "tamamlandi" and a.get("sartli"):
+                isaret = "✓?"  # şartlı: denetlenemedi, geçti sayılmaz
             ek = a.get("sonuc_ozeti") or a.get("not") or ""
-            satirlar.append(f"{isaret} {a['id']}. {a['amac']}" + (f" — {ek[:120]}" if ek else ""))
-        bitti = sum(a["durum"] == "tamamlandi" for a in gorev["adimlar"])
-        bas = "Tamamlandı" if bitti == len(gorev["adimlar"]) else f"{bitti}/{len(gorev['adimlar'])} adım yapıldı"
+            if a.get("sartli"):
+                ek = f"şartlı ({a['sartli']})" + (f" · {ek}" if ek else "")
+            satirlar.append(f"{isaret} {a['id']}. {a['amac']}" + (f" — {ek[:140]}" if ek else ""))
+        bitti = sum(a["durum"] == "tamamlandi" and not a.get("sartli") for a in gorev["adimlar"])
+        sartli = sum(a["durum"] == "tamamlandi" and bool(a.get("sartli")) for a in gorev["adimlar"])
+        n = len(gorev["adimlar"])
+        if bitti == n:
+            bas = "Tamamlandı"
+        elif bitti + sartli == n:
+            bas = f"{bitti}/{n} adım doğrulandı, {sartli} adım şartlı (denetlenemedi)"
+        else:
+            bas = f"{bitti}/{n} adım yapıldı" + (f", {sartli} adım şartlı" if sartli else "")
         return bas + "\n" + "\n".join(satirlar)

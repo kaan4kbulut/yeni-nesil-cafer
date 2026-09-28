@@ -14,8 +14,10 @@ from . import Cikti, ModelYok
 _BASARISIZ = re.compile(r"^(Error|REFUSED|NOT RUN|NOT EXECUTED|BLOCKED|The user declined|exit code: [1-9])")
 _DOSYA = re.compile(r"(?<![\w/])([\w\-.]+\.(?:txt|md|csv|json|py|html|xlsx|xls|docx|pdf|png|jpg|jpeg|svg|stl|log|yaml"
                     r"|yml|zip))\b", re.I)
-_VAR_OLMALI = re.compile(r"\b(var|vardır|oluştur|oluşur|yazıl|kaydedil|mevcut|bulunur|exists?|created|saved|written)",
-                         re.I)
+# kelime sınırı iki yanda: "varsayılan", "varyant" dosya-var denetimini tetiklemesin (BÖLÜM 2.7)
+_VAR_OLMALI = re.compile(r"\b(var|vardır|oluştur\w*|oluşur|yazıl\w*|kaydedil\w*|mevcut|bulunur|exists?|created|saved"
+                         r"|written)\b", re.I)
+SARTLI = "ŞARTLI"  # denetleyici model yok / cevap veremedi: adım durdurulmaz ama "geçti" de sayılmaz (raporda ✓?)
 _BOS_DEGIL = re.compile(r"boş değil|bos degil|not empty|non-empty", re.I)
 
 SEMA = {"type": "object", "properties": {"tamam": {"type": "boolean"}, "eksik": {"type": "string"}},
@@ -50,7 +52,8 @@ def kural(adim: dict, cikti: Cikti, klasorler: list[str] | None = None) -> tuple
 
 def dogrula(adim: dict, cikti: Cikti, klasorler: list[str] | None = None, model=None,
             salt_okur: bool = False) -> tuple[bool, str]:
-    """(tamam mı, eksik ne). `salt_okur`: yetenek yalnızca bilgi okur (dosya/web okuma, listeleme)."""
+    """(tamam mı, eksik ne). `salt_okur`: yetenek yalnızca bilgi okur (dosya/web okuma, listeleme).
+    Denetleyici yoksa ya da cevap veremezse (True, "ŞARTLI: …"): adım sürer, rapor onu şartlı sayar."""
     karar, neden = kural(adim, cikti, klasorler)
     if karar is not None:
         return karar, neden
@@ -60,15 +63,15 @@ def dogrula(adim: dict, cikti: Cikti, klasorler: list[str] | None = None, model=
         # yalnızca sistem bilgisi döndü" deyip doğru okumayı reddetti.
         return True, ""
     if model is None:
-        return True, ""  # denetleyecek model yok: programın kanıtı temiz, adım durdurulmaz
+        return True, f"{SARTLI}: denetleyici model yok"  # programın kanıtı temiz, adım durmaz; geçti sayılmaz
     istem = (f"Step: {adim.get('amac')}\nCapability: {adim.get('yetenek')}\n"
              f"Success criterion: {adim.get('basari_olcutu')}\n\nResult (program's evidence):\n"
              f"{(cikti.metin or '')[:3000]}\n\nDoes the result meet the criterion? If not, say briefly what is "
              "missing.")
     try:
         cevap = model("siniflandirma", [{"role": "user", "content": istem}], SISTEM, SEMA)
-    except ModelYok:
-        return True, ""
+    except ModelYok as e:
+        return True, f"{SARTLI}: denetleyici model yok ({str(e)[:80]})"
     if not cevap.veri:
-        return True, ""  # denetçi cevap veremedi: adımı durdurma (manager.check ile aynı)
+        return True, f"{SARTLI}: denetleyici cevap veremedi"  # adımı durdurma (manager.check ile aynı)
     return bool(cevap.veri.get("tamam")), str(cevap.veri.get("eksik") or "").strip()

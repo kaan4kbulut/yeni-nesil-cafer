@@ -146,19 +146,36 @@ class WebTesti(unittest.TestCase):
         self.assertEqual(baslik, "Başlık")
         self.assertEqual(metin, "asıl  metin")
 
+    @staticmethod
+    def _akis(govde: bytes = b"", durum=200):
+        class Cevap:
+            status_code = durum
+            headers = {"content-type": "text/html"}
+
+            def iter_bytes(self, n=65536):
+                yield govde
+
+        class CM:
+            def __enter__(self_):
+                return Cevap()
+
+            def __exit__(self_, *a):
+                return False
+
+        return mock.patch.object(httpx, "stream", return_value=CM())
+
     def test_oku(self):
         with self.assertRaisesRegex(AracHatasi, "http"):
             web.oku("file:///etc/passwd")
-        yanit = httpx.Response(200, headers={"content-type": "text/html"},
-                               text="<title>T</title><p>gövde</p>", request=httpx.Request("GET", "http://x"))
-        with mock.patch.object(httpx, "get", return_value=yanit):
-            self.assertEqual(web.oku("http://x"), "T\n\ngövde")
-        with mock.patch.object(httpx, "get", return_value=httpx.Response(404, request=httpx.Request("GET", "http://x"))):
-            with self.assertRaisesRegex(AracHatasi, "HTTP 404"):
-                web.oku("http://x")
-        with mock.patch.object(httpx, "get", side_effect=httpx.ConnectError("yok")):
-            with self.assertRaisesRegex(AracHatasi, "Could not reach"):
-                web.oku("http://x")
+        with mock.patch.object(web, "_adres_denetle"):  # ağ çözümlemesi yok; yerel ağ engeli test_kucuk_duzeltmeler'de
+            with self._akis("<title>T</title><p>gövde</p>".encode()):
+                self.assertEqual(web.oku("http://x"), "T\n\ngövde")
+            with self._akis(durum=404):
+                with self.assertRaisesRegex(AracHatasi, "HTTP 404"):
+                    web.oku("http://x")
+            with mock.patch.object(httpx, "stream", side_effect=httpx.ConnectError("yok")):
+                with self.assertRaisesRegex(AracHatasi, "Could not reach"):
+                    web.oku("http://x")
 
 
 if __name__ == "__main__":
