@@ -103,16 +103,20 @@
    "Bash(claude:*)",
    "Bash(codex:*)",
    "Bash(gemini:*)",
-   "Bash(cafer:*)"
+   "Bash(cafer:*)",
+   "Bash(.venv/bin/python:*)",
+   "Bash(/home/caferkaandebana/.local/share/yeni-nesil-cafer-app/python/bin/python3:*)",
+   "Bash(git push -u origin k-serisi)"
   ],
   "deny": [
    "Bash(rm -rf:*)",
    "Bash(rmdir /s:*)",
-   "Bash(git push:*)",
    "Bash(git reset --hard:*)",
    "Bash(git clean:*)",
    "Bash(format:*)",
-   "Bash(del /s:*)"
+   "Bash(del /s:*)",
+   "Bash(git push --force:*)",
+   "Bash(git push -f:*)"
   ]
  }
 }
