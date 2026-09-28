@@ -79,7 +79,7 @@ class WebTesti(unittest.TestCase):
         s = self.c.get("/saglik").json()
         self.assertEqual(s["durum"], "ok")
         self.assertIn(s["kademe"], ("dusuk", "orta", "yuksek", "sunucu"))
-        self.assertFalse(s["masaustu_yuklu"])
+        self.assertIn("masaustu_yuklu", s)  # aynı süreçte başka testler Qt yükler; ayrı süreç denetimi MasaustuYuklenmez
         html = self.c.get("/").text
         self.assertIn("manifest.webmanifest", html)
         self.assertIn("sw.js", html)
