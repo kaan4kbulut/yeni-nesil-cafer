@@ -15,6 +15,7 @@ Kullanım (repo kökünde, cafer-plan.zip'in yanında):
     python otomatik.py --sadece-kur    # sadece paketi kur, aşama koşma
     python otomatik.py --deneme 3      # başarısız aşamayı en fazla 3 kez tekrar dene (varsayılan 2)
     python otomatik.py --tam-yetki     # Claude Code'u izin sormadan çalıştır (uyarıyı oku)
+    python otomatik.py --python ~/.local/share/yeni-nesil-cafer-app/python/bin/python3   # testler bu Python'la
 
 Kesilirse (Ctrl+C, elektrik, hata) tekrar `python otomatik.py` → kaldığı aşamadan sürer.
 
@@ -101,6 +102,38 @@ def calistir(cmd, cwd=KOK, girdi=None, sessiz=False, zaman_asimi=None):
         return 124, "zaman aşımı"
     except Exception as e:  # pragma: no cover
         return 1, str(e)
+
+
+NAZIK_BEKLEME = 30  # SIGINT'ten sonra Claude'un toparlanıp çıkması için saniye; sonra SIGTERM/kill
+
+
+def calistir_nazik(cmd, girdi=None, zaman_asimi=None, cwd=KOK, bekleme: float = NAZIK_BEKLEME):
+    """Claude koşusu için: zaman aşımında süreç ÖLDÜRÜLMEZ; önce SIGINT (Ctrl+C gibi), `bekleme` sn sonra
+    SIGTERM, yine bitmezse kill. (kod, o ana kadarki çıktı) döner; zaman aşımı kodu 124."""
+    try:
+        p = subprocess.Popen(cmd, cwd=str(cwd), stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                             text=True, encoding="utf-8", errors="replace", env={**os.environ, "PYTHONIOENCODING": "utf-8"})
+    except FileNotFoundError:
+        return 127, f"bulunamadı: {cmd[0]}"
+    try:
+        cikti, _ = p.communicate(girdi, timeout=zaman_asimi)
+        return p.returncode, cikti or ""
+    except subprocess.TimeoutExpired:
+        pass
+    import signal
+
+    for sinyal, sure in ((signal.SIGINT, bekleme), (signal.SIGTERM, 10)):
+        try:
+            p.send_signal(sinyal)
+            cikti, _ = p.communicate(timeout=sure)
+            return 124, (cikti or "") + "\n[zaman aşımı: sinyalle durduruldu]"
+        except subprocess.TimeoutExpired:
+            continue
+        except OSError:
+            break
+    p.kill()
+    cikti, _ = p.communicate()
+    return 124, (cikti or "") + "\n[zaman aşımı: öldürüldü]"
 
 
 def git(*args, sessiz=True):
@@ -508,8 +541,8 @@ def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | Non
         t = threading.Thread(target=cubuk_obj.calis, daemon=True)
         t.start()
     try:
-        kodu, cikti = calistir(cmd, girdi=prompt, sessiz=True,
-                               zaman_asimi=(args.zaman_asimi * 60) if args.zaman_asimi else None)
+        kodu, cikti = calistir_nazik(cmd, girdi=prompt,
+                                     zaman_asimi=(args.zaman_asimi * 60) if args.zaman_asimi else None)
     finally:
         if cubuk_obj:
             cubuk_obj.dur.set()
@@ -529,13 +562,24 @@ def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | Non
 # ----------------------------------------------------------------------------------------------
 # Kontrol ve döngü
 # ----------------------------------------------------------------------------------------------
-def acik_kutular(kod: str) -> int:
+def python_sec(istenen: str = "") -> str:
+    """Kontrol Python'u: --python verildiyse o; yoksa proje `.venv`'i; o da yoksa sürücünün yorumlayıcısı."""
+    if istenen:
+        return istenen
+    for aday in (KOK / ".venv" / "bin" / "python", KOK / ".venv" / "Scripts" / "python.exe"):
+        if aday.is_file():
+            return str(aday)
+    return sys.executable
+
+
+def acik_kutular(kod: str) -> int | None:
+    """YAPILACAKLAR.md'de aşamanın açık [ ] madde sayısı; bölüm (ya da dosya) yoksa None — aşama geçmiş SAYILMAZ."""
     y = KOK / "YAPILACAKLAR.md"
     if not y.exists():
-        return 0
+        return None
     t = y.read_text(encoding="utf-8")
-    m = re.search(rf"^##\s+Aşama\s+{kod}\b.*?(?=^##\s+Aşama|\Z)", t, re.S | re.M)
-    return len(re.findall(r"^\s*-\s*\[ \]", m.group(0), re.M)) if m else 0
+    m = re.search(rf"^##\s+Aşama\s+{kod}\b.*?(?=^##\s+|\Z)", t, re.S | re.M)
+    return len(re.findall(r"^\s*-\s*\[ \]", m.group(0), re.M)) if m else None
 
 
 def kontrol(kod: str) -> list[str]:
@@ -571,19 +615,20 @@ LIMIT_DESENI = re.compile(
 )
 
 
-def limit_mi(kodu: int, cikti: str) -> str | None:
-    """Claude koşusu limit/oturum hatasıyla boş döndüyse nedeni; değilse None."""
+def limit_mi(kodu: int, cikti: str) -> tuple[str | None, str]:
+    """Claude koşusu neden bitti: (sınıf, neden). Sınıflar: "limit" (kullanım/oturum), "zaman_asimi" (sürücü
+    durdurdu: değişiklikler stash'e, aşama KISMEN), "bos" (çıktı yok), "hata" (kısa hata çıktısı); (None, "") normal."""
     kisa = cikti.strip()
+    if kodu == 124:
+        return "zaman_asimi", "zaman aşımı (--zaman-asimi): Claude SIGINT ile durduruldu, yarım değişiklikler stash'te"
     if not kisa:
-        return "claude boş çıktı verdi"
+        return "bos", "claude boş çıktı verdi"
     # Limit metni başta ya da sonda olabilir; kısa çıktı (< 2500) + desen = limit.
     if len(kisa) < 2500 and (LIMIT_DESENI.search(kisa[:1500]) or LIMIT_DESENI.search(kisa[-1500:])):
-        return kisa.splitlines()[0][:160]
-    if kodu == 124:
-        return "zaman aşımı (--zaman-asimi); süreyi artır ya da aşamayı elle bitir"
+        return "limit", kisa.splitlines()[0][:160]
     if kodu != 0 and len(kisa) < 400:
-        return f"claude {kodu} ile çıktı: {kisa[:160]}"
-    return None
+        return "hata", f"claude {kodu} ile çıktı: {kisa[:160]}"
+    return None, ""
 
 
 def sonuc_oku(cikti: str) -> dict:
@@ -621,6 +666,41 @@ def son_commit_asamanin(kod: str) -> bool:
     return bool(dosyalar.strip())
 
 
+def deneme_kaydet(kod: str, ad: str, sure: float, sinif: str | None) -> None:
+    """Her Claude koşusunun süresi (ilk deneme dahil) `otomatik.json → denemeler[kod]`'a; ETA ve rapor için."""
+    d = json_oku(DURUM)
+    d.setdefault("denemeler", {}).setdefault(kod, []).append(
+        {"ad": ad, "sure": round(sure, 1), "sinif": sinif, "zaman": time.strftime("%Y-%m-%d %H:%M")})
+    json_yaz(DURUM, d)
+
+
+def asama_durdur(kod: str, neden: str, sinif: str, sure: float) -> bool:
+    """Aşama durdu. `zaman_asimi`: yarım değişiklikler COMMIT edilmez, stash'e alınır, aşama KISMEN sayılır (sürücü
+    yeniden koşunca `git stash pop` ile devam edilebilir). Diğer sınıflar (limit/boş/hata): eskisi gibi yarım commit."""
+    yaz(f"   ✖ {kod} DURDU ({sinif}): {neden}")
+    if sinif == "zaman_asimi":
+        if degisiklik_var(surucu_haric=False):
+            git("stash", "push", "-u", "-m", f"{kod}: zaman aşımı (otomatik) — KISMEN")
+            yaz("   ⏸ yarım değişiklikler stash'e alındı: git stash list · git stash pop")
+        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} KISMEN (zaman aşımı):** {neden}. Değişiklikler `git stash list`'te; "
+                               f"`git stash pop` sonra `python otomatik.py --asama {kod}` ya da süreyi artır.")
+    else:
+        if degisiklik_var(surucu_haric=False):
+            git("add", "-A")
+            git("commit", "-m", f"{kod}: yarım — {neden[:60]} (otomatik)")
+        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU ({sinif}):** {neden}. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.")
+    d2 = json_oku(DURUM)
+    d2["basarisiz"] = kod
+    d2["durma_nedeni"] = neden
+    d2["durma_sinifi"] = sinif
+    d2["durum"] = "KISMEN" if sinif == "zaman_asimi" else "KALDI"
+    d2.setdefault("sureler", {})  # ilk denemenin süresi kaybolmasın (tamamlanmayan aşama da ölçülür)
+    d2.setdefault("yarim_sureler", {})[kod] = round(sure, 1)
+    json_yaz(DURUM, d2)
+    bildir(f"{kod} durdu", neden[:80])
+    return False
+
+
 def asama_kos(idx: int, args) -> bool:
     kod, baslik, kosular, elle = ASAMALAR[idx]
     d = json_oku(DURUM)
@@ -629,27 +709,19 @@ def asama_kos(idx: int, args) -> bool:
     yaz("━" * 70)
     baslangic = time.time()
 
-    def durdur(neden: str) -> bool:
-        yaz(f"   ✖ {kod} DURDU: {neden}")
-        if degisiklik_var(surucu_haric=False):
-            git("add", "-A")
-            git("commit", "-m", f"{kod}: yarım — {neden[:60]} (otomatik)")
-        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU:** {neden}. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.")
-        d2 = json_oku(DURUM)
-        d2["basarisiz"] = kod
-        d2["durma_nedeni"] = neden
-        json_yaz(DURUM, d2)
-        bildir(f"{kod} durdu", neden[:80])
-        return False
+    def durdur(neden: str, sinif: str = "limit") -> bool:
+        return asama_durdur(kod, neden, sinif, time.time() - baslangic)
 
     sonuc_sorunu: list[str] = []
     for n, uret in enumerate(kosular, 1):
         yaz(f"▸ koşu {n}/{len(kosular)}")
         cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
+        t0 = time.time()
         kodu, cikti = claude_kos(kod, ONSOZ + "\n" + uret(), args, ad=f"kosu{n}", cubuk_obj=cb)
-        neden = limit_mi(kodu, cikti)
-        if neden:
-            return durdur(neden)
+        sinif, neden = limit_mi(kodu, cikti)
+        deneme_kaydet(kod, f"kosu{n}", time.time() - t0, sinif)
+        if sinif:
+            return durdur(neden, sinif)
         # Claude'un kendi beyanı: KALDI ya da TEST kaldı → aşama bitmiş sayılmaz, düzeltme turuna girer.
         so = sonuc_oku(cikti)
         if so["sonuc"] == "KALDI":
@@ -658,13 +730,17 @@ def asama_kos(idx: int, args) -> bool:
             sonuc_sorunu.append(f"Claude koşu {n} sonunda 'TEST: {so.get('TEST', '')[:120]}' dedi.")
         elif so["sonuc"] == "KISMEN":
             ek_not(KONTROL_LISTEN, f"- [ ] {kod} koşu {n}: Claude 'KISMEN' dedi — NOT: {so.get('NOT', '')[:200]}")
-        elif so["sonuc"] is None:
-            yaz(f"   ⚠ koşu {n}: SONUÇ satırı yok (log'a bak)")
+        elif so["sonuc"] is None:  # SONUÇ satırı zorunlu: yoksa aşama bitmiş sayılmaz, düzeltme turu ister
+            sonuc_sorunu.append(f"Koşu {n}: son mesajda SONUÇ satırı yok (ONSOZ biçimi zorunlu: SONUÇ/DEĞİŞEN/TEST/NOT).")
+            yaz(f"   ⚠ koşu {n}: SONUÇ satırı yok (düzeltme turunda istenecek)")
 
     for deneme in range(1, args.deneme + 1):
         sorun = kontrol(kod) + sonuc_sorunu
         sonuc_sorunu = []  # yalnızca ilk kontrol turunda geçerli; düzeltme koşusu kendi SONUÇ'unu verir
         acik = acik_kutular(kod)
+        if acik is None:  # YAPILACAKLAR'da bölüm yok: "0 açık madde" diye geçilmez
+            sorun.append(f"YAPILACAKLAR.md'de `## Aşama {kod}` bölümü yok; önce planı yaz (maddeler + Bitti sayılır).")
+            acik = 0
         if not sorun and acik == 0:
             break
         if not sorun and deneme == args.deneme:
@@ -686,13 +762,17 @@ def asama_kos(idx: int, args) -> bool:
             + (f"\n\nYAPILACAKLAR.md'de {kod} altında {acik} madde hâlâ [ ]." if acik else "") \
             + "\n\nÖnce bunları düzelt (kök neden, semptom değil), sonra aşamanın kalan maddelerini bitir, /kontrol'ün yaptığı kontrolleri koş, NOTLAR'ı güncelle."
         cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
+        t0 = time.time()
         kodu, cikti = claude_kos(kod, duzelt, args, ad=f"duzeltme{deneme}", cubuk_obj=cb)
-        neden = limit_mi(kodu, cikti)
-        if neden:
-            return durdur(neden)
+        sinif, neden = limit_mi(kodu, cikti)
+        deneme_kaydet(kod, f"duzeltme{deneme}", time.time() - t0, sinif)
+        if sinif:
+            return durdur(neden, sinif)
         so = sonuc_oku(cikti)
         if so["sonuc"] == "KALDI" or so["test_kaldi"]:
             sonuc_sorunu.append(f"Düzeltme {deneme} sonunda Claude '{so.get('SONUC', '')} / TEST: {so.get('TEST', '')}' dedi.")
+        elif so["sonuc"] is None:
+            sonuc_sorunu.append(f"Düzeltme {deneme}: son mesajda SONUÇ satırı yok (zorunlu).")
 
     # Sürücünün kendi yazdıkları (KONTROL_LISTEN, loglar) sayılmaz: Claude gerçekten kod/not değiştirmiş olmalı.
     if not degisiklik_var() and not son_commit_asamanin(kod):
@@ -749,7 +829,11 @@ def main():
     ap.add_argument("--deneme", type=int, default=2, help="başarısız aşamayı kaç kez tekrar dene (varsayılan 2)")
     ap.add_argument("--zaman-asimi", type=int, default=0, help="tek Claude koşusu için dakika (0 = sınırsız)")
     ap.add_argument("--tam-yetki", action="store_true", help="Claude Code'u izin sormadan çalıştır (--dangerously-skip-permissions)")
+    ap.add_argument("--python", default="", help="testler ve import dumanı için Python (varsayılan: .venv/bin/python varsa o, yoksa bu yorumlayıcı)")
     args = ap.parse_args()
+    global PY
+    PY = python_sec(args.python)
+    yaz(f"Testler için Python: {PY}")
 
     if args.tam_yetki:
         yaz("⚠ --tam-yetki: Claude Code hiçbir komut için izin sormayacak. Sadece kendi bilgisayarında, yedeği olan repoda kullan.")
