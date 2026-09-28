@@ -21,11 +21,13 @@ istersen Claude, GPT, Gemini gibi bulut modellerine de bağlanır. Arayüz ve ko
 
 ## Kurulum
 
-1. [Sürümler](../../releases/latest) sayfasındaki **"Hangisini indireyim?"** tablosundan işletim sistemine uygun tek dosyayı indir
-   (Windows `…-Windows-Kurulum.exe`, macOS `…-macOS.dmg`, Linux `…-Linux.AppImage`).
-2. Çift tıkla (Windows "bilgisayarınızı korudu" derse **Ek bilgi → Yine de çalıştır**; macOS'ta ilk açılış sağ tık → Aç; Linux'ta
-   `chmod +x` sonra çalıştır, menüye eklemek için `--install`).
-3. İlk açılışta kurulum sihirbazı bilgisayarını tarar; Ollama'yı ve sana uygun modelleri kendisi indirir. Senden komut istemez.
+[Sürümler](../../releases/latest) sayfasındaki **"Hangisini indireyim?"** tablosundan yalnızca kendi sistemine uygun dosyayı indir:
+
+- **Windows** → `…-Windows-Kurulum.exe` → çift tıkla ("bilgisayarınızı korudu" derse **Ek bilgi → Yine de çalıştır**).
+- **macOS** → `…-macOS.dmg` → aç, uygulamayı Applications'a sürükle (ilk açılışta sağ tık → Aç).
+- **Linux** → `…-Linux.AppImage` → `chmod +x` yap, çalıştır (menüye eklemek için `--install`).
+
+İlk açılışta kurulum sihirbazı bilgisayarını tarar; Ollama'yı ve sana uygun modelleri kendisi indirir, senden komut istemez.
 
 ![Sohbet penceresi](docs/ekran-goruntusu.png)
 <!-- ekran görüntüsü yeri: docs/ekran-goruntusu.png (sohbet + sağ panel), 1280×800 -->
