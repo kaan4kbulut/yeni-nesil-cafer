@@ -483,3 +483,14 @@ class IstekYoluTesti(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class VarsayilanAcik(unittest.TestCase):
+    """B7 (2026-09-28 sınavı): bayrak yokken motor açık; açıkça False verilince Manager yolu."""
+
+    def test_varsayilan(self):
+        from asistan.cekirdek.gorev import sohbet
+
+        self.assertTrue(sohbet.acik_mi(SimpleNamespace(extra={})))
+        self.assertTrue(sohbet.acik_mi(SimpleNamespace(extra={"gorev_motoru": True})))
+        self.assertFalse(sohbet.acik_mi(SimpleNamespace(extra={"gorev_motoru": False})))

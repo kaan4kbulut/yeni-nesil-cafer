@@ -1,0 +1,6 @@
+=== MOTORSUZ Pzt 28 Eyl 2026 20:13:37 +03 ===
+Sınav: 15 görev × 1 tekrar · kapsam hizli+manager · model otomatik · görev zaman sınırlarının toplamı 10 dk 20 sn
+This plugin does not support propagateSizeHints()
+This plugin does not support propagateSizeHints()
+[1.1/15] yaz-kaydet           ✗    46 sn  qwen2.5:14b  · zaman aşımı
+[1.2/15] iki-adim             ✗    46 sn  qwen2.5:14b  · zaman aşımı

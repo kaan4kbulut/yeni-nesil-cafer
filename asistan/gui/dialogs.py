@@ -97,7 +97,7 @@ class SettingsDialog(QDialog):
         form.addRow("Öncelik:", self.policy)
         self.task_engine = QCheckBox("Çok adımlı işleri görev motoruyla yap (deneme: plan kaydedilir, program kapansa da "
                                      "«devam et» ile kaldığı yerden sürer)")
-        self.task_engine.setChecked(bool(settings.extra.get("gorev_motoru")))
+        self.task_engine.setChecked(bool(settings.extra.get("gorev_motoru", True)))  # B7: varsayılan açık
         form.addRow("", self.task_engine)
         from ..cekirdek import yonlendirici
 

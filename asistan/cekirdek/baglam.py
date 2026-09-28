@@ -63,10 +63,14 @@ def tahmin(base_url: str, model: str, vram_mib: int | None) -> dict:
     if boyut <= 0 or token_basi <= 0:
         ctx, gpu = limit, True
     else:
-        kullanilabilir = vram_mib * 1024 * 1024 * 0.9 - boyut - 512 * 1024 * 1024  # %10 pay + sürücü/tampon
+        # %15 pay + 1 GB: hesap tamponları, gömme modeli gibi yanında yüklü küçük modeller, sürücü (K12 sınavı: %10 pay +
+        # 512 MB ile 14B model 12K bağlamda hâlâ %10 işlemcideydi ve ilk görev zaman aşımına düştü)
+        kullanilabilir = vram_mib * 1024 * 1024 * 0.85 - boyut - 1024 * 1024 * 1024
         ctx = int(max(0, kullanilabilir) // token_basi) // STEP * STEP
         gpu = ctx >= MIN_CTX
+    tahmini = ctx
     ctx = max(min(ctx, limit), min(FLOOR_CTX, limit))
+    gpu = gpu and tahmini >= ctx  # tabana (8K) çekildiyse tam sığma iddiası yok
     return {"ctx": ctx, "max": limit, "gpu": gpu, "vram": vram_mib, "tahmin": True}
 
 
@@ -84,14 +88,24 @@ def model_ctx(ayarlar, tahmin_fn=None, vram_fn=None) -> int:
         return genel
     key = probe_key(model, vram)
     kayit = probe.get(key)
-    if not isinstance(kayit, dict):
+    olcum = int(kayit.get("ctx") or 0) if isinstance(kayit, dict) and not kayit.get("tahmin") else 0
+    # Ölçüm (`ctxprobe.probe`) modeli TEK BAŞINA yükleyip "tamamen kartta" der; yanında gömme/görme modeli yüklüyken
+    # aynı bağlam işlemciye taşar (K12 sınavı: ölçülen 12K'da 14B model %10 CPU → her görev zaman aşımı). Tahmin
+    # %15 pay + 1 GB ayırır; ikisinden küçüğü kullanılır.
+    tkey = key + "|tahmin"
+    tahmini = probe.get(tkey)
+    if not isinstance(tahmini, dict):
         if time.time() - _tahmin_hatalari.get(key, 0) < 600:
-            return genel
+            return min(genel, max(olcum, FLOOR_CTX)) if olcum else genel
         try:
-            kayit = tahmin_fn(getattr(ayarlar, "ollama_url", "http://127.0.0.1:11434"), model, vram)
+            tahmini = tahmin_fn(getattr(ayarlar, "ollama_url", "http://127.0.0.1:11434"), model, vram)
         except Exception:
             _tahmin_hatalari[key] = time.time()
-            return genel
-        probe[key] = kayit
-    ctx = int(kayit.get("ctx") or 0)
+            return min(genel, max(olcum, FLOOR_CTX)) if olcum else genel
+        probe[tkey] = tahmini
+        if not isinstance(kayit, dict):
+            probe[key] = tahmini
+    ctx = int(tahmini.get("ctx") or 0)
+    if olcum:
+        ctx = min(olcum, ctx) if ctx else olcum
     return min(genel, max(ctx, FLOOR_CTX)) if ctx else genel

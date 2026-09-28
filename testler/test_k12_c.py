@@ -115,7 +115,14 @@ class C3ModelBasinaBaglam(unittest.TestCase):
             self.assertEqual(power.num_ctx(s), 10240)  # önbellekten
             tahmin.assert_called_once()
             self.assertIn("buyuk:14b|12227", s.ctx_probe)
-            self.assertEqual(power.num_ctx(self._ayar("kucuk:2b")), 32768)  # ölçülen model: eskisi gibi
+            s2 = self._ayar("kucuk:2b")
+            self.assertEqual(power.num_ctx(s2), 10240)  # ölçülen modelde de tahminle en küçüğü (yanında başka model yüklü olabilir)
+            self.assertIn("kucuk:2b|12227|tahmin", s2.ctx_probe)
+        with mock.patch.object(ctxprobe, "gpu_total_mib", return_value=12227), \
+                mock.patch.object(ctxprobe, "tahmin", return_value={"ctx": 32768, "max": 32768, "gpu": True, "vram": 12227,
+                                                                    "tahmin": True}), \
+                mock.patch.object(profil, "acik_mi", return_value=True), mock.patch.object(power, "saving", return_value=False):
+            self.assertEqual(power.num_ctx(self._ayar("kucuk:2b")), 32768)  # tahmin ölçümden büyükse ölçüm kalır
 
     def test_ollama_kapaliyken_tek_deneme(self):
         power._tahmin_hatalari.clear()
@@ -137,7 +144,8 @@ class C3ModelBasinaBaglam(unittest.TestCase):
         with mock.patch.object(ctxprobe.httpx, "post", post), mock.patch.object(ctxprobe.httpx, "get", get):
             buyuk = ctxprobe.tahmin("http://x", "buyuk:14b", 12227)
             kucuk = ctxprobe.tahmin("http://x", "kucuk:2b", 12227)
-        self.assertEqual(buyuk["ctx"], 9216)  # (12227 MiB·0.9 − 9 GB − 0.5 GB) / 196.608 KB ≈ 10.2K → 1K'ya aşağı yuvarlanır
+        self.assertEqual(buyuk["ctx"], 8192)  # (12227 MiB·0.85 − 9 GB − 1 GB) / 196.608 KB ≈ 4.2K → tabana (8K) çekilir
+        self.assertFalse(buyuk["gpu"])  # 8K tabanı tahminin üstünde: tam sığma iddiası yok
         self.assertTrue(buyuk["tahmin"])
         self.assertEqual(kucuk["ctx"], 32768)  # model sınırı
         self.assertEqual(buyuk["max"], 32768)

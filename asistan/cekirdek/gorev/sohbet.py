@@ -44,7 +44,9 @@ _VAZGEC = re.compile(
 
 
 def acik_mi(ayarlar) -> bool:
-    return bool((getattr(ayarlar, "extra", None) or {}).get(BAYRAK))
+    """Görev motoru sohbette VARSAYILAN AÇIK (B7, sınav 2026-09-28: motor 5/15 = Manager 5/15, takılma yok, 7.2 dk < 8.4 dk);
+    Ayarlar'dan kapatılabilir."""
+    return bool((getattr(ayarlar, "extra", None) or {}).get(BAYRAK, True))
 
 
 def gorev_mu(metin: str) -> bool:
