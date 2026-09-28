@@ -24,6 +24,18 @@ os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
 CEKIRDEK = KOK / "asistan" / "cekirdek"
+
+
+def _proje_python() -> str:
+    """Alt süreç testleri projenin Python'uyla koşar: `.venv` varsa o (httpx/bs4 orada), yoksa bu yorumlayıcı.
+    `sys.executable` kullanılınca sonuç testi başlatan Python'a göre değişiyordu (K4 denetçisinde 2 test düştü)."""
+    for aday in (KOK / ".venv" / "bin" / "python", KOK / ".venv" / "Scripts" / "python.exe"):
+        if aday.is_file():
+            return str(aday)
+    return sys.executable
+
+
+PYTHON = _proje_python()
 YASAK = ("PySide6", "shiboken6", "PyQt5", "PyQt6", "fastapi", "starlette")
 # `import PySide6`, `from PySide6.QtCore import …`, `from fastapi import …`; arayüz paketleri de yasak
 _YASAK_SATIR = re.compile(
@@ -67,7 +79,7 @@ class CekirdekAyrimiTesti(unittest.TestCase):
     def test_qt_yokken_cekirdek_ice_aktarilir(self):
         ortam = dict(os.environ, XDG_CONFIG_HOME=str(Path(_GECICI) / "ayar2"),
                      XDG_DATA_HOME=str(Path(_GECICI) / "veri2"))
-        s = subprocess.run([sys.executable, "-c", _BEKCI], cwd=KOK, env=ortam, capture_output=True, text=True,
+        s = subprocess.run([PYTHON, "-c", _BEKCI], cwd=KOK, env=ortam, capture_output=True, text=True,
                            timeout=180)
         self.assertEqual(s.returncode, 0, s.stderr[-2000:])
         self.assertGreaterEqual(int(s.stdout.strip().splitlines()[-1]), 1)
@@ -80,7 +92,7 @@ class CekirdekAyrimiTesti(unittest.TestCase):
             f"ajan, _ = istek.ajan_hazirla(istek.IstekBaglami('dosya yaz', Settings(workspace={str(Path(_GECICI) / 'is')!r})))\n"
             "print(type(ajan).__name__)\n")
         ortam = dict(os.environ, XDG_CONFIG_HOME=str(Path(_GECICI) / "ayar4"), XDG_DATA_HOME=str(Path(_GECICI) / "veri4"))
-        s = subprocess.run([sys.executable, "-c", kod], cwd=KOK, env=ortam, capture_output=True, text=True, timeout=180)
+        s = subprocess.run([PYTHON, "-c", kod], cwd=KOK, env=ortam, capture_output=True, text=True, timeout=180)
         self.assertEqual(s.returncode, 0, s.stderr[-2000:])
         self.assertEqual(s.stdout.strip().splitlines()[-1], "Agent")
 
@@ -94,7 +106,7 @@ class CekirdekAyrimiTesti(unittest.TestCase):
     def test_bekci_gercekten_yakalar(self):
         """Denetimin kendisi çalışıyor mu: Qt'ye bağlı bir modül (gui) bekçiye takılmalı."""
         kod = _BEKCI.split("import asistan.cekirdek")[0] + "import asistan.gui.worker\n"
-        s = subprocess.run([sys.executable, "-c", kod], cwd=KOK, capture_output=True, text=True, timeout=180,
+        s = subprocess.run([PYTHON, "-c", kod], cwd=KOK, capture_output=True, text=True, timeout=180,
                            env=dict(os.environ, XDG_CONFIG_HOME=str(Path(_GECICI) / "ayar3"),
                                     XDG_DATA_HOME=str(Path(_GECICI) / "veri3")))
         self.assertNotEqual(s.returncode, 0)

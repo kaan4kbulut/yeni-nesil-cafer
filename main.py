@@ -27,7 +27,9 @@ def rollback_if_needed(state_file: Path, app_dir: Path = APP_DIR) -> str:
     except (OSError, ValueError):
         return ""
     backup = Path(state.get("backup", ""))
-    if state.get("tries", 0) >= 1 and (backup / "asistan").is_dir():
+    # geri dönüş yalnızca önceki açılış onaylanmadan VE düzgün kapanmadan bittiyse (çökme). Onay süresi dolmadan
+    # pencereyi kapatmak (mark_clean_exit) çökme değildir; eski hâli 15 sn'den kısa her kullanımı geri alıyordu.
+    if state.get("tries", 0) >= 1 and not state.get("clean_exit") and (backup / "asistan").is_dir():
         shutil.rmtree(app_dir / "asistan", ignore_errors=True)
         shutil.copytree(backup / "asistan", app_dir / "asistan")
         if (backup / "main.py").is_file():
@@ -36,8 +38,22 @@ def rollback_if_needed(state_file: Path, app_dir: Path = APP_DIR) -> str:
         return (f"Güncelleme {state.get('to')} açılamadı; {state.get('from')} sürümüne geri dönüldü. Sorunu "
                 "Yardım → Sorun bildir ile raporlayabilirsin.")
     state["tries"] = state.get("tries", 0) + 1
+    state["clean_exit"] = False
     state_file.write_text(json.dumps(state), encoding="utf-8")
     return ""
+
+
+def mark_clean_exit(state_file: Path) -> None:
+    """Pencere düzgün kapandı (aboutToQuit): onay süresi dolmamış olsa da bu açılış çökme sayılmaz."""
+    try:
+        state = json.loads(state_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return
+    state["clean_exit"] = True
+    try:
+        state_file.write_text(json.dumps(state), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def main():
@@ -79,6 +95,7 @@ def main():
             window._notify("⬆ " + note, 15000)
 
     QTimer.singleShot(CONFIRM_MS, confirm_update)
+    app.aboutToQuit.connect(lambda: mark_clean_exit(update_state_file()))  # kısa açılıp kapanma çökme değil
     window.schedule_update_check()
     if first_run:
         window.run_setup()
