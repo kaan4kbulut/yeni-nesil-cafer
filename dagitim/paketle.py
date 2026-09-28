@@ -106,26 +106,20 @@ def urun_adi(s: str, tur: str = "hafif", v: str = "") -> str:
 
 
 def surum_notu(v: str = "", sablon: Path | None = None) -> str:
-    """GitHub sürüm notu (`dagitim/RELEASE_NOTU.md` şablonu): en başta "Hangisini indireyim?" tablosu, sonra CHANGELOG'un
-    ilk bölümü, "Gelişmiş" altında internet paketleri ve BENIOKU. `--surum-notu` ile CI yazar (dosya olarak yüklenmez)."""
+    """GitHub sürüm notu (`dagitim/RELEASE_NOTU.md` şablonu): en başta "Hangisini indireyim?" tablosu, "bunları indirmeyin"
+    satırı, sonra CHANGELOG'un ilk bölümü. `--surum-notu` ile CI yazar (dosya olarak yüklenmez)."""
     import re
 
-    from asistan import SURUM_ADI, updates
+    from asistan import updates
 
     v = v or surum()
     sablon = sablon or (PROJE / "dagitim" / "RELEASE_NOTU.md")
     m = (PROJE / "CHANGELOG.md").read_text(encoding="utf-8")
     b = re.split(r"^## ", m, flags=re.M)
     degisiklikler = "\n".join(b[1].splitlines()[1:]).strip() if len(b) > 1 else ""
-    internet = "\n".join(f"- `{SURUM_ADI}-{s}-internet.{u}`" for s, u in (("Windows", "zip"), ("Linux", "tar.gz"), ("macOS", "zip")))
-    benioku_yolu = PROJE / "dagitim" / "BENIOKU.txt"
-    benioku = ""
-    if benioku_yolu.exists():
-        metin = benioku_yolu.read_text(encoding="utf-8").replace("@PAKET@", SURUM_ADI).replace("@SURUM@", v)
-        benioku = "**BENIOKU (internet paketleri):**\n\n```text\n" + metin.strip() + "\n```"
     return sablon.read_text(encoding="utf-8").format(
         surum=v, linux=urun_adi("linux", v=v), windows=urun_adi("windows", v=v), macos=urun_adi("macos", v=v),
-        guncelleme=updates.ASSET.format(version=v), degisiklikler=degisiklikler, internet=internet, benioku=benioku)
+        guncelleme=updates.ASSET.format(version=v), degisiklikler=degisiklikler)
 
 
 def sha_yaz(dosya: Path) -> Path:

@@ -146,7 +146,7 @@ class SurumSayfasi(unittest.TestCase):
         n = paketle.surum_notu("3.1")
         self.assertTrue(n.startswith("# YENİ NESİL CAFER 3.1\n\n## Hangisini indireyim?"))
         for ad in ("YeniNesilCafer-3.1-Linux.AppImage", "YeniNesilCafer-3.1-Windows-Kurulum.exe", "YeniNesilCafer-3.1-macOS.dmg",
-                   "--install", "Bunları indirmeyin", updates.ASSET.format(version="3.1"), "<details>", "internet", "## Bu sürümde"):
+                   "--install", "Bunları indirmeyin", updates.ASSET.format(version="3.1"), "## Bu sürümde"):
             self.assertIn(ad, n)
         self.assertNotIn("{", n.replace("{", "", 0))  # şablonda doldurulmamış alan kalmadı
         self.assertNotIn("{surum}", n)

@@ -16,12 +16,3 @@ senden komut yazmanı istemez. `.sha256` dosyaları indirdiğin dosyanın doğru
 ## Bu sürümde
 
 {degisiklikler}
-
-<details>
-<summary><b>Gelişmiş:</b> internet kurulum paketleri (kendi Python'u ve Ollama'sıyla tam kurulum; ~1,5 MB)</summary>
-
-{internet}
-
-{benioku}
-
-</details>
