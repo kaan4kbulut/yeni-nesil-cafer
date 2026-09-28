@@ -58,3 +58,5 @@
 - [x] Kurulum paketleri: internet paketleri + CI Light paketleri v3.0-beta.1 ön sürümünde; 16 GB tam paketler elle (masaüstü klasörü)
 - [ ] Telegram eşleşmesi: yeni 12 karakterlik kod `bulut.json`'da; `/baglan <kod>` bir kez; 5 yanlışta 10 dk kilit
 - [ ] Kurulu Python'da `fastapi` yok: masaüstü kurulumunda web/sunucu kipi çalışmaz (isteğe bağlı bağımlılık); gerekiyorsa `paketleme` bağımlılık listesine ekle
+- [ ] K13: fişi çek → 30 sn içinde durum satırı ("Pile geçildi → …") değişti mi? Fişi tak → "Fişe takıldı → …"; Yardım → Donanım profili → Donanım bölümü dolu mu, "Şimdi ölç" çalışıyor mu (dizüstü gerekir)
+- [ ] K13: `ollama ps` %100 CPU gösterirken kart sağlamsa "Ollama'yı yeniden başlat" düğmesi çıkıyor mu (sistem servisi için yetki penceresi)

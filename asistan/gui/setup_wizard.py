@@ -271,7 +271,10 @@ class SetupWizard(QDialog):
             f"<tr><td style='color:{C['muted']}'>işlemci</td><td>{info.cpu} · {info.cores} çekirdek</td></tr>"
             f"<tr><td style='color:{C['muted']}'>bellek</td><td>{info.ram_gb:.0f} GB</td></tr>"
             f"<tr><td style='color:{C['muted']}'>ekran kartı</td><td>{gpu}</td></tr>"
-            f"<tr><td style='color:{C['muted']}'>boş disk</td><td>{info.disk_free_gb:.0f} GB</td></tr>"
+            + (f"<tr><td style='color:{C['muted']}'>hibrit grafik</td><td>dahili + ayrı kart: pilde ve boştayken ayrı "
+               f"kart yavaşlayabilir; program ölçüp kendini uyarlar (Ollama dahili kartı kullanamaz)</td></tr>"
+               if info.hibrit else "")
+            + f"<tr><td style='color:{C['muted']}'>boş disk</td><td>{info.disk_free_gb:.0f} GB</td></tr>"
             f"<tr><td style='color:{C['muted']}'>ollama</td><td>"
             + ("çalışıyor ✓" if info.ollama_running else ("kurulu, çalışmıyor" if info.ollama_installed else "kurulu değil"))
             + "</td></tr></table>")

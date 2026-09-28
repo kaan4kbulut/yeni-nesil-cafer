@@ -533,19 +533,32 @@ def _onbellek_temizle() -> None:
         _etkin = None
 
 
-def kademe() -> str:
-    """Etkin kademe: kilit → profil.json'daki ölçüm → (dosya yoksa) hafif ölçüm.
-    Her model çağrısında sorulur (bağlam tavanı): 30 sn önbellekli."""
-    global _etkin
-    with _kilit:
-        if _etkin and time.time() - _etkin[0] < ONBELLEK_SN:
-            return _etkin[1]
+def temel_kademe() -> str:
+    """Güç/donanım kararı (K13) uygulanmadan etkin kademe: kilit → K7 otomatik → ölçülen → hafif ölçüm."""
     etkin = kilit()
     if not etkin:
         k = (yukle() or {}).get("kademe") or {}
         etkin = k.get("otomatik") if k.get("otomatik") in KADEMELER else k.get("olculen")  # K7: ölçüme göre kayar
         if etkin not in KADEMELER:
             etkin = _hafif_kademe()
+    return etkin
+
+
+def kademe() -> str:
+    """Etkin kademe: kilit → profil.json'daki ölçüm → (dosya yoksa) hafif ölçüm; kilit YOKKEN K13 güç/donanım kararı
+    (pilde yüksek kapalı) üst sınır olarak uygulanır. Her model çağrısında sorulur (bağlam tavanı): 30 sn önbellekli."""
+    global _etkin
+    with _kilit:
+        if _etkin and time.time() - _etkin[0] < ONBELLEK_SN:
+            return _etkin[1]
+    etkin = temel_kademe()
+    if not kilit():
+        from . import donanim
+
+        sinir = (donanim.karar() or {}).get("kademe")
+        sira = ("dusuk", "orta", "yuksek")
+        if sinir in sira and etkin in sira and sira.index(sinir) < sira.index(etkin):
+            etkin = sinir
     with _kilit:
         _etkin = (time.time(), etkin)
     return etkin

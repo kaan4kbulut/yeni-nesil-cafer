@@ -147,6 +147,11 @@ def num_ctx(settings) -> int:
     ctx = min(ctx, BATTERY_CTX) if saving(settings) else ctx
     if not profil.acik_mi("uzun_baglam"):  # dusuk kademe: uzun bağlam kapalı
         ctx = min(ctx, profil.KISA_BAGLAM)
+    from .cekirdek import donanim
+
+    karar_ctx = (donanim.karar() or {}).get("num_ctx")  # K13: pilde yarıya, kısmi GPU'da KV payı
+    if karar_ctx:
+        ctx = min(ctx, int(karar_ctx))
     return max(ctx, FLOOR_CTX)
 
 

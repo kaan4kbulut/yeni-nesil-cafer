@@ -263,3 +263,34 @@ sunucu/
 - Uygulama içi güncelleme (`updates.py`) yalnızca kod paketini (`asistan/` + `main.py`) ister; dağıtım paketleri ek
   dosyalardır. Not: onefile `.exe` içinde kod paketi uygulanamaz (SORULAR K11).
 - İlk açılış sihirbazı: sistem taraması + kademe + yetenek önerisi → yerel / bulut / ikisi → gizlilik → modeller.
+
+## 13. Donanım/güç (K13, `cekirdek/donanim.py` + `analiz/olcum.py`)
+
+Dizüstü fişte/pilde farklı davranır (NVIDIA pilde saat ve güç sınırını düşürür; hibrit grafikte dGPU uyuyabilir). Program
+"kart performans vermiyor" demek yerine kendini uyarlar. Ollama Linux'ta yalnızca NVIDIA (CUDA) ve ROCm'lu AMD kullanır;
+Intel/AMD dahili GPU listelenir ama `ollama_kullanabilir: false` — "dahili GPU'ya geç" seçeneği YOKTUR. Gerçek seçenekler:
+ayrı GPU · kısmi GPU (`num_gpu` katman) · CPU (`num_gpu=0`).
+
+| Parça | Görev |
+|---|---|
+| `donanim.guc_durumu()` | `{"fiste", "pil_yuzde"}` — Linux `/sys/class/power_supply` (Mains online), yoksa `upower -i`; Windows `GetSystemPowerStatus`; macOS `pmset -g batt` |
+| `donanim.gpu_envanteri()` | `nvidia-smi --query-gpu=…` + `lspci` + `ollama ps`: kartlar, dahili GPU'lar, `hibrit`, `uyuyor` (zaman aşımı ya da P8 + %0 kullanım), Ollama CPU/GPU yüzdesi, `ollama_gpu_gormuyor` (kart sağlam, model %100 CPU) |
+| `donanim.cpu_ram()` | çekirdek, boş RAM, anlık yük |
+| `olcum.hizli_sonda(model, cihaz)` | 32 token'lık sabit istem; `cpu` → `num_gpu=0`; `DATA_DIR/donanim_olcum.json`'a `{model, cihaz, fiste, tok_sn, yukleme_sn, tarih}`; en çok 2 sonda, yalnızca boşta |
+| `olcum.donanim_karari(...)` | saf karar: `{cihaz, kademe, num_gpu, num_ctx, neden, oneri, olcum_gerekli}` |
+| `olcum.uyarla(...)` / `GucIzleyici` | kararı uygular (`donanim.karar_yaz`); izleyici 15 sn'de bir yoklar, istek sürerken erteler |
+
+**Kurallar:** pilde yüksek kademe kapalı (tavan orta), bağlam yarıya · güç sınırı kısıtlıysa (pilde ya da yükte saat < %60)
+ölçülen `gpu tok/sn < 1.5 × cpu tok/sn` ise CPU (ölçüm yoksa GPU'da kalır ve sonda istenir; ölçümler güç durumuna göre ayrı)
+· fişe takılınca aynı kurallar tam gücü verir (eski karar) · dGPU uyuyorsa tek uyandırma denemesi, olmazsa CPU · model VRAM'e
+sığmıyorsa `num_gpu` katman VRAM'e göre kısılır (%15 + 1 GB pay + KV), hiç sığmazsa CPU · `ollama_gpu_gormuyor` →
+"Ollama'yı yeniden başlat" önerisi (kullanıcı onaylı `systemctl restart ollama`, `pkexec` yedeği), sonra ölçüm yinelenir, kart
+hâlâ görülmezse CPU. Karar değişince tek satır durum (durum çubuğu + günlük): "Pile geçildi → orta kademe, 8K bağlam, GPU";
+pencere açılmaz.
+
+**Uygulanışı:** `profil.kademe()` kilit YOKKEN kararın kademesini üst sınır olarak uygular (kilit ve "Otomatik uyarla"
+kapalıyken karar yok sayılır); `power.num_ctx` kararın bağlamını üst sınır alır; `OllamaSaglayici.istek` `num_gpu`'yu ekler.
+**İş parçacığı kuralı:** arayüz iş parçacığı `gui_parcacigini_isaretle()` ile işaretlenir; orada `donanim` alt süreç açmaz
+(bayat/varsayılan değer + arka planda yenileme). Arayüz: Yardım → Donanım profili → "Donanım" bölümü (fiş/pil, kart, Ollama
+CPU/GPU %, seçili cihaz, son ölçüm, "Şimdi ölç", "Otomatik uyarla"). Onay kuralları `permissions.py`'de kalır; yeniden
+başlatma kullanıcı iletişim kutusuyla onaylanır.

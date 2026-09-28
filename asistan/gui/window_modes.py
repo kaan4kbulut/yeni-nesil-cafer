@@ -1,5 +1,6 @@
 """Ana pencere: sansürsüz kip, güvenlik ajanı, ayarlar, güç (pil) kipi ve resim üretimi kurulumu."""
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
@@ -202,13 +203,25 @@ class ModesMixin:
     def _profile_measured(self, _p, _e):
         self._update_tier_btn()
         # K7: ilk kullanımda varsayılan yerel modelin 30 sn ölçümü, sonra kademe otomatik ayarı (kilit varsa dokunmaz)
+        from ..cekirdek import donanim
         from ..cekirdek.analiz import olcum
 
+        if getattr(self, "guc_izleyici", None) is None:  # K13: güç/donanım kararı (15 sn'de bir, arka plan)
+            donanim.gui_parcacigini_isaretle()
+            self.guc_izleyici = olcum.GucIzleyici(
+                self.settings, self._tier_notice_short,
+                lambda: self.worker is not None or bool(self.task_worker and self.task_worker.isRunning()))
+            self.guc_izleyici.start()
         run_in_background(lambda: olcum.acilis(self.settings.ollama_url, self._tier_notice),
                           lambda _s, _e2: self._update_tier_btn(), self)
 
+    def _tier_notice_short(self, metin: str):
+        """K13 durum satırı: rahatsız edici pencere yok; durum çubuğunda geçici satır + kademe düğmesi yenilenir."""
+        logging.getLogger(__name__).info(metin)
+        QTimer.singleShot(0, self, lambda: (self._notify("⚡ " + metin, 15000), self._profile_changed()))
+
     def _tier_notice(self, metin: str):
-        QTimer.singleShot(0, lambda: self._notify("📐 " + metin, 20000))  # arka plan iş parçacığından arayüze
+        QTimer.singleShot(0, self, lambda: self._notify("📐 " + metin, 20000))  # arka plan iş parçacığından arayüze
 
     # ---- K10: düşük kademede sade arayüz (sohbet + görevler + ayarlar; diğer bölümler Görünüm menüsünden açılır)
     def _sade_arayuz(self):

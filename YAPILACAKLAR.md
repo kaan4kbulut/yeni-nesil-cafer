@@ -462,5 +462,6 @@ makinede açılıp sihirbazdan geçiyor; uygulama içi güncelleme yeni sürüm�
 ## Temizlik ve v3.1 hazırlığı (2026-09-28)
 - [x] BÖLÜM 1 depo temizliği (NOTLAR arşivi, `paketleme/` → `dagitim/`), BÖLÜM 3 atlanan test 0, BÖLÜM 2 yazdı-ama-yapmadı (tek dürtü → devir, üst-soru, dil bekçisi, 🐞 tek tık), BÖLÜM 4 sürüm sayfası sadeleştirme — `NOTLAR/2026-09-28-TEMIZLIK.md`
 
-## Aşama K13 — Güç ve donanım farkındalığı (planlandı)
+## Aşama K13 — Güç ve donanım farkındalığı (tamam, 2026-09-29)
 **Hedef:** Dizüstü fişte/pilde farklı davranır; program güç kaynağını, hibrit grafikte uyuyan dGPU'yu ve Ollama'nın CPU'ya düşmesini fark edip kademe/bağlam/cihazı ölçüme dayalı seçer (`cekirdek/donanim.py`, anlık sonda, K7 kademe kararı, 15 sn güç yoklaması, Donanım bölümü). Tam tanım: `NOTLAR/PROMPT-K13.md`.
+**Durum:** `[x]` donanim.py · sonda · karar · 15 sn izleyici · Donanım bölümü · testler (40) · MIMARI §13 — `NOTLAR/2026-09-28-K13.md`; elle: fişi çekme denemesi (KONTROL_LISTEN).

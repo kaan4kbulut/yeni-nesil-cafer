@@ -54,6 +54,8 @@ class SystemInfo:
     ollama_running: bool = False
     ollama_models: list = field(default_factory=list)
     laptop: bool = False  # pil var: pildeyken program hafif moda geçer (power.py)
+    hibrit: bool = False  # K13: dahili + ayrı ekran kartı (dGPU uyuyabilir, pilde güç sınırına takılır)
+    dahili_gpu: str = ""  # Ollama'nın KULLANAMAYACAĞI dahili kart (bilgi amaçlı)
 
 
 def _run(cmd: list[str]) -> str:
@@ -164,6 +166,27 @@ def restart_ollama(ollama_url: str) -> bool:
     return ensure_ollama(ollama_url)
 
 
+def restart_ollama_service() -> tuple[bool, str]:
+    """K13: kullanıcı onayıyla Ollama'yı yeniden başlatır — kartı görmeyen Ollama için. Programın başlattığı süreç
+    kendi yolundan, sistem servisi `systemctl restart ollama` (Linux; yetki gerekiyorsa pkexec). (başarılı, ileti)."""
+    from .config import Settings
+
+    url = Settings.load().ollama_url
+    if program_owned():
+        return restart_ollama(url), "Ollama yeniden başlatıldı"
+    if platform.system() != "Linux" or not shutil.which("systemctl"):
+        return False, "Bu sistemde Ollama'yı otomatik yeniden başlatamıyorum; uygulamayı kapatıp açmayı dene"
+    for komut in (["systemctl", "restart", "ollama"], ["pkexec", "systemctl", "restart", "ollama"]):
+        if komut[0] == "pkexec" and not shutil.which("pkexec"):
+            break
+        try:
+            if subprocess.run(komut, capture_output=True, timeout=60).returncode == 0:
+                return True, "Ollama servisi yeniden başlatıldı"
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False, "Ollama servisi yeniden başlatılamadı (yetki gerekiyor olabilir)"
+
+
 def ensure_ollama(ollama_url: str = "http://localhost:11434", wait: float = 15) -> bool:
     """Ollama sunucusu çalışmıyorsa arka planda başlatır (kullanıcı elle açmak zorunda kalmasın).
 
@@ -258,6 +281,14 @@ def scan(ollama_url: str = "http://localhost:11434") -> SystemInfo:
     from . import power
 
     info.laptop = power.state().has_battery
+    try:
+        from .cekirdek import donanim
+
+        env = donanim.gpu_envanteri()
+        info.hibrit = bool(env["hibrit"])
+        info.dahili_gpu = env["dahili"][0]["ad"] if env["dahili"] else ""
+    except Exception:  # bilgi amaçlı: tarama bunun yüzünden düşmez
+        pass
     info.ollama_installed = bool(ollama_path())
     ensure_ollama(ollama_url)
     try:

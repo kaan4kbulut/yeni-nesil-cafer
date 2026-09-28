@@ -74,6 +74,39 @@ def tahmin(base_url: str, model: str, vram_mib: int | None) -> dict:
     return {"ctx": ctx, "max": limit, "gpu": gpu, "vram": vram_mib, "tahmin": True}
 
 
+_boyut_onbellek: dict = {}
+
+
+def model_boyutlari(base_url: str, model: str) -> dict | None:
+    """K13: kısmi GPU yüklemesi için modelin ağırlık boyutu (MiB), katman sayısı ve token başına KV baytı
+    ({"boyut_mib", "katman", "kv_token_bayt"}); Ollama'ya ulaşılamazsa None. Model başına bir kez sorulur."""
+    if model in _boyut_onbellek:
+        return _boyut_onbellek[model]
+    url = base_url.rstrip("/")
+    try:
+        resp = httpx.post(url + "/api/show", json={"model": model}, timeout=10)
+        resp.raise_for_status()
+        info = resp.json().get("model_info", {}) or {}
+        tags = httpx.get(url + "/api/tags", timeout=10)
+        tags.raise_for_status()
+    except (httpx.HTTPError, ValueError):
+        return None
+
+    def al(sonek: str, varsayilan: int) -> int:
+        return next((int(v) for k, v in info.items() if k.endswith(sonek)), varsayilan)
+
+    boyut = next((int(m.get("size") or 0) for m in tags.json().get("models", [])
+                  if m.get("name") == model or m.get("model") == model), 0)
+    katman, bas = al(".block_count", 0), al(".attention.head_count", 32)
+    kv, gomme = al(".attention.head_count_kv", bas), al(".embedding_length", 4096)
+    if boyut <= 0 or katman <= 0:
+        return None
+    sonuc = {"boyut_mib": boyut // (1024 * 1024), "katman": katman,
+             "kv_token_bayt": 2 * katman * kv * (gomme // max(bas, 1)) * 2}
+    _boyut_onbellek[model] = sonuc
+    return sonuc
+
+
 def model_ctx(ayarlar, tahmin_fn=None, vram_fn=None) -> int:
     """`ayarlar.ollama_model` için bağlam: ölçüm (`ctx_probe`) varsa o; yoksa tahmin bir kez (önbelleğe); Ollama'ya
     ulaşılamazsa 10 dk denenmez ve genel ayar (`ollama_num_ctx`) kullanılır. Sınır genel ayarı yalnızca aşağı çeker."""

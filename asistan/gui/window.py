@@ -807,6 +807,8 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         if self.task_worker:
             self.task_worker.cancel()
             self.task_worker.wait(3000)
+        if getattr(self, "guc_izleyici", None):
+            self.guc_izleyici.dur()
         if self.worker:
             self.worker.cancel()
             self.worker.wait(3000)

@@ -57,7 +57,10 @@ class OllamaSaglayici(Saglayici):
               num_ctx: int | None = None, num_predict: int | None = None, dusunme: bool = True,
               bicim: dict | str | None = None) -> dict:
         """`/api/chat` gövdesi (araçlar Ollama/OpenAI biçiminde)."""
-        secenek = {k: v for k, v in (("num_ctx", num_ctx), ("num_predict", num_predict)) if v is not None}
+        from .. import donanim
+
+        secenek = {k: v for k, v in (("num_ctx", num_ctx), ("num_predict", num_predict),
+                                     ("num_gpu", donanim.num_gpu_icin(model or self.model))) if v is not None}  # K13
         return {
             "model": model or self.model,
             "messages": [{"role": "system", "content": sistem}, *mesajlar] if sistem else list(mesajlar),
