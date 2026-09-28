@@ -127,13 +127,46 @@ def saving(settings) -> bool:
     return state().on_battery
 
 
+_tahmin_hatalari: dict = {}  # "model|vram" → zaman: Ollama kapalıyken her etiket güncellemesinde yeniden denenmez
+
+
+def model_ctx(settings) -> int:
+    """K12-C3: bu ajanın modeline (`settings.ollama_model`) özgü bağlam sınırı. Ölçüm (`ctx_probe`) varsa o; yoksa
+    `ctxprobe.tahmin` bir kez çağrılıp `ctx_probe`'a yazılır (sonraki save ile kalıcı); Ollama'ya ulaşılamazsa 10 dk
+    denenmez ve genel ayar kullanılır. Ölçülen/tahmin edilen sınır genel ayarı yalnızca AŞAĞI çeker."""
+    from . import ctxprobe
+
+    genel = int(settings.ollama_num_ctx)
+    model = getattr(settings, "ollama_model", "") or ""
+    probe = getattr(settings, "ctx_probe", None)
+    if not model or not isinstance(probe, dict):
+        return genel
+    vram = ctxprobe.gpu_total_mib()
+    if not vram:  # ekran kartı yok: ölçüm/tahmin anlamsız, kullanıcının ayarı
+        return genel
+    key = ctxprobe.probe_key(model, vram)
+    kayit = probe.get(key)
+    if not isinstance(kayit, dict):
+        if time.time() - _tahmin_hatalari.get(key, 0) < 600:
+            return genel
+        try:
+            kayit = ctxprobe.tahmin(getattr(settings, "ollama_url", "http://127.0.0.1:11434"), model, vram)
+        except Exception:
+            _tahmin_hatalari[key] = time.time()
+            return genel
+        probe[key] = kayit
+    ctx = int(kayit.get("ctx") or 0)
+    return min(genel, max(ctx, ctxprobe.FLOOR_CTX)) if ctx else genel
+
+
 def num_ctx(settings) -> int:
-    """Ollama'ya gönderilecek bağlam: hafif modda en çok 8K (uzun geçmiş pilde her adımı dakikalarca bekletir),
-    hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
+    """Ollama'ya gönderilecek bağlam: modele özgü sınır (`model_ctx`), hafif modda en çok 8K (uzun geçmiş pilde her
+    adımı dakikalarca bekletir), hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
     from .cekirdek import profil
     from .ctxprobe import FLOOR_CTX
 
-    ctx = min(settings.ollama_num_ctx, BATTERY_CTX) if saving(settings) else settings.ollama_num_ctx
+    ctx = model_ctx(settings)
+    ctx = min(ctx, BATTERY_CTX) if saving(settings) else ctx
     if not profil.acik_mi("uzun_baglam"):  # dusuk kademe: uzun bağlam kapalı
         ctx = min(ctx, profil.KISA_BAGLAM)
     return max(ctx, FLOOR_CTX)

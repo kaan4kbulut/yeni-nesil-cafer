@@ -152,9 +152,10 @@ def apply(package: Path, version: str) -> Path:
         raise
     shutil.rmtree(old, ignore_errors=True)
     shutil.rmtree(stage, ignore_errors=True)
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps({"from": __version__, "to": version, "backup": str(backup), "tries": 0,
-                                      "time": time.time()}), encoding="utf-8")
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(STATE_FILE, json.dumps({"from": __version__, "to": version, "backup": str(backup), "tries": 0,
+                                       "time": time.time()}))  # K12-C1: yarım durum dosyası = geri alma kararı bozulur
     return backup
 
 

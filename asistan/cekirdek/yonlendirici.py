@@ -318,8 +318,7 @@ def harcama_ekle(saglayici: str, token: int, gorev_id: str | None = None) -> Non
         defter = {g: t for g, t in defter.items() if g >= _gun_once(30)}  # 30 günden eskisi silinir
         defter[gun] = int(defter.get(gun, 0)) + int(token)
         try:
-            _defter_yolu().parent.mkdir(parents=True, exist_ok=True)
-            _defter_yolu().write_text(json.dumps(defter), encoding="utf-8")
+            ayar.atomik_yaz(_defter_yolu(), json.dumps(defter))  # K12-C1: yarım defter = tavan sıfırdan başlardı
         except OSError as e:
             _gunluk.warning("bulut harcama defteri yazılamadı: %s", e)
 

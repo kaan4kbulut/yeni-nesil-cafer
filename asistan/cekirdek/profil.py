@@ -296,11 +296,12 @@ def kilit_kaynagi() -> str:
     return "arayuz" if kilit() else ""
 
 
-def kilitle(kademe: str | None) -> None:
-    """Arayüzden kilitle (None: kilidi aç, ölçüm geçerli). `ayarlar.json`'a yazılır."""
+def kilitle(kademe: str | None, ayarlar=None) -> None:
+    """Arayüzden kilitle (None: kilidi aç, ölçüm geçerli). `ayarlar.json`'a yazılır. `ayarlar`: arayüzün canlı
+    `Settings` nesnesi (K12-C2: ayrı bir örnek açıp kaydetmek arayüzün sonraki `save()`'inde kilidi ezdiriyordu)."""
     if kademe is not None and kademe not in KADEMELER:
         raise ValueError(f"bilinmeyen kademe: {kademe}")
-    s = ayar.Settings.load()
+    s = ayarlar if ayarlar is not None else ayar.Settings.load()
     if kademe:
         s.extra[UI_KILIT_ANAHTARI] = kademe
     else:

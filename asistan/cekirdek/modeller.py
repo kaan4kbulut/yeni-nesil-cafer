@@ -58,8 +58,9 @@ def ust_yaz(degisiklik: dict) -> None:
     except (OSError, ValueError):
         ust = {}
     _birlestir(ust, {k: v for k, v in degisiklik.items() if k in UST_ANAHTARLAR})
-    yol.parent.mkdir(parents=True, exist_ok=True)
-    yol.write_text(json.dumps(ust, ensure_ascii=False, indent=1), encoding="utf-8")
+    from . import ayar  # döngüsel içe aktarma (ayar → modeller) yüzünden burada
+
+    ayar.atomik_yaz(yol, json.dumps(ust, ensure_ascii=False, indent=1))  # K12-C1
     yenile()
 
 

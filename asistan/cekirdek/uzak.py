@@ -127,8 +127,7 @@ def senkron_durumu() -> dict:
 
 
 def _senkron_yaz(veri: dict) -> None:
-    _senkron_dosyasi().parent.mkdir(parents=True, exist_ok=True)
-    _senkron_dosyasi().write_text(json.dumps(veri, ensure_ascii=False, indent=1), encoding="utf-8")
+    ayar.atomik_yaz(_senkron_dosyasi(), json.dumps(veri, ensure_ascii=False, indent=1))  # K12-C1
 
 
 def gorevleri_esitle(depo, istemci: Istemci) -> dict:

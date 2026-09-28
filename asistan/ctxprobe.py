@@ -17,15 +17,55 @@ MIN_CTX = 2048
 FLOOR_CTX = 8192
 
 
-def gpu_total_mib() -> int | None:
+_vram_onbellek: list = []  # toplam VRAM değişmez: nvidia-smi bir kez (K12-C3: num_ctx sık çağrılır)
+
+
+def gpu_total_mib(yenile: bool = False) -> int | None:
+    if _vram_onbellek and not yenile:
+        return _vram_onbellek[0]
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
         ).stdout.split()
-        return int(out[0]) if out else None
+        deger = int(out[0]) if out else None
     except (OSError, ValueError, subprocess.SubprocessError):
-        return None
+        deger = None
+    _vram_onbellek[:] = [deger]
+    return deger
+
+
+def tahmin(base_url: str, model: str, vram_mib: int | None) -> dict:
+    """Modeli yüklemeden, ölçüm yapmadan VRAM'e göre bağlam tahmini (K12-C3): ağırlık boyutu (`/api/tags`) + KV
+    önbelleği (`/api/show`: katman, KV baş sayısı, gömme boyutu; f16). Ölçüm (`probe`) yalnızca sohbet modeli için
+    yapılıyordu; yönlendiricinin seçtiği başka bir model (14B yönetici) sohbet modelinin 32K bağlamıyla karta
+    sığmayıp işlemciye taşıyor ve her görev zaman aşımına düşüyordu (sınav 2026-09-28)."""
+    url = base_url.rstrip("/")
+    resp = httpx.post(url + "/api/show", json={"model": model}, timeout=15)
+    resp.raise_for_status()
+    info = resp.json().get("model_info", {}) or {}
+
+    def al(sonek: str, varsayilan: int) -> int:
+        return next((int(v) for k, v in info.items() if k.endswith(sonek)), varsayilan)
+
+    limit = al(".context_length", 8192)
+    if not vram_mib:
+        return {"ctx": min(FLOOR_CTX, limit), "max": limit, "gpu": False, "vram": vram_mib, "tahmin": True}
+    tags = httpx.get(url + "/api/tags", timeout=10)
+    tags.raise_for_status()
+    boyut = next((int(m.get("size") or 0) for m in tags.json().get("models", [])
+                  if m.get("name") == model or m.get("model") == model), 0)
+    katman, bas = al(".block_count", 32), al(".attention.head_count", 32)
+    kv, gomme = al(".attention.head_count_kv", bas), al(".embedding_length", 4096)
+    token_basi = 2 * katman * kv * (gomme // max(bas, 1)) * 2  # K + V, f16
+    if boyut <= 0 or token_basi <= 0:
+        ctx, gpu = limit, True
+    else:
+        kullanilabilir = vram_mib * 1024 * 1024 * 0.9 - boyut - 512 * 1024 * 1024  # %10 pay + sürücü/tampon
+        ctx = int(max(0, kullanilabilir) // token_basi) // STEP * STEP
+        gpu = ctx >= MIN_CTX
+    ctx = max(min(ctx, limit), min(FLOOR_CTX, limit))
+    return {"ctx": ctx, "max": limit, "gpu": gpu, "vram": vram_mib, "tahmin": True}
 
 
 def model_max_context(base_url: str, model: str) -> int:

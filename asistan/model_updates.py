@@ -355,8 +355,9 @@ def refresh(force: bool = False) -> dict | None:
         uncensored = (data or {}).get("uncensored") or []  # arama alınamadı: eldeki liste kalır
     new = {"v": VERSION, "time": time.time(), "local": local, "cloud": cloud, "arena": _arena(), "library": library,
            "uncensored": uncensored}
-    CACHE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE.write_text(json.dumps(new, ensure_ascii=False, indent=1), encoding="utf-8")
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(CACHE, json.dumps(new, ensure_ascii=False, indent=1))  # K12-C1
     return new
 
 

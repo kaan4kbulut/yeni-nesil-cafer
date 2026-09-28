@@ -11,7 +11,8 @@ from .theme import mono
 
 
 class ProfileDialog(QDialog):
-    def __init__(self, parent=None, on_change=None):
+    def __init__(self, parent=None, on_change=None, ayarlar=None):
+        self.ayarlar = ayarlar  # ana pencerenin Settings nesnesi (K12-C2)
         super().__init__(parent)
         self.on_change = on_change  # kademe değişince ana pencere durum çubuğunu yeniler
         self.setWindowTitle("Donanım profili ve kademe")
@@ -75,7 +76,7 @@ class ProfileDialog(QDialog):
         run_in_background(lambda: profil.guncelle(sunucu=False), done, self)
 
     def _lock_changed(self, _index: int):
-        profil.kilitle(self.combo.currentData())
+        profil.kilitle(self.combo.currentData(), ayarlar=self.ayarlar)
         self._show(profil.yukle())
         if self.on_change:
             self.on_change()

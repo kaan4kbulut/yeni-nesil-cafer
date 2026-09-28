@@ -25,9 +25,9 @@ def _read_fallback() -> dict:
 
 
 def _write_fallback(data: dict) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    FALLBACK_FILE.write_text(json.dumps(data, indent=2), encoding="utf-8")
-    FALLBACK_FILE.chmod(0o600)
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(FALLBACK_FILE, json.dumps(data, indent=2), mod=0o600)  # K12-C1: anahtarlar yarım dosyada kaybolmasın
 
 
 def backend_name() -> str:

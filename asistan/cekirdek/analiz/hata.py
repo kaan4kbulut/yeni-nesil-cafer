@@ -101,8 +101,9 @@ def desen_ekle(sinif: str, desen: str, not_: str = "") -> None:
     if any(k.get("sinif") == sinif and k.get("desen") == desen for k in veri):
         return
     veri.append({"sinif": sinif, "desen": desen, "not": not_, "zaman": time.strftime("%Y-%m-%d")})
-    _desen_dosyasi().parent.mkdir(parents=True, exist_ok=True)
-    _desen_dosyasi().write_text(json.dumps(veri, ensure_ascii=False, indent=1), encoding="utf-8")
+    from .. import ayar
+
+    ayar.atomik_yaz(_desen_dosyasi(), json.dumps(veri, ensure_ascii=False, indent=1))  # K12-C1
 
 
 def desenle(metin: str) -> str | None:

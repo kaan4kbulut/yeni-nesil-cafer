@@ -39,8 +39,20 @@ def rollback_if_needed(state_file: Path, app_dir: Path = APP_DIR) -> str:
                 "Yardım → Sorun bildir ile raporlayabilirsin.")
     state["tries"] = state.get("tries", 0) + 1
     state["clean_exit"] = False
-    state_file.write_text(json.dumps(state), encoding="utf-8")
+    _atomik_yaz(state_file, json.dumps(state))
     return ""
+
+
+def _atomik_yaz(yol: Path, metin: str) -> None:
+    """Geçici dosya + os.replace (K12-C1); program paketi içe aktarılmadan önce çalıştığı için burada ayrı."""
+    import os
+
+    gecici = yol.with_name(yol.name + ".tmp")
+    try:
+        gecici.write_text(metin, encoding="utf-8")
+        os.replace(gecici, yol)
+    finally:
+        gecici.unlink(missing_ok=True)
 
 
 def mark_clean_exit(state_file: Path) -> None:
@@ -51,7 +63,7 @@ def mark_clean_exit(state_file: Path) -> None:
         return
     state["clean_exit"] = True
     try:
-        state_file.write_text(json.dumps(state), encoding="utf-8")
+        _atomik_yaz(state_file, json.dumps(state))
     except OSError:
         pass
 

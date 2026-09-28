@@ -250,7 +250,7 @@ class ModesMixin:
     def _open_profile(self):
         from .profil_dialog import ProfileDialog
 
-        ProfileDialog(self, on_change=self._profile_changed).exec()
+        ProfileDialog(self, on_change=self._profile_changed, ayarlar=self.settings).exec()  # K12-C2
 
     def _profile_changed(self):
         self._update_tier_btn()

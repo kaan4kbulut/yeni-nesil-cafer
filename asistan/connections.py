@@ -136,9 +136,9 @@ def load_connections() -> list[Connection]:
 
 
 def save_connections(conns: list[Connection]) -> None:
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    CONNECTIONS_FILE.write_text(
-        json.dumps([asdict(c) for c in conns], indent=2, ensure_ascii=False), encoding="utf-8")
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(CONNECTIONS_FILE, json.dumps([asdict(c) for c in conns], indent=2, ensure_ascii=False))  # K12-C1
 
 
 def remove_connection(conns: list[Connection], conn: Connection) -> None:

@@ -82,6 +82,7 @@ def mcp_ekle(ad: str, tanim: dict, dosya: Path | None = None) -> str:
     if ad in sunucular:
         return f"{ad} zaten mcp.json'da"
     sunucular[ad] = {"command": komut, "args": args}
-    dosya.parent.mkdir(parents=True, exist_ok=True)
-    dosya.write_text(json.dumps(veri, indent=2, ensure_ascii=False), encoding="utf-8")
+    from .. import ayar
+
+    ayar.atomik_yaz(dosya, json.dumps(veri, indent=2, ensure_ascii=False))  # K12-C1
     return f"{ad} MCP sunucusu mcp.json'a eklendi; bir sonraki bağlantı yenilemesinde başlar"

@@ -151,6 +151,6 @@ def _categorize(profiles: list[AgentProfile]) -> bool:
 
 def save_profiles(profiles: list[AgentProfile]) -> None:
     """ajanlar.json'a yazar; dosyadan gelen ajanlar yazılmaz (kaynakları kendi .md dosyaları)."""
-    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-    PROFILES_FILE.write_text(
-        json.dumps([asdict(p) for p in profiles if not p.source], indent=2, ensure_ascii=False), encoding="utf-8")
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(PROFILES_FILE, json.dumps([asdict(p) for p in profiles if not p.source], indent=2, ensure_ascii=False))

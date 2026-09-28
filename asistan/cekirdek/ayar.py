@@ -10,6 +10,7 @@ import json
 import logging
 import os
 import shutil
+import time
 import tomllib
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -29,6 +30,21 @@ CONFIG_DIR = _CONFIG_BASE / APP_ID
 DATA_DIR = _DATA_BASE / APP_ID
 
 _gunluk = logging.getLogger(__name__)
+
+
+def atomik_yaz(yol, metin: str, mod: int | None = None) -> None:
+    """Dosyayı geçici dosya + `os.replace` ile yazar (K12-C1): çökme / elektrik kesintisi yarım JSON bırakmaz
+    (`Settings.load` yarım dosyada bütün ayarları sessizce sıfırlıyordu). `mod` (ör. 0o600) geçici dosyada ayarlanır."""
+    yol = Path(yol)
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    gecici = yol.with_name(f"{yol.name}.{os.getpid()}.tmp")
+    try:
+        gecici.write_text(metin, encoding="utf-8")
+        if mod is not None:
+            os.chmod(gecici, mod)
+        os.replace(gecici, yol)
+    finally:
+        gecici.unlink(missing_ok=True)
 
 
 def migrate_dir(new: Path, old: Path) -> bool:
@@ -252,7 +268,17 @@ class Settings:
         klasorleri_tasi()
         try:
             data = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        except OSError:
+            data = {}
+        except ValueError:  # K12-C1: bozuk dosya kenara alınır; varsayılanlar bir sonraki save ile kalıcılaşmasın
+            kenara = CONFIG_FILE.with_name(f"{CONFIG_FILE.name}.bozuk-{time.strftime('%Y%m%d-%H%M%S')}")
+            try:
+                CONFIG_FILE.replace(kenara)
+                _gunluk.warning("ayarlar.json okunamadı; %s olarak kenara alındı, varsayılanlarla açılıyor", kenara.name)
+            except OSError:
+                pass
+            data = {}
+        if not isinstance(data, dict):
             data = {}
         known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         known.update(_ezilenler())  # ayar.toml / CAFER_* en üstte
@@ -279,7 +305,5 @@ class Settings:
                         data[alan] = diskte[alan]
                     else:
                         data.pop(alan, None)
-        CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-        CONFIG_FILE.write_text(json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8")
-        # API anahtarı içerebileceği için yalnızca kullanıcı okuyabilsin
-        CONFIG_FILE.chmod(0o600)
+        # API anahtarı içerebileceği için yalnızca kullanıcı okuyabilsin; atomik (K12-C1)
+        atomik_yaz(CONFIG_FILE, json.dumps(data, indent=2, ensure_ascii=False), mod=0o600)
