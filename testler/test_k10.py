@@ -118,13 +118,13 @@ class SadeArayuz(unittest.TestCase):
 
 class SurumVeBaslangic(unittest.TestCase):
     def test_surum_changelog_tanitim_pyproject(self):
-        self.assertTrue(asistan.__version__.startswith("3.0"))  # beta: "3.0-beta.1" (GitHub etiketiyle aynı)
-        self.assertIn("## 3.0", (KOK / "CHANGELOG.md").read_text(encoding="utf-8"))
-        self.assertIn("3.0", tour.NEWS)
+        self.assertTrue(asistan.__version__.startswith("3."))  # GitHub etiketiyle aynı (3.1)
+        self.assertIn(f"## {asistan.__version__}", (KOK / "CHANGELOG.md").read_text(encoding="utf-8"))
+        self.assertIn(asistan.__version__, tour.NEWS)
         self.assertTrue(tour.pending(SimpleNamespace(extra={"tanitim_surumu": "2.7"})))
         py = (KOK / "pyproject.toml").read_text(encoding="utf-8")
         self.assertIn('cafer = "asistan.arayuz.komut:ana"', py)
-        self.assertRegex(py, r'version = "3\.0')  # PEP 440: 3.0b1
+        self.assertRegex(py, r'version = "3\.\d')  # PEP 440
         from asistan import updates
 
         self.assertGreater(updates.version_tuple("3.0"), updates.version_tuple("2.7"))
