@@ -283,8 +283,8 @@ class YurutucuTesti(GorevTabani):
         self.assertEqual(gorev["adimlar"][2]["durum"], "planlandi")
         self.assertEqual(gorev["hatalar"][0]["sinif"], "veri")
         self.assertIn("dosya bulunamadı", gorev["hatalar"][0]["belirti"])
-        sira = ayar.DATA_DIR / "hata_sirasi.jsonl"  # hata analizine devredildi (K6'ya kadar sıra dosyası)
-        self.assertIn("dosya bulunamadı", sira.read_text(encoding="utf-8"))
+        kutuk = ayar.DATA_DIR / "hatalar.jsonl"  # hata analizine devredildi (K6: cekirdek/analiz/hata.py kütüğü)
+        self.assertIn("dosya bulunamadı", kutuk.read_text(encoding="utf-8"))
 
     def test_onay_gerekli_adim_bekler_ve_onayla_surer(self):
         plan = {"adimlar": [UC_ADIM["adimlar"][0],

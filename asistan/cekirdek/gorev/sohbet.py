@@ -165,10 +165,18 @@ class SohbetGorevi:
 
     def _onay_iste(self, gorev: dict) -> bool:
         """Onay bekleyen adımı sohbetin onay penceresine sorar."""
-        adim = next((a for a in gorev["adimlar"] if a.get("durum") == "bekliyor_onay"), None)
         ask = getattr(self.cb, "ask_approval", None)
-        if adim is None or ask is None:
+        if ask is None:
             return False
+        if gorev.get("bekleyen_uretim"):  # K6: eksik yetenek üretimi
+            return bool(ask("yetenek_uret", dict(gorev["bekleyen_uretim"], purpose=gorev.get("rapor") or "")))
+        adim = next((a for a in gorev["adimlar"] if a.get("durum") == "bekliyor_onay"), None)
+        if adim is None:
+            return False
+        if adim.get("bekleyen"):  # K6: eksik bağımlılık kurma / yetenek üretme onayı
+            b = adim["bekleyen"]
+            return bool(ask("kurulum" if b["tip"] == "kur" else "yetenek_uret",
+                            dict(b, purpose=f"Adım {adim['id']} ({adim['amac']}) için")))
         return bool(ask(adim["yetenek"], coz(adim.get("girdi") or {}, gorev)))
 
     # ---- tur

@@ -15,6 +15,7 @@ import time
 from collections.abc import Callable
 
 from .. import yonlendirici
+from ..analiz import hata
 from ..saglayici import Iptal
 from . import METIN_URET, Cikti, ModelYok, anlayici, dogrulayici, planlayici
 from .durum import BITMIS, KLASOR_ALANI, Depo, devam_noktasi, simdi
@@ -49,27 +50,22 @@ def coz(deger, gorev: dict):
     return deger
 
 
-def siniflandir(neden: str, sonuc: str, model_adimi: bool) -> str:
-    """Kaba sınıf (SEMALAR §3); ayrıntılı sınıflandırıcı K6'da `analiz/hata.py`."""
-    metin = f"{neden}\n{sonuc}"
-    if re.search(r"ModuleNotFoundError|No module named|command not found|not recognized as|\.so\b|\.dll\b", metin):
-        return "eksik_bagimlilik"
-    if re.search(r"declined|reddetti|Permission denied|\b(izin|izni|onay)|REFUSED|BLOCKED", metin, re.I):
-        return "izin"
-    # 5xx yalnızca HTTP bağlamında ("512 bayt" ağ hatası değil); CUDA yalnızca bellek/hata bağlamında;
-    # "bulunamadı" yalnızca dosya/klasör için ("liste bulunamadı" mantık hatasıdır) — BÖLÜM 2.7 yanlış pozitifleri
-    if re.search(r"Timeout|timed out|ConnectError|zaman aşımı|bağlanılamadı|\bHTTP[ /]?5\d\d\b"
-                 r"|\b5\d\d (Internal Server Error|Bad Gateway|Service Unavailable|Gateway Timeout)"
-                 r"|status(?:_code)?[=: ]+5\d\d\b", metin, re.I):
-        return "ag"
-    if re.search(r"MemoryError|out of memory|No space left|CUDA (error|out of memory)|cudaError|CUBLAS_STATUS_ALLOC",
-                 metin, re.I):
-        return "kaynak"
-    if re.search(r"No such file|FileNotFoundError|(dosya|klasör|dizin) bulunamadı|dosya yok", metin, re.I):
-        return "veri"
-    if model_adimi and not (sonuc or "").strip():
-        return "model_yetersiz"
-    return "mantik"
+def _kaydir(deger, n: int):
+    """Yeniden planlanan adımların `{{adim_N.sonuc}}` yer tutucularını `n` kadar kaydırır."""
+    if isinstance(deger, dict):
+        return {k: _kaydir(v, n) for k, v in deger.items()}
+    if isinstance(deger, list):
+        return [_kaydir(v, n) for v in deger]
+    if isinstance(deger, str):
+        return re.sub(r"\{\{\s*adim_(\d+)\.sonuc\s*\}\}", lambda m: "{{adim_%d.sonuc}}" % (int(m.group(1)) + n), deger)
+    return deger
+
+
+def siniflandir(neden: str, sonuc: str, model_adimi: bool, model=None) -> str:
+    """Sınıf (SEMALAR §3): `analiz/hata.py` (desen → hızlı model → mantik)."""
+    from ..analiz import hata
+
+    return hata.siniflandir(neden, sonuc, model_adimi, model)
 
 
 BAGIMLILIK_SINIFI = "mantik"  # "bağlı olduğu adım bitmedi" plan/mantık hatasıdır, girdi verisi eksikliği değil
@@ -78,8 +74,9 @@ BAGIMLILIK_SINIFI = "mantik"  # "bağlı olduğu adım bitmedi" plan/mantık hat
 class Yurutucu:
     def __init__(self, depo: Depo, yetenekler, model, klasor: str = "", okunur: str = "",
                  olay: Callable[[str, dict], None] | None = None, iptal: Callable[[], bool] | None = None,
-                 kademe: str = "orta", sohbet_id: str = ""):
+                 kademe: str = "orta", sohbet_id: str = "", bekle: Callable[[float], None] | None = None):
         self.depo, self.yetenekler, self.model = depo, yetenekler, model
+        self.bekle = bekle or time.sleep  # ağ hatasında üstel bekleme (testler sahte verir)
         self.klasor, self.okunur = klasor, okunur
         self.olay_fn, self.iptal_fn = olay, iptal
         self.kademe, self.sohbet_id = kademe, sohbet_id
@@ -134,6 +131,26 @@ class Yurutucu:
     def onayla(self, gorev_id: str, evet: bool = True) -> dict:
         """Onay bekleyen adım: evet → sürer; hayır → görev iptal (adım yapılmaz)."""
         gorev = self._getir(gorev_id)
+        bekleyen = gorev.pop("bekleyen_uretim", None)
+        if bekleyen:  # planlanamadı: eksik yetenek üretimi onayı (K6)
+            if not evet:
+                gorev["durum"] = "iptal"
+                gorev["rapor"] = f"'{bekleyen['ad']}' yeteneğinin üretimi onaylanmadı; görev durduruldu."
+                self._kaydet(gorev)
+                self._olay("bitti", gorev)
+                return gorev
+            c = self._uret(bekleyen["ad"], bekleyen["aciklama"])
+            if c.hata:
+                kayit = hata.isle({"adim": 0, "zaman": simdi(), "sinif": "eksik_yetenek", "belirti": c.metin[:300],
+                                   "kanit": "", "sonuc": "vazgecildi"})
+                gorev["durum"], gorev["hatalar"] = "basarisiz", gorev.get("hatalar", []) + [kayit]
+                gorev["rapor"] = f"Yapılamadı: {c.metin[:300]}"
+                self._kaydet(gorev)
+                self._olay("bitti", gorev)
+                return gorev
+            self._olay("yetenek", gorev, ad=bekleyen["ad"], metin=c.metin)
+            return self._planla_ve_kos(gorev["istek"], gorev["anlayis"], self.yetenekler.listele(), False, gorev_id,
+                                       uretim_denendi=True)
         adim = next((a for a in gorev["adimlar"] if a["durum"] == "bekliyor_onay"), None)
         if adim is None:
             return gorev
@@ -153,13 +170,23 @@ class Yurutucu:
         return gorev
 
     def _planla_ve_kos(self, istek: str, anlayis: dict, liste: list[dict], parcala: bool,
-                       gorev_id: str = "") -> dict:
+                       gorev_id: str = "", uretim_denendi: bool = False) -> dict:
         try:
             adimlar = planlayici.planla(istek, anlayis, liste, self.model, self.klasor, self.okunur, parcala)
         except planlayici.PlanYetersiz as e:
             gorev = planlayici.gorev_olustur(istek, anlayis, [], self.yetenekler, self.model, self.kademe)
             if gorev_id:
                 gorev["gorev_id"] = gorev_id
+            eksik = [a for a in (anlayis.get("eksik_yetenekler") or []) if re.fullmatch(r"[a-z][a-z0-9_]{1,40}", str(a))]
+            if eksik and hasattr(self.yetenekler, "uret") and not uretim_denendi:
+                # MIMARI §7 eksik_yetenek: üretim yalnızca onayla; görev onay bekler, onayla → üret → yeniden planla
+                gorev["bekleyen_uretim"] = {"ad": eksik[0], "aciklama": f"{istek[:300]} — gereken yetenek: {eksik[0]}"}
+                gorev["durum"] = "bekliyor_onay"
+                gorev["rapor"] = (f"'{eksik[0]}' adında bir yetenek yok; bu iş için onu üretip (sandbox'ta test edip) "
+                                  "kaydedeyim mi?")
+                self._kaydet(gorev)
+                self._olay("onay", gorev, uretim=gorev["bekleyen_uretim"])
+                return gorev
             gorev["durum"], gorev["hatalar"] = "basarisiz", [e.kayit]
             gorev["rapor"] = f"Yapılamadı: {e.kayit['belirti']}"
             self._kaydet(gorev)
@@ -210,6 +237,16 @@ class Yurutucu:
         basla = time.monotonic()
         neden, cikti = "", Cikti("")
         klasorler = [k for k in (self.klasor, self.okunur) if k]
+        bekleyen = adim.get("bekleyen")
+        if bekleyen and adim.get("onay") == "verildi":  # onaylanan kurulum / üretim önce yapılır (K6)
+            adim.pop("bekleyen", None)
+            adim.pop("onay", None)
+            c = self._eylem_uygula(bekleyen, onayli=True)
+            if c.hata:
+                return self._basarisiz(gorev, adim, c.metin[:300], "", "eksik_bagimlilik" if bekleyen["tip"] == "kur"
+                                       else "eksik_yetenek")
+            adim[bekleyen["tip"] + "uldu" if bekleyen["tip"] == "kur" else "uretildi"] = True
+            self._olay("yetenek" if bekleyen["tip"] == "uret" else "kurulum", gorev, adim=adim, metin=c.metin)
         for deneme in range(1 + int(adim.get("deneme_hakki") or 0)):
             self._iptal_mi()
             girdi = coz(adim["girdi"], gorev)
@@ -239,8 +276,89 @@ class Yurutucu:
                     adim.pop("onay", None)  # kullanıcı eski girdiyi onaylamıştı: yenisi yeniden sorulur
             self._olay("tekrar", gorev, adim=adim, neden=neden)
         adim["sure_sn"] = round(time.monotonic() - basla, 2)
-        sinif = siniflandir(neden, cikti.metin, adim["yetenek"] == METIN_URET)
-        return self._basarisiz(gorev, adim, neden, cikti.metin, sinif)
+        return self._hata_eylemi(gorev, adim, neden, cikti.metin)
+
+    # ---- hata analizi → eylem (MIMARI §7; K6)
+    def _hata_eylemi(self, gorev: dict, adim: dict, neden: str, sonuc: str) -> dict | None:
+        kayit = hata.isle({"adim": adim["id"], "zaman": simdi(), "belirti": neden[:300],
+                           "kanit": "\n".join((sonuc or "").strip().splitlines()[-5:])[:1000],
+                           "model_adimi": adim["yetenek"] == METIN_URET, "sonuc": "vazgecildi"}, self.model)
+        e, tip, hedef = kayit["eylem"], kayit["eylem"]["tip"], kayit["eylem"].get("hedef", "")
+        if tip == "kur" and hedef and not adim.get("kuruldu") and hasattr(self.yetenekler, "kur"):
+            c = self.yetenekler.kur(hedef, f"{adim['amac']} için eksik bağımlılık", onayli=False)
+            if c.onay_bekliyor:
+                adim["bekleyen"] = {"tip": "kur", "hedef": hedef}
+                return self._bekle(gorev, adim)
+            if not c.hata:
+                adim["kuruldu"] = True
+                kayit["sonuc"] = "kuruldu_ve_tekrar_denendi"
+                self._olay("kurulum", gorev, adim=adim, metin=c.metin)
+                return self._adim(gorev, adim)
+            neden = f"{neden}; kurulum: {c.metin[:200]}"
+        elif tip == "uret" and hasattr(self.yetenekler, "uret") and not adim.get("uretildi"):
+            ad = hedef.split(":", 1)[1] if hedef.startswith("yetenek:") else adim["yetenek"]
+            if re.fullmatch(r"[a-z][a-z0-9_]{1,40}", ad):
+                adim["bekleyen"] = {"tip": "uret", "ad": ad, "aciklama": f"{gorev['istek'][:300]} — adım: {adim['amac']}"}
+                return self._bekle(gorev, adim)
+        elif tip == "tekrar":
+            n = int(adim.get("ag_deneme") or 0)
+            if n < int(e.get("deneme") or 3):
+                adim["ag_deneme"] = n + 1
+                self._olay("tekrar", gorev, adim=adim, neden=f"ağ hatası, {n + 1}. deneme: {neden[:120]}")
+                self.bekle(float((e.get("bekleme_sn") or [1, 2, 4])[min(n, 2)]))
+                return self._adim(gorev, adim)
+        elif tip == "yeniden_planla":
+            if int(gorev.get("yeniden_plan") or 0) < int(e.get("en_cok") or 2):
+                return self._yeniden_planla(gorev, adim, neden, sonuc)
+        elif tip == "sor":
+            adim["durum"] = "planlandi"
+            gorev["durum"] = "bekliyor_kullanici"
+            gorev["rapor"] = (f"Adım {adim['id']} ({adim['amac']}) izin gerektiriyor: {neden[:200]}. "
+                              "Nasıl devam edeyim?")
+            self._kaydet(gorev)
+            self._olay("soru", gorev, soru=gorev["rapor"])
+            return gorev
+        return self._basarisiz(gorev, adim, neden, sonuc, kayit)
+
+    def _eylem_uygula(self, bekleyen: dict, onayli: bool) -> Cikti:
+        if bekleyen["tip"] == "kur":
+            return self.yetenekler.kur(bekleyen["hedef"], "onaylanan kurulum", onayli=onayli)
+        return self._uret(bekleyen["ad"], bekleyen["aciklama"])
+
+    def _uret(self, ad: str, aciklama: str) -> Cikti:
+        try:
+            return self.yetenekler.uret(ad, aciklama, onayli=True, model=self.model)
+        except TypeError:  # eski uyarlayıcı: model almaz
+            return self.yetenekler.uret(ad, aciklama, onayli=True)
+
+    def _yeniden_planla(self, gorev: dict, adim: dict, neden: str, sonuc: str) -> dict:
+        """MIMARI §7 `mantik`: başarısız çıktı bağlama eklenip kalan iş yeniden planlanır (en çok 2 kez). Biten adımlar
+        kalır; yeni adımlar onların ardına numaralanır."""
+        gorev["yeniden_plan"] = int(gorev.get("yeniden_plan") or 0) + 1
+        bitenler = [a for a in gorev["adimlar"] if a["durum"] == "tamamlandi"]
+        n = len(bitenler)
+        gecmis = "".join(f"Done step {a['id']} ({a['amac']}): {str(a.get('sonuc') or '')[:800]}\n" for a in bitenler)
+        istek = (f"{gorev['istek']}\n\n(Replanning after a failure. Already done — do NOT repeat:\n{gecmis}"
+                 f"Failed step: {adim['amac']} — {neden[:300]}\nIts output:\n{(sonuc or '')[:1000]}\n"
+                 "Plan only the remaining work; earlier results are available as {{adim_N.sonuc}} with the numbers above.)")
+        try:
+            adimlar = planlayici.planla(istek, gorev["anlayis"], self.yetenekler.listele(), self.model, self.klasor,
+                                        self.okunur)
+            yeni = planlayici.gorev_olustur(gorev["istek"], gorev["anlayis"], adimlar, self.yetenekler, self.model,
+                                            self.kademe)["adimlar"]
+        except planlayici.PlanYetersiz as e:
+            return self._basarisiz(gorev, adim, f"{neden}; yeniden planlanamadı: {e.kayit['belirti']}", sonuc, "mantik")
+        for a in yeni:
+            a["id"] += n
+            a["bagimli"] = [b + n for b in a["bagimli"]]
+            a["girdi"] = _kaydir(a["girdi"], n)
+        adim["durum"] = "iptal"
+        adim["not"] = f"yeniden planlandı: {neden[:200]}"
+        gorev["adimlar"] = bitenler + yeni
+        gorev["checkpoint"] = {"son_adim": n, "zaman": simdi()}
+        self._kaydet(gorev)
+        self._olay("plan", gorev, yeniden=True)
+        return self.kos(gorev)
 
     def _salt_okur(self, ad: str) -> bool:
         return any(y["ad"] == ad and y.get("salt_okur") for y in self.yetenekler.listele())
@@ -268,12 +386,17 @@ class Yurutucu:
         self._olay("onay", gorev, adim=adim)
         return gorev
 
-    def _basarisiz(self, gorev: dict, adim: dict, neden: str, sonuc: str, sinif: str) -> dict:
+    def _basarisiz(self, gorev: dict, adim: dict, neden: str, sonuc: str, sinif) -> dict:
+        """`sinif`: sınıf adı ya da hata analizinin tamamladığı kayıt (SEMALAR §3)."""
         adim["durum"] = "basarisiz"
         adim["sonuc_ozeti"] = " ".join((sonuc or neden).split())[:OZET_SINIRI]
-        kayit = {"adim": adim["id"], "zaman": simdi(), "sinif": sinif, "belirti": neden[:300],
-                 "kanit": "\n".join((sonuc or "").strip().splitlines()[-5:])[:1000],
-                 "eylem": {"tip": "devret", "hedef": "analiz/hata", "onay": "yok"}, "sonuc": "vazgecildi"}
+        if isinstance(sinif, dict):
+            kayit = {k: v for k, v in sinif.items() if k != "model_adimi"}
+            kayit["belirti"] = neden[:300]
+        else:
+            kayit = {"adim": adim["id"], "zaman": simdi(), "sinif": sinif, "belirti": neden[:300],
+                     "kanit": "\n".join((sonuc or "").strip().splitlines()[-5:])[:1000],
+                     "eylem": hata.eylem(sinif, neden, sonuc), "sonuc": "vazgecildi"}
         gorev["hatalar"].append(kayit)
         gorev["durum"] = "basarisiz"
         gorev["rapor"] = self._rapor(gorev)

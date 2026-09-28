@@ -107,10 +107,20 @@ def decide(name: str, args, ctx: Context) -> Decision:
     why = security.forbidden(name, args)
     if why:
         return Decision(DENY, why)
+    # güvenlik politikası (cekirdek/guvenlik.py, MIMARI §10): yasak → ret; "otomatik" kurulum → izin; "sor" → hat
+    # kendi kuralıyla sürer; ağ "sor" → riskli sayılır. Politika ikinci bir onay yolu değildir, karar yine burada.
+    from .cekirdek import guvenlik
+
+    tool = REGISTRY.get(name)
+    soz, neden = guvenlik.karar(name, args, (tool.hints or {}).get("izinler", ()) if tool else ())
+    if soz == "yasak":
+        return Decision(DENY, neden)
+    if soz == "izin" and not ctx.gate_actions:
+        return Decision(ALLOW, neden)
     action = is_action(name, args)
     if ctx.gate_actions and action:
         return Decision(PENDING)
-    risky = needs_approval(name, args) and not is_readonly(name, args)
+    risky = (needs_approval(name, args) or soz == "sor") and not is_readonly(name, args)
     if ctx.approval_mode == "guvenlik" and not ctx.uncensored:
         return Decision(REVIEW if risky or action else ALLOW)
     user_allowed = ctx.always_allowed or bool(ctx.auto_approve and ctx.auto_approve(name, args))

@@ -197,9 +197,10 @@ class YedeklemeZinciri(unittest.TestCase):
         kayit = z.hata_kaydi(3)
         self.assertEqual(kayit["sinif"], "model_yetersiz")  # SEMALAR §3
         self.assertEqual(set(kayit), {"adim", "zaman", "sinif", "belirti", "kanit", "eylem", "sonuc"})
-        self.assertEqual(y.devret(kayit), "sira")  # analiz/hata.py henüz yok (K6): sıraya yazılır
-        satir = (ayar.DATA_DIR / "hata_sirasi.jsonl").read_text(encoding="utf-8").splitlines()[-1]
+        self.assertEqual(y.devret(kayit), "analiz")  # K6: cekirdek/analiz/hata.py sınıf + eylem, kütüğe yazar
+        satir = (ayar.DATA_DIR / "hatalar.jsonl").read_text(encoding="utf-8").splitlines()[-1]
         self.assertEqual(json.loads(satir)["adim"], 3)
+        self.assertEqual(json.loads(satir)["eylem"]["tip"], "yukselt")
 
 
 class BulutTavani(unittest.TestCase):

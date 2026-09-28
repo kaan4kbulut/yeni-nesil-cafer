@@ -237,15 +237,15 @@ YAPMA: siteye özel seçici gömme (site adına göre if yok); giriş gerektiren
 ## Aşama K6 — Hata analizi ve kendini genişletme
 **Hedef:** Yapamadığı işi sınıflandırır; bağımlılık kurar; yetenek üretir; hepsi onaylı ve sandbox'lı.
 
-- [ ] `analiz/hata.py`: 8 sınıf için desen tabanlı sınıflandırıcı + eylem tablosu (`docs/MIMARI.md` §7); bilinmeyen → `hizli` modele sor
-- [ ] `guvenlik.py` + `ayar/guvenlik.toml`: `kurulum`, `ag`, `dosya_silme`, `sandbox_zaman_asimi_sn`; kaynak allowlist
-- [ ] `yetenek/yukleyici.py`: pip / winget / apt / brew ile kurulum; politika `sor` ise onay kuyruğuna
-- [ ] `yetenek/uretici.py`: eksik yetenek → manifest yazdır → kod ajanı ile `calistir.py` + test üret → sandbox test → onay → kayıt (`kaynak: uretildi`, `guvenilir: false`); 3 tur sınırı
-- [ ] Yürütücü ↔ hata analizi bağlantısı: başarısız adım → sınıf → eylem → adımı tekrar / kullanıcıya sor / vazgeç
-- [ ] Onay kuyruğu: masaüstünde ve (K8 sonrası) web'de "bekleyen onaylar"
-- [ ] `NOTLAR/HATALAR.md` başlatıldı; `/hata-analiz` komutu sınıflandırıcıya desen ekleyebiliyor
-- [ ] Testler: her sınıf için sahte hata → doğru eylem; üretici sahte kod ajanıyla uçtan uca; sandbox'ta yasak erişim engellendi
-- [ ] Hazır MCP sunucusunu (onayla) kendisi kurmak; çalışan, üretilmiş bir aracı güncellemek — mevcut plandan taşındı
+- [x] `analiz/hata.py`: 8 sınıf için desen tabanlı sınıflandırıcı + eylem tablosu (`docs/MIMARI.md` §7); bilinmeyen → `hizli` modele sor
+- [x] `guvenlik.py` + `ayar/guvenlik.toml`: `kurulum`, `ag`, `dosya_silme`, `sandbox_zaman_asimi_sn`; kaynak allowlist
+- [x] `yetenek/yukleyici.py`: pip / winget / apt / brew ile kurulum; politika `sor` ise onay kuyruğuna (pip ve MCP; komut satırı programı (ikili) kullanıcıya bırakılır — SORULAR K6)
+- [x] `yetenek/uretici.py`: eksik yetenek → manifest yazdır → kod ajanı ile `calistir.py` + test üret → sandbox test → onay → kayıt (`kaynak: uretildi`, `guvenilir: false`); 3 tur sınırı
+- [x] Yürütücü ↔ hata analizi bağlantısı: başarısız adım → sınıf → eylem → adımı tekrar / kullanıcıya sor / vazgeç
+- [x] Onay kuyruğu: masaüstünde ve (K8 sonrası) web'de "bekleyen onaylar" (masaüstü: Görevler penceresi; web K8'de)
+- [x] `NOTLAR/HATALAR.md` başlatıldı; `/hata-analiz` komutu sınıflandırıcıya desen ekleyebiliyor
+- [x] Testler: her sınıf için sahte hata → doğru eylem; üretici sahte kod ajanıyla uçtan uca; sandbox'ta yasak erişim engellendi
+- [x] Hazır MCP sunucusunu (onayla) kendisi kurmak; çalışan, üretilmiş bir aracı güncellemek — mevcut plandan taşındı
       ("Sonraya" listesi; CLAUDE.md'de araç fabrikasının eksiği olarak geçer)
 
 **Bitti sayılır:** "Bu PDF'in tablolarını Excel'e çıkar" gibi mevcut yeteneği olmayan bir istekte program eksik yeteneği söylüyor, onay isteyip yetenek üretiyor, test ediyor, sonra görevi tamamlıyor. `pip` olmayan bir modül hatasında onay isteyip kuruyor.

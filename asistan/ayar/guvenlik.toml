@@ -1,0 +1,9 @@
+# Güvenlik politikası (MIMARI §10). Programla gelen varsayılanlar; kullanıcı `ayar.toml → [guvenlik]` ya da
+# `CAFER_GUVENLIK_<ANAHTAR>` ile ezer. Onay kuralı yine yalnızca permissions.py'de: burası politika verir.
+[guvenlik]
+kurulum = "sor"          # sor | otomatik | yasak  — pip / uygulama / MCP sunucusu kurma
+ag = "serbest"           # serbest | sor           — internete veri gönderen araçlar (arama, sayfa okuma, API, tarayıcı)
+dosya_silme = "sor"      # sor | yasak
+sandbox_zaman_asimi_sn = 60   # üretilen/sandbox yeteneğinin üst zaman sınırı (manifest daha azını ister)
+uretilen_sandbox_calistirma = 5   # üretilen yetenek ilk N çalıştırmada her zaman sandbox'ta; sonra "güvenilir" işaretlenebilir
+kaynaklar = ["pypi", "flathub", "winget", "brew", "apt", "npm", "cafer-yetenekler"]  # kurulum kaynağı allowlist

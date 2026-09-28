@@ -16,7 +16,7 @@ Girdi: $ARGUMENTS
 3. **Düzelt.** En küçük, geri alınabilir değişiklik. Semptomu değil nedeni düzelt. Düzeltmeyi kilitleyen bir test ekle (`testler/`), testi çalıştır, geçtiğini göster.
 
 4. **Genelleştir.** Şunu sor ve cevapla: *Bu hata, program kullanıcıda çalışırken de olabilir mi?* Olabilirse:
-   - `asistan/cekirdek/analiz/hata.py` içindeki sınıflandırıcıya bu hata desenini (regex/anahtar kelime) ve eylemini ekle.
+   - `asistan/cekirdek/analiz/hata.py` içindeki sınıflandırıcıya (`DESENLER`, sıra önemli: ilk eşleşen kazanır) bu hata desenini (regex) ekle; eylem tablosu `EYLEMLER`. Kod değişmeden kullanıcı klasörüne yazmak için `hata.desen_ekle(sinif, regex, not)`.
    - Eylem "kur" ise `yukleyici.py`'nin bunu yapabildiğini kontrol et; yapamıyorsa ekle.
    - Bunların da testi olsun.
 

@@ -604,21 +604,14 @@ class Zincir:
 
 
 def devret(kayit: dict) -> str:
-    """Zincir sonu: kayıt hata analizine gider (`asistan/analiz/hata.py` K6'da kurulur; yoksa sıraya yazılır).
+    """Zincir sonu: kayıt hata analizine gider (`cekirdek/analiz/hata.py`: sınıf + eylem + kütük).
 
-    Döner: "analiz" (sınıflandırıcı aldı) ya da "sira" (DATA_DIR/hata_sirasi.jsonl'e yazıldı, K6 okuyacak)."""
-    import importlib
-    import importlib.util
-
+    Döner: "analiz" (sınıflandırıcı aldı) ya da "sira" (analiz çöktü: DATA_DIR/hata_sirasi.jsonl'e yazıldı)."""
     try:
-        # üst paket yokken find_spec("asistan.analiz.hata") ModuleNotFoundError fırlatır: önce paket
-        if importlib.util.find_spec("asistan.analiz") is not None and \
-                importlib.util.find_spec("asistan.analiz.hata") is not None:
-            hata = importlib.import_module("asistan.analiz.hata")
-            isle = getattr(hata, "isle", None)
-            if callable(isle):
-                isle(kayit)
-                return "analiz"
+        from .analiz import hata  # K6: sınıf + eylem, DATA_DIR/hatalar.jsonl
+
+        hata.isle(kayit)
+        return "analiz"
     except Exception as e:  # hata analizi de çökerse kayıt kaybolmasın
         _gunluk.warning("hata analizine devredilemedi: %s", e)
     try:

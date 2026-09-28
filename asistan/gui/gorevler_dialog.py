@@ -150,6 +150,9 @@ class GorevlerDialog(QDialog):
         niyet = (g.get("anlayis") or {}).get("niyet")
         if niyet:
             parts.append(f"<p style='color:{C['muted']}'>Niyet: {html.escape(niyet)}</p>")
+        if g.get("bekleyen_uretim"):  # K6: onay kuyruğu — eksik yetenek üretimi
+            parts.append(f"<p><b>Onay bekliyor:</b> {html.escape(str(g.get('rapor') or ''))}<br>"
+                         "Onayla → yetenek üretilir, sandbox'ta test edilir, görev yeniden planlanır.</p>")
         if g["durum"] == "bekliyor_kullanici" and g.get("rapor"):
             parts.append(f"<p><b>Soru:</b> {html.escape(g['rapor'])}<br>Cevabını üstteki kutuya yazıp Başlat'a "
                          "bas: görev cevapla sürer.</p>")
@@ -165,7 +168,11 @@ class GorevlerDialog(QDialog):
             parts.append(f"<li><span style='color:{renk}'>{ISARET.get(a['durum'], '?')} "
                          f"{html.escape(a['amac'])}</span> <small>· {html.escape(a['yetenek'])}"
                          f"{' · ' + ' · '.join(ek) if ek else ''}</small>")
-            if a["durum"] == "bekliyor_onay":
+            if a["durum"] == "bekliyor_onay" and a.get("bekleyen"):  # K6: kurulum / üretim onayı
+                b = a["bekleyen"]
+                ne = f"kurulum: {b.get('hedef')}" if b.get("tip") == "kur" else f"yetenek üretimi: {b.get('ad')}"
+                parts.append(f"<br><small><b>Onay bekliyor</b> — {html.escape(ne)}</small>")
+            elif a["durum"] == "bekliyor_onay":
                 parts.append(f"<br><small>Yapılacak: <code>{html.escape(str(a.get('girdi'))[:400])}</code></small>")
             ozet = a.get("sonuc_ozeti") or a.get("not")
             if ozet:

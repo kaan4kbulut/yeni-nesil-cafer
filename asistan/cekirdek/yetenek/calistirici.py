@@ -28,7 +28,14 @@ from .kayit import Yetenek, modul_yukle
 
 GIRIS = Path(__file__).resolve().parent / "_kum_giris.py"
 PROGRAM_KOKU = Path(__file__).resolve().parents[3]  # asistan/'ın üstü: sandbox PYTHONPATH'i
-UST_ZAMAN_SINIRI = 600  # sn; manifest daha azını ister (K6: ayar/guvenlik.toml)
+UST_ZAMAN_SINIRI = 600  # sn; sert üst sınır. Etkin sınır guvenlik.toml → sandbox_zaman_asimi_sn (K6)
+
+
+def ust_zaman_siniri() -> int:
+    """Sandbox üst zaman sınırı: `guvenlik.sandbox_zaman_asimi()` (manifest daha azını ister), en çok UST_ZAMAN_SINIRI."""
+    from .. import guvenlik
+
+    return min(UST_ZAMAN_SINIRI, guvenlik.sandbox_zaman_asimi())
 MAKS_CIKTI = 1_000_000  # bayt
 _log = logging.getLogger("asistan.yetenek")
 
@@ -159,11 +166,11 @@ def _durdur(proc: subprocess.Popen) -> None:
 
 def kum_havuzunda(yetenek: Yetenek, girdi: dict, baglam: Baglam, *, python: str | None = None,
                   ortamlar: Path | None = None, kutuphane_yollari=(), anahtar_bul=None,
-                  ust_sinir: int = UST_ZAMAN_SINIRI) -> dict:
+                  ust_sinir: int | None = None) -> dict:
     """Yeteneği sandbox alt sürecinde çalıştırır; `cikti` sözlüğünü döndürür."""
     python = python or sys.executable
     exe = venv_python(yetenek.ad, python, ortamlar or ortam_koku())
-    sure = max(1, min(yetenek.zaman_asimi, ust_sinir))
+    sure = max(1, min(yetenek.zaman_asimi, ust_sinir if ust_sinir is not None else ust_zaman_siniri()))
     gecici = tempfile.mkdtemp(prefix=f"yetenek-{yetenek.ad}-")
     ayar = {k: v for k, v in dict(baglam.ayar or {}).items() if isinstance(v, (str, int, float, bool, type(None)))}
     from ..araclar.temel import GIZLI_DOSYALAR

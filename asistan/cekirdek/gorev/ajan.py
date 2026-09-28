@@ -152,6 +152,44 @@ class AjanYetenekleri:
         except YetenekHatasi as e:
             raise tools.ToolError(f"({e.sinif}) {e.mesaj}") from None
 
+    # ---- K6: eksik bağımlılık kurma ve yetenek üretme (yürütücü hata analizinin eylemleri)
+    def kur(self, hedef: str, amac: str = "", onayli: bool = False) -> Cikti:
+        """`pip:<paket>` / `mcp:<ad>`: tek araç yolundan (`install_python_package` → izin hattı → politika)."""
+        from ..yetenek import YetenekHatasi as _YH, yukleyici
+
+        self._onayli, self._bekleyen, self._son_hata = onayli, False, ""
+        try:
+            metin = yukleyici.kur(hedef, self._arac, amac)
+            self.kayit.yenile()  # pasif yetenek artık aktif olabilir
+            return Cikti(str(metin))
+        except _YH as e:
+            return Cikti(self._son_hata or f"Error ({e.sinif}): {e.mesaj}", True, onay_bekliyor=self._bekleyen)
+        finally:
+            self._onayli = False
+
+    def uret(self, ad: str, aciklama: str, onayli: bool = False, model=None) -> Cikti:
+        """Eksik yeteneği üretir (MIMARI §7): yalnızca onayla; kod ajanı yönlendiricinin `kod` rolü; sandbox testi
+        geçmeden kayda girmez; girince `y_<ad>` aracı motor ajanına eklenir."""
+        from ..yetenek import uretici
+
+        if not onayli:
+            return Cikti(f"'{ad}' yeteneği yok; üretmek için onay gerekiyor", onay_bekliyor=True)
+        model = model or getattr(self, "model", None)
+        if model is None:
+            return Cikti("Error: yetenek üretmek için model yok", True)
+        self._onayli = True  # onaylanan üretim: gereken pip paketi de aynı onayla kurulur
+        try:
+            s = uretici.uret(ad, aciklama, model, python=self._python, sor=lambda _ozet: True, arac=self._arac,
+                             kutuphane_yollari=self._kutuphaneler, kademe=self.kademe, calisma_klasoru=self.klasor)
+        finally:
+            self._onayli = False
+        if s.yetenek is None:
+            return Cikti(f"Error: {s.rapor}", True)
+        self.kayit.yenile()
+        self._arac_ekle()
+        return Cikti(f"'{ad}' yeteneği üretildi, sandbox testi geçti ve kaydedildi ({s.rapor}; güvenilir değil: "
+                     "her çalıştırması sandbox'ta ve onaylı)")
+
     # ---- Yetenekler arayüzü (gorev/__init__.py)
     def listele(self) -> list[dict]:
         return self.kayit.planlayici_listesi()
