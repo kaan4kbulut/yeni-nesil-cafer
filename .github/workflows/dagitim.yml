@@ -1,5 +1,7 @@
-# K11 — Dağıtım: etiket (vX.Y) gönderilince üç platformda Light paketler derlenir (Windows .exe, macOS .dmg, Linux
-# AppImage), uygulama içi güncelleme paketi (updates.ASSET + .sha256) eklenir ve GitHub sürümü oluşturulur.
+# K11 — Dağıtım: etiket (vX.Y) gönderilince üç platformda kurulum dosyaları derlenir (YeniNesilCafer-<sürüm>-Windows-Kurulum.exe,
+# -macOS.dmg, -Linux.AppImage), güncelleyici paketi (updates.ASSET + .sha256) eklenir ve GitHub sürümü YAYINLANIR
+# (taslak değil; etikette "beta"/"rc" varsa ön sürüm). Sürüm notu dagitim/RELEASE_NOTU.md şablonundan; aynı etikete
+# yeniden gönderim mevcut sürümü günceller (dosyalar üstüne yazılır; eski adlı dosyalar elle silinir).
 # Full (Ollama + model, ≤ 1,9 GB) CI'da derlenmez: geliştirici makinesinde `python dagitim/paketle.py --tam`,
 # `paketleme/yayinla.sh --tam` ile yüklenir (GitHub 2 GB sınırı).
 name: Dağıtım
@@ -70,16 +72,17 @@ jobs:
           merge-multiple: true
       - name: Dosyaları topla
         run: |
-          mkdir -p dist/surum
+          mkdir -p dist/surum dist/not
           cp dist/indirilen/* dist/surum/ 2>/dev/null || true
           cp dist/dagitim/*.zip dist/dagitim/*.sha256 dist/surum/ 2>/dev/null || true
           ls -la dist/surum
-      - name: Sürüm notları
+      - name: Sürüm notu (dagitim/RELEASE_NOTU.md şablonu; dosya olarak yüklenmez)
         run: |
-          python -c 'import re; m = open("CHANGELOG.md", encoding="utf-8").read(); b = re.split(r"^## ", m, flags=re.M); print("## " + b[1] if len(b) > 1 else m)' > dist/surum/NOTLAR.md
-          head -5 dist/surum/NOTLAR.md
+          python dagitim/paketle.py --surum-notu > dist/not/NOTLAR.md
+          head -8 dist/not/NOTLAR.md
       - uses: softprops/action-gh-release@v2
         with:
-          draft: true
-          body_path: dist/surum/NOTLAR.md
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          body_path: dist/not/NOTLAR.md
           files: dist/surum/*

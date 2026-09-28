@@ -8,6 +8,11 @@ Linux `.AppImage` — her biri kendi platformunda derlenir (GitHub Actions `dagi
     python dagitim/paketle.py --guncelleme       # uygulama içi güncelleme paketi (updates.ASSET, sha256)
     python dagitim/paketle.py --kuru [...]       # hiçbir şey üretmeden plan (dosyalar, boyutlar) → JSON
     python dagitim/paketle.py --eski-sil         # yeni sürüm Latest olduktan sonra: eski sürümleri etiketleriyle sil (gh)
+    python dagitim/paketle.py --surum-notu       # GitHub sürüm notu (dagitim/RELEASE_NOTU.md şablonu) → stdout
+
+Ürün adları (platform başına tek dosya, "Light" yok): YeniNesilCafer-<sürüm>-Linux.AppImage (`--install` ile masaüstüne
+kısayol), YeniNesilCafer-<sürüm>-Windows-Kurulum.exe, YeniNesilCafer-<sürüm>-macOS.dmg. Güncelleyici paketi
+`guncelleyici-icin-…zip` (+ .sha256): sürüm sayfasında insan için değil.
 
 Kurallar: GitHub sürüm dosyası 2 GB sınırı → Full ≤ 1,9 GB (model bütçeye sığmazsa Full modelsiz çıkar ve ilk açılış
 modeli indirir; ekrana yazılır). İndirmeler sabit sürüm + SHA-256 (Ollama: `asistan/bootstrap.py`). Uygulama içi
@@ -83,17 +88,44 @@ def plan(tur: str, butce_gb: float) -> dict:
     dosyalar = program_dosyalari()
     p = {"tur": tur, "sistem": sistem(), "surum": surum(), "dosya_sayisi": len(dosyalar),
          "kaynak_mb": boyut_mb(dosyalar), "cikti": str(CIKTI), "butce_gb": butce_gb,
-         "urun": {"windows": f"{AD}-{surum()}-Windows.exe", "macos": f"{AD}-{surum()}-macOS.dmg",
-                  "linux": f"{AD}-{surum()}-Linux.AppImage"}[sistem()]}
+         "urun": urun_adi(sistem(), tur)}
     if tur == "tam":
         p["model"] = model_sec(butce_gb)
         p["ollama"] = ollama_paketi()
-        p["urun"] = p["urun"].replace(f"-{surum()}-", f"-{surum()}-Full-")
         if not p["model"]:
             p["not"] = "bütçeye sığan model yok: Full modelsiz çıkar, ilk açılış modeli indirir"
-    else:
-        p["urun"] = p["urun"].replace(f"-{surum()}-", f"-{surum()}-Light-")
     return p
+
+
+def urun_adi(s: str, tur: str = "hafif", v: str = "") -> str:
+    """Platform başına tek kurulum dosyası; ad ne yapacağını söyler ("Light" yok: Full GitHub'a girmez, ayrım anlamsız).
+    Full yalnızca elle üretilir ve `-Full-` ekiyle ayrılır."""
+    v = v or surum()
+    ad = {"windows": f"{AD}-{v}-Windows-Kurulum.exe", "macos": f"{AD}-{v}-macOS.dmg", "linux": f"{AD}-{v}-Linux.AppImage"}[s]
+    return ad.replace(f"-{v}-", f"-{v}-Full-") if tur == "tam" else ad
+
+
+def surum_notu(v: str = "", sablon: Path | None = None) -> str:
+    """GitHub sürüm notu (`dagitim/RELEASE_NOTU.md` şablonu): en başta "Hangisini indireyim?" tablosu, sonra CHANGELOG'un
+    ilk bölümü, "Gelişmiş" altında internet paketleri ve BENIOKU. `--surum-notu` ile CI yazar (dosya olarak yüklenmez)."""
+    import re
+
+    from asistan import SURUM_ADI, updates
+
+    v = v or surum()
+    sablon = sablon or (PROJE / "dagitim" / "RELEASE_NOTU.md")
+    m = (PROJE / "CHANGELOG.md").read_text(encoding="utf-8")
+    b = re.split(r"^## ", m, flags=re.M)
+    degisiklikler = "\n".join(b[1].splitlines()[1:]).strip() if len(b) > 1 else ""
+    internet = "\n".join(f"- `{SURUM_ADI}-{s}-internet.{u}`" for s, u in (("Windows", "zip"), ("Linux", "tar.gz"), ("macOS", "zip")))
+    benioku_yolu = PROJE / "paketleme" / "BENIOKU.txt"
+    benioku = ""
+    if benioku_yolu.exists():
+        metin = benioku_yolu.read_text(encoding="utf-8").replace("@PAKET@", SURUM_ADI).replace("@SURUM@", v)
+        benioku = "**BENIOKU (internet paketleri):**\n\n```text\n" + metin.strip() + "\n```"
+    return sablon.read_text(encoding="utf-8").format(
+        surum=v, linux=urun_adi("linux", v=v), windows=urun_adi("windows", v=v), macos=urun_adi("macos", v=v),
+        guncelleme=updates.ASSET.format(version=v), degisiklikler=degisiklikler, internet=internet, benioku=benioku)
 
 
 def sha_yaz(dosya: Path) -> Path:
@@ -122,6 +154,19 @@ def pyinstaller(tek_dosya: bool) -> Path:
     return CIKTI / "build"
 
 
+def apprun_metni(exe: str) -> str:
+    """AppImage giriş betiği: `--install` / `--uninstall` gömülü kur.sh'a gider (AppImage'ın kendi yolu $APPIMAGE), diğer
+    her şey programa."""
+    return (
+        '#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\n'
+        'case "${1:-}" in\n'
+        f'  --install) exec "$HERE/kur.sh" "${{APPIMAGE:-$HERE/AppRun}}" "$HERE/{AD}.png" ;;\n'
+        f'  --uninstall) exec "$HERE/kur.sh" "${{APPIMAGE:-$HERE/AppRun}}" "$HERE/{AD}.png" --uninstall ;;\n'
+        'esac\n'
+        f'exec "$HERE/{exe}" "$@"\n'
+    )
+
+
 def sar(build: Path, urun: str) -> Path:
     """Platform kabı: Windows → onefile .exe zaten; macOS → hdiutil .dmg; Linux → appimagetool (yoksa .tar.gz)."""
     CIKTI.mkdir(parents=True, exist_ok=True)
@@ -138,12 +183,14 @@ def sar(build: Path, urun: str) -> Path:
         shutil.rmtree(appdir, ignore_errors=True)
         (appdir / "usr" / "bin").mkdir(parents=True)
         kaynak = build / AD
+        exe = f"usr/bin/{AD}/{AD}" if kaynak.is_dir() else f"usr/bin/{AD}"
         if kaynak.is_dir():
             shutil.copytree(kaynak, appdir / "usr" / "bin" / AD)
-            (appdir / "AppRun").write_text(f'#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\nexec "$HERE/usr/bin/{AD}/{AD}" "$@"\n')
         else:
             shutil.copy2(kaynak, appdir / "usr" / "bin" / AD)
-            (appdir / "AppRun").write_text(f'#!/bin/sh\nHERE="$(dirname "$(readlink -f "$0")")"\nexec "$HERE/usr/bin/{AD}" "$@"\n')
+        shutil.copy2(PROJE / "dagitim" / "linux" / "kur.sh", appdir / "kur.sh")  # --install / --uninstall: masaüstü kısayolu
+        os.chmod(appdir / "kur.sh", 0o755)
+        (appdir / "AppRun").write_text(apprun_metni(exe))
         os.chmod(appdir / "AppRun", 0o755)
         (appdir / f"{AD}.desktop").write_text(f"[Desktop Entry]\nType=Application\nName=YENİ NESİL CAFER\nExec={AD}\n"
                                               f"Icon={AD}\nCategories=Utility;\nTerminal=false\n")
@@ -222,9 +269,13 @@ def main(argv=None) -> int:
     ap.add_argument("--butce-gb", type=float, default=BUTCE_GB)
     ap.add_argument("--tek-dosya", action="store_true", help="PyInstaller --onefile (Windows .exe için)")
     ap.add_argument("--eski-sil", action="store_true", help="Latest dışındaki yayınlanmış GitHub sürümlerini etiketleriyle sil (gh)")
+    ap.add_argument("--surum-notu", action="store_true", help="GitHub sürüm notunu şablondan yaz (dagitim/RELEASE_NOTU.md) → stdout")
     ap.add_argument("--kalan", default="", help="--eski-sil: korunacak etiket (boş: Latest olan)")
     a = ap.parse_args(argv)
     tur = "tam" if a.tam else "hafif"
+    if a.surum_notu:
+        sys.stdout.write(surum_notu())
+        return 0
     if a.eski_sil:
         silinen = eski_surumleri_sil(a.kalan)
         print("silinen: " + (", ".join(silinen) or "yok"))

@@ -4,6 +4,9 @@ Biçim: sürüm → başlıklar. Tarihli deneyler `NOTLAR/`, kalıcı kurallar `
 
 ## 3.0 — 2026-09-28 (K serisi: kademeli + bulut mimarisi)
 
+- **Sürüm sayfası:** platform başına tek kurulum dosyası (`…-Linux.AppImage` / `…-Windows-Kurulum.exe` / `…-macOS.dmg`),
+  notun başında "Hangisini indireyim?" tablosu; AppImage `--install` ile masaüstü kısayolu; güncelleyici paketi
+  `guncelleyici-icin-…` önekli (insan için değil).
 - **`kullaniciya_sor` aracı** (sohbet yolu): model sonucu belirleyen bir şeyi soracaksa tek soru sorar, tur biter, sohbet
   "cevap bekliyor" olur; sonraki mesaj aynı bağlamla cevap olarak gider (motorun `anlayici.soru`su ile aynı arayüz).
 - **Çekirdek / arayüz ayrımı** (`asistan/cekirdek/`): ayar (`ayar.toml` + `CAFER_*`), sağlayıcılar (Ollama, Claude,

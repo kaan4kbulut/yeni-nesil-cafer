@@ -27,7 +27,7 @@ from .config import DATA_DIR
 PROGRAM_DIR = Path(__file__).resolve().parent.parent
 STATE_FILE = DATA_DIR / "guncelleme-durum.json"  # kurulan sürüm onaylanana kadar (geri dönüş için)
 BACKUP_DIR = DATA_DIR / "guncelleme-yedek"
-ASSET = "yeni-nesil-cafer-guncelleme-{version}.zip"
+ASSET = "guncelleyici-icin-yeni-nesil-cafer-guncelleme-{version}.zip"  # sürüm sayfasında insan için değil (öneki)
 CHECK_EVERY = 24 * 3600  # otomatik denetim sıklığı
 
 

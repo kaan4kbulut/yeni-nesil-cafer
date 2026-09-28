@@ -253,11 +253,13 @@ sunucu/
 
 ## 12. Dağıtım (K11)
 
-- `dagitim/paketle.py`: **Light** (~200 MB: program + Python bağımlılıkları; model yok, ilk açılış indirir) ve **Full**
-  (Light + gömülü Ollama + bütçeye sığan varsayılan model; ≤ 1,9 GB — GitHub sürüm dosyası sınırı). Ürünler: Windows
-  `.exe` (PyInstaller onefile), macOS `.dmg`, Linux `.AppImage`; her birinin yanında `.sha256`.
-- `.github/workflows/dagitim.yml`: `v*` etiketinde üç platformda Light derlenir, uygulama içi güncelleme paketi
-  (`updates.ASSET`) eklenir, taslak sürüm açılır. Full CI'da derlenmez (`paketleme/yayinla.sh --tam`).
+- `dagitim/paketle.py`: platform başına TEK kurulum dosyası, adı ne yapacağını söyler (`YeniNesilCafer-<sürüm>-Linux.AppImage`,
+  `…-Windows-Kurulum.exe`, `…-macOS.dmg`; ~250 MB: program + Python bağımlılıkları, model yok, ilk açılış indirir).
+  "Light" adı kalktı; Full (gömülü Ollama + model, ≤ 1,9 GB) yalnızca elle üretilir, `-Full-` ekiyle. AppImage `--install`
+  ile masaüstüne/menüye kısayol yazar (gömülü `dagitim/linux/kur.sh`), `--uninstall` kaldırır. Yanlarında `.sha256`.
+- `.github/workflows/dagitim.yml`: `v*` etiketinde üç platformda derlenir, güncelleyici paketi (`updates.ASSET`,
+  `guncelleyici-icin-…zip`) eklenir, sürüm notu `dagitim/RELEASE_NOTU.md` şablonundan (`--surum-notu`) ve sürüm YAYINLANIR
+  (etikette beta/rc → ön sürüm). Aynı etiket yeniden itilirse mevcut sürüm güncellenir. Eski sürümler `--eski-sil` ile.
 - Uygulama içi güncelleme (`updates.py`) yalnızca kod paketini (`asistan/` + `main.py`) ister; dağıtım paketleri ek
   dosyalardır. Not: onefile `.exe` içinde kod paketi uygulanamaz (SORULAR K11).
 - İlk açılış sihirbazı: sistem taraması + kademe + yetenek önerisi → yerel / bulut / ikisi → gizlilik → modeller.

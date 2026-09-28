@@ -30,7 +30,8 @@ class Paketleme(unittest.TestCase):
     def test_kuru_plan(self):
         p = paketle.plan("hafif", 1.9)
         self.assertEqual(p["tur"], "hafif")
-        self.assertIn("Light", p["urun"])
+        self.assertNotIn("Light", p["urun"])  # platform başına tek dosya, ad ne yapacağını söyler
+        self.assertTrue(p["urun"].startswith("YeniNesilCafer-") and p["urun"].endswith((".AppImage", "-Kurulum.exe", ".dmg")))
         self.assertGreater(p["dosya_sayisi"], 100)
         self.assertLess(p["kaynak_mb"], 200)  # Light ~200 MB hedefi: kaynak kod çok altında (bağımlılıklar PyInstaller'da)
         dosyalar = {rel for _, rel in paketle.program_dosyalari()}
@@ -124,3 +125,62 @@ class EskiSurumleriSil(unittest.TestCase):
             paketle.eski_surumleri_sil("v9", calistir=self._gh(liste, []))
         komutlar = []
         self.assertEqual(paketle.eski_surumleri_sil("v2.7", calistir=self._gh(liste, komutlar)), [])
+
+
+class SurumSayfasi(unittest.TestCase):
+    """Sürüm sayfası kullanıcı için: ad platformu ve işi söyler, not başında "Hangisini indireyim?" tablosu,
+    güncelleyici paketi "guncelleyici-icin-" önekli, AppImage --install ile masaüstüne kısayol."""
+
+    def test_urun_adlari(self):
+        self.assertEqual(paketle.urun_adi("linux", v="3.1"), "YeniNesilCafer-3.1-Linux.AppImage")
+        self.assertEqual(paketle.urun_adi("windows", v="3.1"), "YeniNesilCafer-3.1-Windows-Kurulum.exe")
+        self.assertEqual(paketle.urun_adi("macos", v="3.1"), "YeniNesilCafer-3.1-macOS.dmg")
+        self.assertEqual(paketle.urun_adi("linux", "tam", v="3.1"), "YeniNesilCafer-3.1-Full-Linux.AppImage")
+        from asistan import updates
+
+        self.assertTrue(updates.ASSET.startswith("guncelleyici-icin-"))
+
+    def test_surum_notu(self):
+        from asistan import updates
+
+        n = paketle.surum_notu("3.1")
+        self.assertTrue(n.startswith("# YENİ NESİL CAFER 3.1\n\n## Hangisini indireyim?"))
+        for ad in ("YeniNesilCafer-3.1-Linux.AppImage", "YeniNesilCafer-3.1-Windows-Kurulum.exe", "YeniNesilCafer-3.1-macOS.dmg",
+                   "--install", "Bunları indirmeyin", updates.ASSET.format(version="3.1"), "<details>", "internet", "## Bu sürümde"):
+            self.assertIn(ad, n)
+        self.assertNotIn("{", n.replace("{", "", 0))  # şablonda doldurulmamış alan kalmadı
+        self.assertNotIn("{surum}", n)
+
+    def test_apprun_install(self):
+        m = paketle.apprun_metni("usr/bin/X/X")
+        self.assertIn("--install) exec \"$HERE/kur.sh\"", m)
+        self.assertIn("--uninstall)", m)
+        self.assertTrue(m.rstrip().endswith('exec "$HERE/usr/bin/X/X" "$@"'))
+
+    @unittest.skipIf(sys.platform == "win32", "posix betiği")
+    def test_kur_sh_masaustu_kisayolu(self):
+        ev = Path(tempfile.mkdtemp())
+        (ev / "Masaüstü").mkdir()
+        app = ev / "YeniNesilCafer-3.1-Linux.AppImage"
+        app.write_text("#!/bin/sh\n", encoding="utf-8")
+        ikon = ev / "ikon.png"
+        ikon.write_bytes(b"png")
+        ortam = {**os.environ, "HOME": str(ev), "XDG_DATA_HOME": str(ev / "veri"), "PATH": "/usr/bin:/bin"}
+        betik = KOK / "dagitim" / "linux" / "kur.sh"
+        sahte = ev / "bin"
+        sahte.mkdir()
+        (sahte / "xdg-user-dir").write_text(f"#!/bin/sh\necho {ev}/Masaüstü\n", encoding="utf-8")
+        os.chmod(sahte / "xdg-user-dir", 0o755)
+        ortam["PATH"] = f"{sahte}:" + ortam["PATH"]
+        s = subprocess.run(["sh", str(betik), str(app), str(ikon)], capture_output=True, text=True, env=ortam)
+        self.assertEqual(s.returncode, 0, s.stderr)
+        d = ev / "veri" / "applications" / "yeni-nesil-cafer.desktop"
+        self.assertTrue(d.is_file())
+        self.assertIn(f'Exec="{app}" %F', d.read_text(encoding="utf-8"))
+        self.assertTrue((ev / "Masaüstü" / "yeni-nesil-cafer.desktop").is_file())
+        self.assertTrue((ev / "veri" / "icons" / "hicolor" / "256x256" / "apps" / "yeni-nesil-cafer.png").is_file())
+        self.assertTrue(os.access(app, os.X_OK))
+        s = subprocess.run(["sh", str(betik), str(app), str(ikon), "--uninstall"], capture_output=True, text=True, env=ortam)
+        self.assertEqual(s.returncode, 0, s.stderr)
+        self.assertFalse(d.exists())
+        self.assertTrue(app.exists())  # AppImage silinmez

@@ -86,7 +86,7 @@ class GuncellemeTesti(unittest.TestCase):
 
     def test_son_surum_ve_karsilastirma(self):
         yayin = {"tag_name": "v2.3", "body": "notlar", "html_url": "https://github.com/k/y",
-                 "assets": [{"name": "yeni-nesil-cafer-guncelleme-2.3.zip", "size": 10, "digest": "sha256:ab",
+                 "assets": [{"name": updates.ASSET.format(version="2.3"), "size": 10, "digest": "sha256:ab",
                              "browser_download_url": "https://github.com/k/y/releases/download/v2.3/p.zip"},
                             {"name": "asistan.v2.3-Linux.tar.gz.001", "size": 2, "browser_download_url": "x"}]}
         with mock.patch.object(updates.httpx, "get", return_value=_Yanit(200, yayin)):
