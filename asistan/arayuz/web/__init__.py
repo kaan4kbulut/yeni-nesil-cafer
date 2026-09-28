@@ -15,7 +15,7 @@ import time
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
 
 from ...cekirdek import profil
 from ...cekirdek.gorev import durum as durum_mod
@@ -50,6 +50,9 @@ def anahtar_bul() -> str:
         return secrets.token_urlsafe(24)
 
 
+EN_COK_GOREV = 200  # K12-F1: uzun süre açık sunucuda olay ve motor önbellekleri sınırsız büyümesin
+
+
 class _Olaylar:
     """Görev motorunun olayları (web: son olaylar bellekte; durum deposu zaten `gorevler.db`)."""
 
@@ -64,6 +67,8 @@ class _Olaylar:
             liste.append({"tur": tur, "zaman": time.time(),
                           "adim": (veri.get("adim") or {}).get("id"), "not": str(veri.get("neden") or veri.get("soru") or "")[:200]})
             del liste[:-50]
+            for eski in list(self.son)[:max(0, len(self.son) - EN_COK_GOREV)]:
+                del self.son[eski]
 
 
 class _SohbetCb:
@@ -154,6 +159,11 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
     def motor_al(gorev_id: str, istek: str = ""):
         if gorev_id in motorlar:
             return motorlar[gorev_id]
+        d = depo_al()  # K12-F1: biten görevlerin motorları (ajan, araç kaydı, sohbet) bellekte kalmasın
+        for eski in [g for g in list(motorlar) if g != gorev_id]:
+            k = d.getir(eski)
+            if k is not None and k.get("durum") in durum_mod.BITMIS:
+                motorlar.pop(eski, None)
         if motor_kur is not None:
             m = motor_kur(gorev_id=gorev_id, istek=istek, olay=olaylar)
         else:
@@ -173,6 +183,23 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
         t.start()
         return t
 
+    mesgul: dict[str, threading.Lock] = {}
+
+    def gorevde(gorev_id: str, fn):
+        """K12-F7: aynı görev için ikinci onay/devam/yanıt aynı motoru iki iş parçacığında koşturmasın → 409."""
+        with kilit:
+            k = mesgul.setdefault(gorev_id, threading.Lock())
+        if not k.acquire(blocking=False):
+            raise HTTPException(409, "görev zaten çalışıyor; bitmesini bekle")
+
+        def kos():
+            try:
+                fn()
+            finally:
+                k.release()
+
+        return arka_planda(kos)
+
     # ---- anahtarsız
     @app.get("/saglik")
     def saglik():
@@ -183,6 +210,9 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
 
     for yol, (dosya, tur) in DOSYALAR.items():
         def _sun(dosya=dosya, tur=tur):
+            if dosya == "sw.js":  # K12-F3: kabuk önbelleği sürümle adlanır; yeni sürüm eski uygulama.js'i sunmaz
+                metin = (STATIK / dosya).read_text(encoding="utf-8").replace('"cafer-kabuk-v1"', f'"cafer-kabuk-{__version__}"')
+                return Response(metin, media_type=tur, headers={"Cache-Control": "no-cache"})
             return FileResponse(STATIK / dosya, media_type=tur, headers={"Cache-Control": "no-cache"})
 
         app.get(yol, include_in_schema=False)(_sun)
@@ -226,8 +256,7 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
     def onayla(gorev_id: str, govde: dict | None = None):
         evet = bool((govde or {}).get("evet", True))
         m = motor_al(gorev_id)
-        with kilit:
-            arka_planda(lambda: m.onayla(gorev_id, evet))
+        gorevde(gorev_id, lambda: m.onayla(gorev_id, evet))
         return {"gorev_id": gorev_id, "onay": evet}
 
     @app.post("/gorev/{gorev_id}/yanit", dependencies=[Depends(yetki)])
@@ -236,13 +265,13 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
         if not cevap:
             raise HTTPException(400, "cevap boş")
         m = motor_al(gorev_id)
-        arka_planda(lambda: m.yanitla(gorev_id, cevap))
+        gorevde(gorev_id, lambda: m.yanitla(gorev_id, cevap))
         return {"gorev_id": gorev_id, "durum": "calisiyor"}
 
     @app.post("/gorev/{gorev_id}/devam", dependencies=[Depends(yetki)])
     def devam(gorev_id: str):
         m = motor_al(gorev_id)
-        arka_planda(lambda: m.devam(gorev_id))
+        gorevde(gorev_id, lambda: m.devam(gorev_id))
         return {"gorev_id": gorev_id, "durum": "calisiyor"}
 
     @app.post("/gorev/{gorev_id}/iptal", dependencies=[Depends(yetki)])

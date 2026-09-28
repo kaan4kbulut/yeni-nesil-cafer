@@ -63,14 +63,18 @@ def redact(text: str, known: list[str] | None = None) -> str:
 
 # ---------------------------------------------------------------- program günlüğü (çökmeler)
 
+_log_kilit = threading.Lock()  # K12-F6: iki iş parçacığı aynı anda kırpıp yazarsa satır kaybolmasın
+
+
 def log_line(text: str) -> None:
     try:
-        LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-        if LOG_FILE.exists() and LOG_FILE.stat().st_size > LOG_LIMIT:
-            LOG_FILE.write_text(LOG_FILE.read_text(encoding="utf-8", errors="replace")[-LOG_LIMIT // 2:],
-                                encoding="utf-8")
-        with LOG_FILE.open("a", encoding="utf-8") as f:
-            f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
+        with _log_kilit:
+            LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+            if LOG_FILE.exists() and LOG_FILE.stat().st_size > LOG_LIMIT:
+                kalan = LOG_FILE.read_text(encoding="utf-8", errors="replace")[-LOG_LIMIT // 2:]
+                LOG_FILE.write_text(kalan[kalan.find("\n") + 1:], encoding="utf-8")  # satır ortasından kesme
+            with LOG_FILE.open("a", encoding="utf-8") as f:
+                f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} {text}\n")
     except OSError:
         pass
 

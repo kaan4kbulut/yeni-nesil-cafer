@@ -125,7 +125,8 @@ class HelpMixin:
             do.clicked.connect(lambda _=False, j=job: (dlg.accept(), self._run_cloud_job(j)))
             no.clicked.connect(lambda _=False, j=job, b=box: (threading.Thread(
                 target=cloud_sync.finish_job, args=(self.settings, j["id"], "reddedildi"), daemon=True).start(),
-                b.hide(), self.cloud_jobs.remove(j), self._cloud_done(list(self.cloud_jobs), "")))
+                b.hide(), (j in self.cloud_jobs and self.cloud_jobs.remove(j)),  # K12-F4: çift tıklama ValueError vermesin
+                self._cloud_done(list(self.cloud_jobs), "")))
             row.addStretch()
             row.addWidget(no)
             row.addWidget(do)

@@ -340,13 +340,15 @@ def instruction_files(folder: str, top: str = "") -> str:
     root = Path(top).expanduser().resolve() if top else here
     dirs = [here] + [d for d in here.parents if d.is_relative_to(root)]
     parts = []
+    kalan = INSTRUCTIONS_LIMIT  # K12-F8: sınır dosya başına değil TOPLAM (3 düzey × 4000 = 12K bağlamı dolduruyordu)
     for d in reversed(dirs[:3]):  # iş → kategori → çalışma klasörü
         try:
             text = (d / INSTRUCTIONS_FILE).read_text(encoding="utf-8").strip()
         except (OSError, UnicodeDecodeError):
             continue
-        if text:
-            parts.append(f"### {d / INSTRUCTIONS_FILE}\n{text[:INSTRUCTIONS_LIMIT]}")
+        if text and kalan > 0:
+            parts.append(f"### {d / INSTRUCTIONS_FILE}\n{text[:kalan]}")
+            kalan -= len(text)
     if not parts:
         return ""
     return ("\n\n## User instructions (ASISTAN.md files the user keeps in the workspace; follow them, the more "
@@ -781,6 +783,7 @@ class Agent:
     # ---- ortak araç çalıştırma ----
 
     def _execute_tool(self, call_id: str, name: str, args) -> tuple[str, bool]:
+        self._check_cancel()  # K12-F10: ■ basıldıysa sıradaki araç için onay penceresi açılmasın
         error = validate_input(name, args)
         self.cb.on_tool_start(call_id, name, args if isinstance(args, dict) else {"raw": args})
         if error is None and not any(s["name"] == name for s in self.tool_specs):

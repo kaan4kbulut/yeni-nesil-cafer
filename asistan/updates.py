@@ -137,6 +137,12 @@ def _members(z: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     return ok
 
 
+def _gecici_temizle(package: Path) -> None:
+    """`download`'ın açtığı geçici klasörü siler (yalnızca kendi önekimizle; başka yola dokunulmaz)."""
+    if package.parent.name.startswith("yeni-nesil-cafer-guncelleme-"):
+        shutil.rmtree(package.parent, ignore_errors=True)
+
+
 def apply(package: Path, version: str) -> Path:
     """Paketi kurar: eski sürüm yedeklenir, yeni kod yerine konur; yedeğin yolu döner."""
     stage = Path(tempfile.mkdtemp(prefix="yeni-nesil-cafer-kur-"))
@@ -164,6 +170,7 @@ def apply(package: Path, version: str) -> Path:
         raise
     shutil.rmtree(old, ignore_errors=True)
     shutil.rmtree(stage, ignore_errors=True)
+    _gecici_temizle(package)  # K12-F2: indirilen paket ve geçici klasörü
     from .cekirdek.ayar import atomik_yaz
 
     atomik_yaz(STATE_FILE, json.dumps({"from": __version__, "to": version, "backup": str(backup), "tries": 0,

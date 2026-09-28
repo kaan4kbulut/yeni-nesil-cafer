@@ -75,7 +75,7 @@ def politika(ayarlar=None) -> str:
 def kullanici_istegi(ayarlar=None) -> bool:
     """İstek kullanıcının sohbetinden mi geliyor? Kuyruk, zamanlanmış iş ve görev motoru (komut satırı, Görevler
     penceresi) sohbet değil: CLI ajanı seçilmez."""
-    return _extra(ayarlar).get(EXTRA_KAYNAK) not in ("kuyruk", "zamanli", "komut")
+    return _extra(ayarlar).get(EXTRA_KAYNAK) not in ("kuyruk", "zamanli", "komut", "web")  # K12-F9: web de sohbet değil
 
 
 # ---------------------------------------------------------------- veri
