@@ -92,6 +92,7 @@ class _SahteAjan:
         self.connections, self.cb, self._provider = [], _Olaylar(), "claude"
         self.security_stop, self.focus, self.user_text = False, "", ""
         self.check_nudges, self.verified, self.gave_up = 0, False, False
+        self.yapmadi = self.dil_hatasi = False
         self.isler, self.cagrilar = list(isler), []
 
     def _model(self): return "sahte"

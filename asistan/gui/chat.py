@@ -174,6 +174,12 @@ class RichText(QWidget):
         self.buffer += delta
         self.dirty = True
 
+    def reset(self):
+        """Yazılanı geri al (yönetici boş vaadi devraldı): parçalar silinir, akış boş sürer."""
+        for w in self.parts:
+            w.deleteLater()
+        self.parts, self.buffer, self.dirty = [], "", False
+
     def flush(self):
         if not self.dirty:
             return
@@ -1208,6 +1214,11 @@ class ChatView(QScrollArea):
             self.turn_pending.append(self.current_text)
             self.current_thinking = None
         self.current_text.append(delta)
+
+    def retract_text(self):
+        """Ajanın konuşup bıraktığı cevap geri alındı (Manager._devral): açık metin akışı boşaltılır, baloncuk kalır."""
+        if self.current_text is not None:
+            self.current_text.reset()
 
     def append_thinking(self, delta: str):
         if self.current_thinking is None:

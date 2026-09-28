@@ -56,11 +56,11 @@ def kup_stl(yol: Path, kenar: float = 20, kaydir: tuple = (0, 0, 0), eksik: int 
 
 
 class Gorevler(unittest.TestCase):
-    def test_yirmi_gorev_gecerli(self):  # K5: 21. görev trendyol (eski Aşama 4 ölçümü, internet)
+    def test_yirmi_gorev_gecerli(self):  # K5: 21. trendyol (internet); 22. yazdı-ama-yapmadı ikinci varyantı (BÖLÜM 2-f)
         gorevler = denetim.yukle()
-        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 22)))
-        self.assertEqual(len({g["ad"] for g in gorevler}), 21)
-        self.assertEqual(sum(denetim.hizli_mi(g) for g in gorevler), 15)
+        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 23)))
+        self.assertEqual(len({g["ad"] for g in gorevler}), 22)
+        self.assertEqual(sum(denetim.hizli_mi(g) for g in gorevler), 16)
         # --hizli'de ağır etiketli görev yok; internet/gpu/motor/uzun görevleri talimattaki gibi
         agir = {g["ad"]: sorted(denetim.etiketler(g)) for g in gorevler if not denetim.hizli_mi(g)}
         self.assertEqual(agir, {"uzun-baglam": ["uzun"], "spiral-lamba": ["gpu"], "figur-tilki": ["gpu", "motor"],

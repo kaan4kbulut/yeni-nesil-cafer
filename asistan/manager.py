@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import cli_agents, learning, permissions, roster, specialists
 from .cekirdek import modeller, yonlendirici
-from .agent import Agent, Cancelled, is_action, is_task_request, _TASK
+from .agent import PROGRAM, Agent, Cancelled, is_action, is_task_request, _TASK
 
 MAX_PLAN_STEPS = 5
 MAX_FIXES = 1  # bir adım en fazla kaç kez düzelttirilir
@@ -623,6 +623,58 @@ class Manager:
                 self.agent.run(provider, messages, text)
         else:
             self.agent.run(provider, messages, text)
+        if self.agent.yapmadi or self.agent.dil_hatasi:
+            self._devral(provider, messages, text)
+
+    def _devral(self, provider: str, messages: list, text: str) -> None:
+        """Model dürtüye rağmen yalnızca yazdı ya da cevabı iki kez Türkçe yazamadı (BÖLÜM 2-a/c): görev motoru →
+        yedekleme zincirinde bir üst model → dürüst tek satır. Konuşup bırakan tur geçmişten ve baloncuktan çıkar;
+        kullanıcı "yapıyorum" vaadini görmez, ne olduğunu durum notundan anlar."""
+        from .agent import settings_for
+
+        a = self.agent
+        yapmadi, a.yapmadi, a.dil_hatasi = a.yapmadi, False, False
+        neden = "yalnızca anlattı, hiçbir aracı çalıştırmadı" if yapmadi else "cevabı Türkçe yazamadı"
+        istek = learning.original_request(text)
+        son = next((i for i in range(len(messages) - 1, -1, -1)
+                    if messages[i].get("role") == "user" and not messages[i].get(PROGRAM)), None)
+        if yapmadi:
+            if son is not None:
+                del messages[son + 1:]  # boş vaat ve dürtü mesajları geçmişte kalmaz
+            fn = getattr(a.cb, "on_retract", None)
+            if fn:
+                fn()
+        current = (provider, a._model())
+        if yapmadi and self.motor is not None:
+            if son is not None:
+                del messages[son:]  # motor kullanıcı mesajını kendi ekler (plan kartıyla)
+            self._emit("on_route", f"🧭 {current[1]} {neden}; görev motoru devralıyor")
+            self.motor(messages, istek)
+            return
+        try:
+            alt = roster.stronger(a.settings, current)  # yedekleme zincirinde bir üst basamak
+        except Exception:
+            alt = None
+        if alt is not None and not self._budget_ok(alt.key):
+            alt = None
+        if alt is None:
+            note = (f"⚠ Bu isteği yapamadım: model {neden}; devralacak daha güçlü bir model de bağlı değil "
+                    "(Online menüsünden ekleyebilirsin).")
+            a.cb.on_text(note)
+            messages.append({"role": "assistant", "content": note})
+            return
+        self._emit("on_route", f"🧭 {current[1]} {neden}; {alt.model} devralıyor")
+        rec = _Recorder(a.cb)
+        sub = Agent(settings_for(a.settings, alt.provider, alt.model), rec, a.profile, a.connections)
+        sub.always_allowed, sub.auto_approve = a.always_allowed, a.auto_approve
+        sub.gate_actions, sub.must_act = a.gate_actions, a.must_act or yapmadi
+        sub.extra_system = a.extra_system
+        sub.toolbox.read_roots = list(getattr(a.toolbox, "read_roots", []))
+        try:
+            sub.run(alt.provider, [], istek)
+        finally:
+            a.pending_actions += sub.pending_actions
+        messages.append({"role": "assistant", "content": rec.text.strip()})
 
     def _run_elsewhere(self, route: yonlendirici.Secim, messages: list, text: str) -> None:
         """Sohbetin sağlayıcısı kullanılamıyor (kapalı, anahtar reddedildi, tavan onaylanmadı): tur yönlendiricinin

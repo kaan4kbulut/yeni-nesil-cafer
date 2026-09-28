@@ -385,6 +385,13 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.stop_btn.clicked.connect(self._send_or_stop)
         self.stop_btn.hide()
         tools_row.addWidget(self.attach_btn)
+        self.report_btn = QToolButton(objectName="attachButton",
+                                      toolTip="Sorunu raporla: rapor masaüstüne (YENİ NESİL CAFER klasörü) yazılır, "
+                                              "Claude Code'a verilecek cümle panoya kopyalanır; anahtarlar gizlenir")
+        self.report_btn.setText("🐞 sorun")
+        self.report_btn.setCursor(Qt.PointingHandCursor)
+        self.report_btn.clicked.connect(self._quick_report)
+        tools_row.addWidget(self.report_btn)
         tools_row.addWidget(sep0)
         tools_row.addWidget(self.model_pill)
         tools_row.addWidget(sep)

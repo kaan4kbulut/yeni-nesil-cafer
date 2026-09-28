@@ -259,8 +259,15 @@ class HelpMixin:
             "hazırlayayım: ne olduğu, sohbetin ilgili kısmı, hatalar ve sistem bilgisi tek dosyada; API anahtarları "
             "gizlenir.", lambda card: self._make_report(kind, detail, card=card))
 
-    def _make_report(self, kind: str, detail: str = "", note: str = "", card=None):
-        """Raporu arka planda hazırlar (ön teşhis yerel modelle ~10-60 sn); kaydetmeden önce önizleme açılır."""
+    def _quick_report(self):
+        """Sohbet penceresindeki 🐞 düğmesi (BÖLÜM 2-g): tek tıkla, önizlemesiz — rapor masaüstüne yazılır, Claude
+        Code'a verilecek cümle panoya kopyalanır."""
+        self._make_report("kullanici", "", note="Kullanıcı sohbet penceresindeki 🐞 düğmesiyle raporladı.",
+                          preview=False)
+
+    def _make_report(self, kind: str, detail: str = "", note: str = "", card=None, preview: bool = True):
+        """Raporu arka planda hazırlar (ön teşhis yerel modelle ~10-60 sn); kaydetmeden önce önizleme açılır
+        (`preview=False`: doğrudan kaydedilir)."""
         from .. import problem_report
 
         request = getattr(self.chat, "last_request", "") or ""
@@ -275,25 +282,28 @@ class HelpMixin:
                 result = (problem_report.build(kind, detail, request, model, settings, messages, work, note), "")
             except Exception as e:  # rapor hazırlanamasa da program çalışmaya devam eder
                 result = ("", f"{type(e).__name__}: {e}")
-            QTimer.singleShot(0, self, lambda: self._report_built(*result, card))
+            QTimer.singleShot(0, self, lambda: self._report_built(*result, card, preview))
 
         threading.Thread(target=work_, daemon=True).start()
 
-    def _report_built(self, text: str, error: str, card):
-        """Önizleme: kullanıcı raporu görür, istemediğini siler; kaydedince masaüstüne yazılır ve cümle panoya."""
+    def _report_built(self, text: str, error: str, card, preview: bool = True):
+        """Önizleme: kullanıcı raporu görür, istemediğini siler; kaydedince masaüstüne yazılır ve cümle panoya.
+        `preview=False` (🐞 düğmesi): önizleme ve pencere yok, yalnızca bildirim."""
         from .. import problem_report
 
         if error:
             card.failed(error) if card is not None else QMessageBox.warning(self, "Sorun raporu",
                                                                              f"Rapor hazırlanamadı: {error}")
             return
-        dlg = ReportPreview(text, self)
-        if not dlg.exec():
-            if card is not None:
-                card.cancelled()
-            return
+        if preview:
+            dlg = ReportPreview(text, self)
+            if not dlg.exec():
+                if card is not None:
+                    card.cancelled()
+                return
+            text = dlg.text()
         try:
-            path = str(problem_report.write(problem_report.redact(dlg.text())))  # sonradan yapıştırılan anahtar da
+            path = str(problem_report.write(problem_report.redact(text)))  # sonradan yapıştırılan anahtar da
         except OSError as e:
             QMessageBox.warning(self, "Sorun raporu", f"Rapor kaydedilemedi: {e}")
             return
@@ -302,7 +312,9 @@ class HelpMixin:
             card.done(path, prompt)
             return
         QApplication.clipboard().setText(prompt)
-        self._notify("🐞 sorun raporu hazır; Claude Code'a verilecek cümle panoda", 15000)
+        self._notify(f"🐞 sorun raporu hazır ({Path(path).name}); Claude Code'a verilecek cümle panoda", 15000)
+        if not preview:
+            return
         box = QMessageBox(self)
         box.setWindowTitle("Sorun raporu hazır")
         box.setText(f"Rapor masaüstüne kaydedildi:\n{path}\n\nClaude Code'a verilecek cümle panoya kopyalandı; "

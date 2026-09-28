@@ -170,6 +170,43 @@ _TASK = re.compile(r"\b(kur(\b|ar m|abilir|ul|mak|ar\b)|yükle|indir|kaldır|sil
 _NEEDS_TOOL = re.compile(r"\b(oku|bul|ara|araştır|listele|say\b|saydır|hesapla|incele|kontrol et|bak)|dosya|klasör|"
                          r"internet|web|\b\w+\.(txt|md|csv|json|py|pdf|xlsx|docx|png|jpg)\b", re.I)
 
+# üst-soru: model işi yapmak yerine izin/onay soruyor ("Araç kullanmak ister misiniz?", "Devam edeyim mi?"). Bu bir soru
+# değil "yazdı ama yapmadı"dır; gerçek sorular ("Hangi klasöre yazayım?") sonucu belirleyen bilgi ister ve dürtülmez.
+_META_SORU = re.compile(
+    r"ister\s*misin(iz)?\s*\??\s*$|(?:edeyim|yapayım|başlayayım|oluşturayım|çalıştırayım|uygulayayım|yazayım|kurayım|"
+    r"deneyeyim|ilerleyeyim|geçeyim)\s+mi\s*\??\s*$|"
+    r"\b(?:would you like|do you want|shall i|should i|may i|want me to)\b", re.I)
+
+# Türkçe metin göstergeleri (dil denetimi): Türkçeye özgü harfler ve en sık bağlaçlar / yardımcılar
+_TR_HARF = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+_TR_KELIME = re.compile(r"\b(ve|bir|için|ile|bu|şu|da|de|olarak|var|yok|dosya|klasör|oldu|oluştur\w*|yaz\w*|"
+                        r"sonuç|şimdi|ancak|ama|çünkü|gibi|daha|kadar|her|tüm|hazır|tamam|değil|evet|hayır)\b", re.I)
+_EN_KELIME = re.compile(r"\b(the|and|is|are|to|of|with|this|that|file|files|you|your|have|has|will|can|i|it|"
+                        r"in|on|for|from|created|folder|now|here|each|was|were|not|be|as|by|or)\b", re.I)
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+_KOD_BLOGU = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+", re.S)
+
+
+def meta_soru(text: str) -> bool:
+    """Cevap işi yapmak yerine izin soran bir üst-soruyla mı bitiyor? (BÖLÜM 2-b: gerçek soru sayılmaz, dürtülür)"""
+    son = (text or "").strip().splitlines()
+    return bool(son) and bool(_META_SORU.search(son[-1].strip()))
+
+
+def turkce_mi(text: str) -> bool:
+    """Cevap Türkçe mi? Kod, satır içi kod ve adresler sayılmaz; kısa metin yargılanmaz (True). CJK ağırlıklı ya da
+    İngilizce sık kelimeleri Türkçe göstergelerin çok üstünde olan metin Türkçe değildir (BÖLÜM 2-c dil bekçisi)."""
+    duz = _KOD_BLOGU.sub(" ", text or "")
+    harfler = [c for c in duz if c.isalpha()]
+    cjk = len(_CJK.findall(duz))
+    if cjk >= 10 and cjk > len(harfler) * 0.1:
+        return False  # planı Çince yazan küçük modeller (denetci becerisi, bilinen tuzaklar)
+    if len(harfler) < 40:
+        return True
+    tr = len(_TR_HARF.findall(duz)) + len(_TR_KELIME.findall(duz))
+    en = len(_EN_KELIME.findall(duz))
+    return not (en >= 5 and en > 3 * tr)
+
 
 PROGRAM = "_program"  # programın modele gönderdiği uyarı mesajlarının işareti (kullanıcının isteği değil)
 COMPACTED = "_ozetlendi"  # özetlenmiş eski mesaj: sohbette görünür, modele gitmez (yerine özet mesajı gider)
@@ -724,6 +761,8 @@ class Agent:
         # "iş bitmedi" dürtmeleri; grup yöneticisinde kapalı: plan, kontrol ve raporda işi kendisi yapmaz, dürtülünce
         # sahip olmadığı run_python'u tekrar tekrar çağırıp görevi bitirmiyordu (2026-09-27)
         self.nudges = True
+        self.yapmadi = False  # dürtüye rağmen yalnızca yazdı: yönetici devralır (motor / üst model / dürüst tek satır)
+        self.dil_hatasi = False  # cevap iki kez Türkçe olmadı: yönetici sonraki modele verir
         self.bekleyen_soru = ""  # kullaniciya_sor çağrıldı: tur biter, arayüz "cevap bekliyor"
         self.cevaplanan_soru = ""  # arayüz: bir önceki turda sorulan soru; bu turun mesajı onun cevabı
         self.focus = ""  # yönetici adımı: "iş bitti mi" denetimi tüm isteğe değil bu adıma bakar
@@ -1347,6 +1386,7 @@ class Agent:
                 self.cevaplanan_soru = ""
             messages.append({"role": "user", "content": user_text})
         self.bekleyen_soru = ""
+        self.yapmadi = self.dil_hatasi = False
         self.user_text = user_text
         self._provider = provider
         self._offer_decor(messages)
@@ -1441,6 +1481,30 @@ class Agent:
                         "çevrilen işlemlerde ısrar etti. Hiçbir zararlı adım çalıştırılmadı.")
         return True
 
+    def _durum(self, msg: str) -> None:
+        """Dürtü/denetim durumu: sohbet baloncuğuna değil arayüzün durum satırına (BÖLÜM 2-d). Baloncukta yalnızca
+        paragraf ayrımı kalır; arayüz `on_status` vermiyorsa sessiz."""
+        fn = getattr(self.cb, "on_status", None)
+        if fn:
+            fn(msg)
+        self.cb.on_text("\n\n")
+
+    def _dil_denetimi(self, content: str, state: dict) -> str | None:
+        """Dil bekçisi (BÖLÜM 2-c): son cevap Türkçe değilse bir kez yeniden yazdırılır (yazılan metin baloncuktan geri
+        alınır); ikinci kez de olmadıysa `dil_hatasi` ile yönetici sonraki modele verir."""
+        if not self.nudges or self.bekleyen_soru or turkce_mi(content):
+            return None
+        if state.get("dil"):
+            self.dil_hatasi = True
+            return None
+        state["dil"] = True
+        fn = getattr(self.cb, "on_retract", None)
+        if fn:
+            fn()
+        self._durum("Cevap Türkçe değildi; yeniden yazdırılıyor")
+        return ("Your last answer was not in Turkish. Write the same answer again entirely in Turkish (keep code, "
+                "commands and file names as they are). Do not add anything else.")
+
     def _unfinished_nudge(self, messages: list, content: str, has_tools: bool, step: int, state: dict) -> str | None:
         """Model araç çağırmadan durdu: iş gerçekten bitti mi? Bitmediyse modele gidecek uyarı (döngü sürer).
 
@@ -1457,7 +1521,7 @@ class Agent:
             made = new_outputs(str(self.toolbox.root), getattr(self, "run_started", time.time()))
             if made:
                 state["inspect"] = True
-                self.cb.on_text("\n\n*Sonucu gözle kontrol ediyorum.*\n\n")
+                self._durum("Sonuç gözle kontrol ediliyor")
                 return (f"You created {', '.join(made)}. Before finishing, check the main result with inspect_output "
                         "(question: does it show exactly what I asked for?) and fix anything that does not match; "
                         "then give your final answer." + APP_NOTE)
@@ -1467,14 +1531,20 @@ class Agent:
             return ("That took several attempts before it worked. Save what finally worked with learn_skill (the "
                     "library or tool, a short working code template, the pitfalls you hit) so next time is quick, "
                     "then give your final answer." + APP_NOTE)
-        if content.rstrip().endswith("?") and not self.must_act:
+        if content.rstrip().endswith("?") and not self.must_act and not meta_soru(content):
+            return None  # gerçek soru: sonucu belirleyen bilgi istiyor
+        if state.get("yapmadi") and not self.actions_tried:
+            # bir kez dürtüldü, yine yalnızca yazdı (BÖLÜM 2-a): ısrar yok; yönetici devralır (görev motoru →
+            # zincirde bir üst model → dürüst tek satır). Kullanıcı bu boş vaadi görmez (Manager._devral geri alır).
+            self.yapmadi = True
             return None
         if (has_tools and step == 1 and not self.actions_tried
                 and (self.must_act or (
                     not self.gate_actions and is_task_request(self.user_text)
                     and ("```" in content or re.search(r"(?m)^\s*(1[.)]|adım 1)", content, re.I)
-                         or _CLAIMS_WORK.search(content))))):
-            self.cb.on_text("\n\n*Şimdi gerçekten yapıyorum.*\n\n")
+                         or _CLAIMS_WORK.search(content) or meta_soru(content))))):
+            state["yapmadi"] = True
+            self._durum("Model yalnızca yazdı; araçlarla yapması istendi")
             return ("Nothing was executed yet: you only wrote text. Now actually do the work by calling the tools "
                     "(run_python, write_file, run_command…) step by step, then summarize the real results.")
         if not content.strip() and has_tools and not state.get("empty_act") and not self.gate_actions \
@@ -1482,7 +1552,7 @@ class Agent:
             # iş istendi ama hiçbir şey üretilmeden sessizce durdu (sık: tarif / resim okunduktan sonra): açıklama
             # isteme — küçük model o zaman konuşup bırakıyor; bir sonraki adımı gerçekten yaptır
             state["empty_act"] = True
-            self.cb.on_text("\n\n*Devam ediyorum.*\n\n")
+            self._durum("Model sessizce durdu; sonraki adım istendi")
             last = next((m.get("tool_name") or m.get("name") for m in reversed(messages) if m.get("role") == "tool"), "")
             how = ("Apply the recipe you just read: write the complete script and run it with run_python now."
                    if last == "use_skill" else "Call the next tool now (e.g. run_python with the complete script).")
@@ -1495,7 +1565,7 @@ class Agent:
                     "found, and what you propose next (if something failed, give a working alternative).")
         nudge = self._memory_check() or self._completion_check(messages)
         if nudge:
-            self.cb.on_text("\n\n*Henüz bitmedi, eksikleri tamamlıyorum.*\n\n")
+            self._durum("Henüz bitmedi; eksikler tamamlatılıyor")
         return nudge
 
     def _run_calls(self, tool_calls: list, messages: list, ollama: bool) -> None:
@@ -1679,7 +1749,8 @@ class Agent:
                 self.cb.on_text("\n\n*(Cevap bağlam sınırı yüzünden yarıda kaldı. Yeni bir sohbet açmak ya da "
                                 "Ayarlar'dan bağlamı büyütmek sorunu çözer.)*")
             if not tool_calls:
-                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state)
+                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state) \
+                    or self._dil_denetimi(content, state)
                 if nudge:
                     messages.append({"role": "user", PROGRAM: True, "content": nudge})
                     continue
@@ -2007,7 +2078,8 @@ class Agent:
             messages.append(assistant)
             if not tool_calls:
                 # OpenAI uyumlu bağlantılar da küçük modellere gidebilir (LM Studio, Groq…): aynı uyarılar
-                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state)
+                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state) \
+                    or self._dil_denetimi(content, state)
                 if nudge:
                     messages.append({"role": "user", PROGRAM: True, "content": nudge})
                     continue

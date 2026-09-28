@@ -170,6 +170,9 @@ class RunMixin:
                                                                   self.model_box.currentText(), show=False))
         w.plan.connect(self.chat.show_plan)
         w.route_note.connect(lambda text: self.chat.add_notice(text, C["muted"]))
+        w.status.connect(self.right.activity.state.setText)
+        w.status.connect(lambda text: self.right.log.add("· " + text))
+        w.retracted.connect(self.chat.retract_text)
         w.plan_step.connect(self.chat.update_step)
         w.plan_step.connect(lambda i, status, note: self.right.activity.state.setText(
             f"Adım {i + 1}: " + {"running": "yapılıyor", "checking": "doğrulanıyor", "fixing": "düzeltiliyor",
