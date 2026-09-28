@@ -1,122 +1,133 @@
 {
- "statusLine": {
-  "type": "command",
-  "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/durum.py\"",
-  "padding": 0
- },
- "hooks": {
-  "SessionStart": [
-   {
-    "hooks": [
-     {
-      "type": "command",
-      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
-     }
+  "statusLine": {
+    "type": "command",
+    "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/durum.py\"",
+    "padding": 0
+  },
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "TaskCreate|TaskUpdate",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
+          }
+        ]
+      }
+    ],
+    "Notification": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$CLAUDE_PROJECT_DIR\"/.claude/hooks/test-suz.sh"
+          }
+        ]
+      }
     ]
-   }
-  ],
-  "PostToolUse": [
-   {
-    "matcher": "TaskCreate|TaskUpdate",
-    "hooks": [
-     {
-      "type": "command",
-      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/kaydet.py\""
-     }
+  },
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Agent",
+      "WebSearch",
+      "WebFetch",
+      "TaskCreate",
+      "TaskUpdate",
+      "TaskList",
+      "TaskGet",
+      "Bash(python:*)",
+      "Bash(python3:*)",
+      "Bash(py:*)",
+      "Bash(pytest:*)",
+      "Bash(pip:*)",
+      "Bash(pip3:*)",
+      "Bash(ruff:*)",
+      "Bash(git status:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git tag:*)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git show:*)",
+      "Bash(git checkout:*)",
+      "Bash(git stash:*)",
+      "Bash(ls:*)",
+      "Bash(dir:*)",
+      "Bash(cat:*)",
+      "Bash(type:*)",
+      "Bash(mkdir:*)",
+      "Bash(mv:*)",
+      "Bash(cp:*)",
+      "Bash(echo:*)",
+      "Bash(where:*)",
+      "Bash(which:*)",
+      "Bash(tree:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(curl:*)",
+      "Bash(ollama:*)",
+      "Bash(nvidia-smi:*)",
+      "Bash(docker:*)",
+      "Bash(docker compose:*)",
+      "Bash(powershell:*)",
+      "Bash(wmic:*)",
+      "Bash(sysctl:*)",
+      "Bash(free:*)",
+      "Bash(nproc:*)",
+      "Bash(claude:*)",
+      "Bash(codex:*)",
+      "Bash(gemini:*)",
+      "Bash(cafer:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(/home/caferkaandebana/.local/share/yeni-nesil-cafer-app/python/bin/python3:*)",
+      "Bash(git push -u origin k-serisi)"
+    ],
+    "deny": [
+      "Bash(rm -rf:*)",
+      "Bash(rmdir /s:*)",
+      "Bash(git reset --hard:*)",
+      "Bash(git clean:*)",
+      "Bash(format:*)",
+      "Bash(del /s:*)",
+      "Bash(git push --force:*)",
+      "Bash(git push -f:*)"
     ]
-   }
-  ],
-  "Notification": [
-   {
-    "hooks": [
-     {
-      "type": "command",
-      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
-     }
-    ]
-   }
-  ],
-  "Stop": [
-   {
-    "hooks": [
-     {
-      "type": "command",
-      "command": "\"/usr/bin/python\" \"/home/caferkaandebana/Projeler/yeni-nesil-cafer/.claude/ilerleme/bildir.py\""
-     }
-    ]
-   }
-  ]
- },
- "permissions": {
-  "allow": [
-   "Read",
-   "Edit",
-   "Write",
-   "Glob",
-   "Grep",
-   "Agent",
-   "WebSearch",
-   "WebFetch",
-   "TaskCreate",
-   "TaskUpdate",
-   "TaskList",
-   "TaskGet",
-   "Bash(python:*)",
-   "Bash(python3:*)",
-   "Bash(py:*)",
-   "Bash(pytest:*)",
-   "Bash(pip:*)",
-   "Bash(pip3:*)",
-   "Bash(ruff:*)",
-   "Bash(git status:*)",
-   "Bash(git add:*)",
-   "Bash(git commit:*)",
-   "Bash(git tag:*)",
-   "Bash(git diff:*)",
-   "Bash(git log:*)",
-   "Bash(git show:*)",
-   "Bash(git checkout:*)",
-   "Bash(git stash:*)",
-   "Bash(ls:*)",
-   "Bash(dir:*)",
-   "Bash(cat:*)",
-   "Bash(type:*)",
-   "Bash(mkdir:*)",
-   "Bash(mv:*)",
-   "Bash(cp:*)",
-   "Bash(echo:*)",
-   "Bash(where:*)",
-   "Bash(which:*)",
-   "Bash(tree:*)",
-   "Bash(find:*)",
-   "Bash(grep:*)",
-   "Bash(curl:*)",
-   "Bash(ollama:*)",
-   "Bash(nvidia-smi:*)",
-   "Bash(docker:*)",
-   "Bash(docker compose:*)",
-   "Bash(powershell:*)",
-   "Bash(wmic:*)",
-   "Bash(sysctl:*)",
-   "Bash(free:*)",
-   "Bash(nproc:*)",
-   "Bash(claude:*)",
-   "Bash(codex:*)",
-   "Bash(gemini:*)",
-   "Bash(cafer:*)",
-   "Bash(.venv/bin/python:*)",
-   "Bash(/home/caferkaandebana/.local/share/yeni-nesil-cafer-app/python/bin/python3:*)",
-   "Bash(git push -u origin k-serisi)"
-  ],
-  "deny": [
-   "Bash(rm -rf:*)",
-   "Bash(rmdir /s:*)",
-   "Bash(git reset --hard:*)",
-   "Bash(git clean:*)",
-   "Bash(format:*)",
-   "Bash(del /s:*)",
-   "Bash(git push --force:*)",
-   "Bash(git push -f:*)"
-  ]
- }
+  }
 }
