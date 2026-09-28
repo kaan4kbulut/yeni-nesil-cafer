@@ -7,6 +7,7 @@ Linux `.AppImage` — her biri kendi platformunda derlenir (GitHub Actions `dagi
     python dagitim/paketle.py --tam [--butce-gb 1.9]   # Full: Light + Ollama + bütçeye sığan model
     python dagitim/paketle.py --guncelleme       # uygulama içi güncelleme paketi (updates.ASSET, sha256)
     python dagitim/paketle.py --kuru [...]       # hiçbir şey üretmeden plan (dosyalar, boyutlar) → JSON
+    python dagitim/paketle.py --eski-sil         # yeni sürüm Latest olduktan sonra: eski sürümleri etiketleriyle sil (gh)
 
 Kurallar: GitHub sürüm dosyası 2 GB sınırı → Full ≤ 1,9 GB (model bütçeye sığmazsa Full modelsiz çıkar ve ilk açılış
 modeli indirir; ekrana yazılır). İndirmeler sabit sürüm + SHA-256 (Ollama: `asistan/bootstrap.py`). Uygulama içi
@@ -189,6 +190,29 @@ def tam(build: Path, butce_gb: float) -> None:
         print("bütçeye sığan model yok: Full modelsiz (ilk açılış modeli indirir)")
 
 
+def eski_surumleri_sil(kalan: str = "", calistir=subprocess.run) -> list[str]:
+    """`--eski-sil`: Latest olan sürüm (ya da `kalan` etiketi) dışındaki YAYINLANMIŞ sürümleri etiketleriyle birlikte
+    siler (`gh release delete <etiket> --cleanup-tag --yes`). Taslaklar dokunulmaz. Yeni sürüm Latest olduktan sonra
+    çağrılır (`gh release edit vX --latest`); Latest yoksa hiçbir şey silinmez. Silinen etiketlerin listesi döner."""
+    r = calistir(["gh", "release", "list", "--json", "tagName,isLatest,isDraft", "--limit", "100"],
+                 capture_output=True, text=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"gh release list başarısız: {(r.stderr or r.stdout or '').strip()[:300]}")
+    liste = json.loads(r.stdout or "[]")
+    kalan = kalan or next((s["tagName"] for s in liste if s.get("isLatest")), "")
+    if not kalan:
+        raise RuntimeError("Latest sürüm yok: önce yeni sürümü yayınla (gh release edit <etiket> --latest)")
+    if kalan not in {s["tagName"] for s in liste}:
+        raise RuntimeError(f"{kalan} sürüm listesinde yok; yanlışlıkla her şey silinmesin diye durduruldu")
+    silinen = []
+    for s in liste:
+        if s["tagName"] == kalan or s.get("isDraft"):
+            continue
+        calistir(["gh", "release", "delete", s["tagName"], "--cleanup-tag", "--yes"], check=True)
+        silinen.append(s["tagName"])
+    return silinen
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Dağıtım paketleri (K11)")
     ap.add_argument("--hafif", action="store_true", help="Light: program + bağımlılıklar (PyInstaller)")
@@ -197,8 +221,14 @@ def main(argv=None) -> int:
     ap.add_argument("--kuru", action="store_true", help="yalnızca plan (JSON), üretim yok")
     ap.add_argument("--butce-gb", type=float, default=BUTCE_GB)
     ap.add_argument("--tek-dosya", action="store_true", help="PyInstaller --onefile (Windows .exe için)")
+    ap.add_argument("--eski-sil", action="store_true", help="Latest dışındaki yayınlanmış GitHub sürümlerini etiketleriyle sil (gh)")
+    ap.add_argument("--kalan", default="", help="--eski-sil: korunacak etiket (boş: Latest olan)")
     a = ap.parse_args(argv)
     tur = "tam" if a.tam else "hafif"
+    if a.eski_sil:
+        silinen = eski_surumleri_sil(a.kalan)
+        print("silinen: " + (", ".join(silinen) or "yok"))
+        return 0
     if a.kuru or not (a.hafif or a.tam or a.guncelleme):
         print(json.dumps(plan(tur, a.butce_gb), ensure_ascii=False, indent=1))
         return 0

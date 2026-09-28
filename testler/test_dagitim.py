@@ -7,6 +7,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest import mock
 
@@ -93,3 +94,33 @@ class SihirbazYetenekOzeti(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class EskiSurumleriSil(unittest.TestCase):
+    """`--eski-sil`: Latest (ya da --kalan) dışındaki yayınlanmış sürümler --cleanup-tag ile silinir; taslak kalır."""
+
+    def _gh(self, liste, komutlar):
+        def calistir(cmd, **k):
+            komutlar.append(cmd)
+            if cmd[:3] == ["gh", "release", "list"]:
+                return SimpleNamespace(returncode=0, stdout=json.dumps(liste), stderr="")
+            return SimpleNamespace(returncode=0, stdout="", stderr="")
+        return calistir
+
+    def test_latest_disindakiler_silinir(self):
+        liste = [{"tagName": "v3.0-beta.1", "isLatest": True, "isDraft": False},
+                 {"tagName": "v2.7", "isLatest": False, "isDraft": False},
+                 {"tagName": "v3.1", "isLatest": False, "isDraft": True}]
+        komutlar = []
+        self.assertEqual(paketle.eski_surumleri_sil(calistir=self._gh(liste, komutlar)), ["v2.7"])
+        self.assertIn(["gh", "release", "delete", "v2.7", "--cleanup-tag", "--yes"], komutlar)
+        self.assertFalse(any("v3.1" in c or "v3.0-beta.1" in c for c in komutlar if c[2] == "delete"))
+
+    def test_latest_yoksa_durur(self):
+        liste = [{"tagName": "v2.7", "isLatest": False, "isDraft": False}]
+        with self.assertRaises(RuntimeError):
+            paketle.eski_surumleri_sil(calistir=self._gh(liste, []))
+        with self.assertRaises(RuntimeError):  # --kalan listede yok: hiçbir şey silinmez
+            paketle.eski_surumleri_sil("v9", calistir=self._gh(liste, []))
+        komutlar = []
+        self.assertEqual(paketle.eski_surumleri_sil("v2.7", calistir=self._gh(liste, komutlar)), [])
