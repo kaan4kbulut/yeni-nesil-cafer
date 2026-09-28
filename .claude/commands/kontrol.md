@@ -16,8 +16,8 @@ Aşağıdaki kontrolleri sırayla koş. Her birinin sonucunu ✅/❌ ile tabloya
 | 5 | CLI | `python -m asistan --help` ya da `cafer --help` — hangisi tanımlıysa |
 | 6 | Çekirdek-arayüz ayrımı | `asistan/cekirdek/` içinde `PySide6`, `PyQt`, `qt`, `fastapi`, `starlette` import'u grep'le → 0 eşleşme olmalı |
 | 7 | Model adı sabitleme | `asistan/` içinde `ollama run`, `:7b`, `:8b`, `:14b`, `claude-`, `gpt-` gibi model adı desenleri grep'le → `modeller.json` dışında eşleşme olmamalı (varsa listele; ❌ yerine ⚠️) |
-| 8 | Manifest doğrulama | `yetenekler/*/manifest.json` dosyalarını `docs/SEMALAR.md` §1'e göre doğrula; `ad` klasör adıyla aynı mı, zorunlu alanlar var mı, `izinler` geçerli mi. Her yetenek için `ornekler` varsa `calistir.py` ile duman testi koş (sandbox, 30 sn). |
-| 9 | Üretilen yetenekler | `kaynak: "uretildi"` ve `guvenilir: false` olanları ayrı listele |
+| 8 | Manifest doğrulama | `python -m asistan yetenek --dogrula` (`asistan/yetenekler/*/manifest.json` + `DATA_DIR/yetenekler`; `docs/SEMALAR.md` §1, ad = klasör, izinler, calistir.py) ve `python -m asistan yetenek --duman` (her yeteneğin `ornekler`i gerçekten, izin hattından; sandbox'lılar ayrı süreçte). |
+| 9 | Üretilen yetenekler | `python -m asistan yetenek` listesinde `[üretildi, güvenilmez]` işaretliler (`kaynak: "uretildi"`, `guvenilir: false`) |
 | 10 | Lint | `ruff check asistan/` (ruff yoksa "kurulu değil" yaz, kurma) |
 
 "hizli" modunda sadece 1, 2, 3, 6 koş.

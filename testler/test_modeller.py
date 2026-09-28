@@ -52,7 +52,9 @@ class ModellerDosyasi(unittest.TestCase):
         self.assertEqual(modeller.kademe_modelleri("yok"), {"yerel": [], "bulut": []})
         for rol in ("yonetici", "hizli", "kod"):
             self.assertTrue(modeller.rol(rol), rol)
-        self.assertIsInstance(veri.get("gecici", False), bool)  # kullanıcı onaylayana dek true (MODELLER_ONERI.md)
+        self.assertNotIn("gecici", veri)  # kademe listeleri onaylandı (2026-09-28); geçici işaret kalktı
+        # varsayılan Claude modeli kademe listelerindeki adla aynı (yuksek kademenin ilk bulut modeli)
+        self.assertEqual(veri["varsayilan"]["claude"], veri["kademe"]["yuksek"]["bulut"][0])
 
     def test_modullerin_okudugu_anahtarlar(self):
         for yol in ("temel.model", "temel.boyut_gb", "varsayilan.ollama", "varsayilan.claude", "varsayilan.bulut_sunucu",

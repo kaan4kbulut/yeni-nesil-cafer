@@ -5,8 +5,8 @@ onay bekleme), `dogrulayici` (önce programın kanıtı, sonra hızlı model), `
 `Agent._execute_tool` izin hattına bağlayan uyarlayıcı), `model` (yönlendiriciyle model çağrısı), `komut` (CLI).
 
 Motor iki arayüze bağlıdır; ikisi de sahtesiyle sınanır:
-- `Yetenekler`: planlayıcının çağırabileceği işler. K4'te programın temel araçları (`ajan.AjanYetenekleri`); K5'te
-  manifestli yetenekler aynı arayüzle gelir, motor değişmez.
+- `Yetenekler`: planlayıcının çağırabileceği işler. K5'ten beri yalnızca manifestli yetenekler (`yetenek/kayit.py`,
+  uyarlayıcı `ajan.AjanYetenekleri`); isteğe bağlı `pasifler()` kayıtlı ama kullanılamayanları anlayıcıya verir.
 - `ModelCagir`: rol/görev türüyle model çağrısı (`model.YonlendiriciModeli`), `secim` kararını da verir.
 """
 

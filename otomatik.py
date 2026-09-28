@@ -21,7 +21,9 @@ Kesilirse (Ctrl+C, elektrik, hata) tekrar `python otomatik.py` → kaldığı a�
 Nasıl çalışır:
   - Her aşama için TAZE bir `claude -p` oturumu (bir oturum = bir aşama).
   - Claude Code'a "otomatik mod" önsözü gider: soru sorma, makul varsayımı seç, NOTLAR'a yaz, devam et.
-  - Aşama bitince sürücü kendisi kontrol eder: pytest + import dumanı + açık kutucuklar.
+  - Aşama bitince sürücü kendisi kontrol eder: pytest (yoksa unittest) + import dumanı + açık kutucuklar
+    + Claude'un son mesajındaki SONUÇ/TEST satırı (KALDI → düzeltme turu; sürücünün kendi yazdığı
+    KONTROL_LISTEN/log dosyaları "değişiklik" sayılmaz).
   - Kırmızıysa aynı aşamayı "önce kırmızıları düzelt" talimatıyla tekrar koşar.
   - Yeşilse commit + `k<n>-bitti` etiketi. Senin elle bakacağın şeyler NOTLAR/KONTROL_LISTEN.md'de birikir.
   - Terminalde canlı çubuk: aşama x/11, Claude'un görev listesi (.cafer/ilerleme.json), geçen/kalan süre.
@@ -410,7 +412,7 @@ def kurulum(args) -> None:
         if kod != 0:
             kod, _ = calistir([PY, "-m", "pip", "install", "-q", "--break-system-packages", "pytest"], sessiz=True)
         if kod != 0:
-            yaz("⚠ pytest kurulamadı; sürücü test kontrolünü atlayacak (Claude yine de kendi koşar).")
+            yaz("⚠ pytest kurulamadı; sürücü testleri unittest ile koşacak.")
     pytest_var = kod == 0
 
     # temel çizgi: import şu an çalışıyor mu?
@@ -539,11 +541,16 @@ def acik_kutular(kod: str) -> int:
 def kontrol(kod: str) -> list[str]:
     sorun = []
     d = json_oku(DURUM)
-    if (KOK / "testler").exists() and d.get("pytest_var", True):
-        k, c = calistir([PY, "-m", "pytest", "testler", "-q", "-x", "--no-header", "-p", "no:cacheprovider"], sessiz=True, zaman_asimi=1800)
+    if (KOK / "testler").exists():
+        if d.get("pytest_var", True):
+            k, c = calistir([PY, "-m", "pytest", "testler", "-q", "-x", "--no-header", "-p", "no:cacheprovider"], sessiz=True, zaman_asimi=1800)
+            etiket = "pytest"
+        else:  # pytest yoksa unittest ile koş; test kontrolü asla atlanmaz
+            k, c = calistir([PY, "-m", "unittest", "discover", "-s", "testler", "-q"], sessiz=True, zaman_asimi=1800)
+            etiket = "unittest"
         if k not in (0, 5):  # 5 = test bulunamadı
             satirlar = [s for s in c.strip().splitlines() if s.strip()]
-            sorun.append("pytest kırmızı: " + (satirlar[-1][:100] if satirlar else "") + "\n" + "\n".join(satirlar[-15:]))
+            sorun.append(f"{etiket} kırmızı: " + (satirlar[-1][:100] if satirlar else "") + "\n" + "\n".join(satirlar[-15:]))
     if d.get("temel_import_ok", True):
         k, c = calistir([PY, "-c", "import asistan"], sessiz=True, zaman_asimi=120)
         if k != 0:
@@ -567,18 +574,51 @@ LIMIT_DESENI = re.compile(
 def limit_mi(kodu: int, cikti: str) -> str | None:
     """Claude koşusu limit/oturum hatasıyla boş döndüyse nedeni; değilse None."""
     kisa = cikti.strip()
-    if LIMIT_DESENI.search(kisa[:1500]) and len(kisa) < 2500:
-        return kisa.splitlines()[0][:160] if kisa else "limit"
-    if kodu != 0 and len(kisa) < 400:
-        return f"claude {kodu} ile çıktı: {kisa[:160]}"
     if not kisa:
         return "claude boş çıktı verdi"
+    # Limit metni başta ya da sonda olabilir; kısa çıktı (< 2500) + desen = limit.
+    if len(kisa) < 2500 and (LIMIT_DESENI.search(kisa[:1500]) or LIMIT_DESENI.search(kisa[-1500:])):
+        return kisa.splitlines()[0][:160]
+    if kodu == 124:
+        return "zaman aşımı (--zaman-asimi); süreyi artır ya da aşamayı elle bitir"
+    if kodu != 0 and len(kisa) < 400:
+        return f"claude {kodu} ile çıktı: {kisa[:160]}"
     return None
 
 
-def degisiklik_var() -> bool:
-    _, c = git("status", "--porcelain")
+def sonuc_oku(cikti: str) -> dict:
+    """Claude'un son mesajındaki SONUÇ/TEST/DEĞİŞEN/NOT satırlarını ayrıştırır (ONSOZ biçimi)."""
+    r = {}
+    for m in re.finditer(r"^\s*\**\s*(SONUÇ|SONUC|TEST|DEĞİŞEN|DEGISEN|NOT)\s*\**\s*:\s*\**\s*(.+?)\s*\**\s*$", cikti, re.M | re.I):
+        anahtar = m.group(1).upper().replace("Ç", "C").replace("Ğ", "G").replace("İ", "I").replace("Ş", "S")
+        r[anahtar] = m.group(2).strip()  # son geçen kazanır
+    s = (r.get("SONUC") or "").upper()
+    r["sonuc"] = "TAMAM" if "TAMAM" in s else "KISMEN" if "KISMEN" in s else "KALDI" if "KALDI" in s else None
+    t = (r.get("TEST") or "").lower().strip()
+    # İlk kelime karar verir: "kaldı (… 59/59 geçti …)" yine kaldıdır.
+    r["test_kaldi"] = bool(re.match(r"\W*(kald[ıi]|k[ıi]rm[ıi]z[ıi]|fail|hata|ko[şs]ulmad[ıi])", t))
+    return r
+
+
+# Sürücünün kendi yazdığı dosyalar "Claude bir şey değiştirdi" sayılmaz.
+SURUCU_DOSYALARI = (":!NOTLAR/KONTROL_LISTEN.md", ":!NOTLAR/otomatik", ":!.cafer", ":!otomatik.py")
+
+
+def degisiklik_var(surucu_haric: bool = True) -> bool:
+    if surucu_haric:
+        _, c = git("status", "--porcelain", "--", ".", *SURUCU_DOSYALARI)
+    else:
+        _, c = git("status", "--porcelain")
     return bool(c.strip())
+
+
+def son_commit_asamanin(kod: str) -> bool:
+    """Son commit bu aşamaya ait mi ve sürücü dosyaları dışında bir şey içeriyor mu?"""
+    _, mesaj = git("log", "-1", "--format=%s")
+    if not re.match(rf"^{kod}\b", mesaj.strip()):
+        return False
+    _, dosyalar = git("show", "--stat", "--format=", "--name-only", "HEAD", "--", ".", *SURUCU_DOSYALARI)
+    return bool(dosyalar.strip())
 
 
 def asama_kos(idx: int, args) -> bool:
@@ -591,7 +631,7 @@ def asama_kos(idx: int, args) -> bool:
 
     def durdur(neden: str) -> bool:
         yaz(f"   ✖ {kod} DURDU: {neden}")
-        if degisiklik_var():
+        if degisiklik_var(surucu_haric=False):
             git("add", "-A")
             git("commit", "-m", f"{kod}: yarım — {neden[:60]} (otomatik)")
         ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU:** {neden}. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.")
@@ -602,6 +642,7 @@ def asama_kos(idx: int, args) -> bool:
         bildir(f"{kod} durdu", neden[:80])
         return False
 
+    sonuc_sorunu: list[str] = []
     for n, uret in enumerate(kosular, 1):
         yaz(f"▸ koşu {n}/{len(kosular)}")
         cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
@@ -609,9 +650,20 @@ def asama_kos(idx: int, args) -> bool:
         neden = limit_mi(kodu, cikti)
         if neden:
             return durdur(neden)
+        # Claude'un kendi beyanı: KALDI ya da TEST kaldı → aşama bitmiş sayılmaz, düzeltme turuna girer.
+        so = sonuc_oku(cikti)
+        if so["sonuc"] == "KALDI":
+            sonuc_sorunu.append(f"Claude koşu {n} sonunda 'SONUÇ: KALDI' dedi. NOT: {so.get('NOT', '')[:200]}")
+        elif so["test_kaldi"]:
+            sonuc_sorunu.append(f"Claude koşu {n} sonunda 'TEST: {so.get('TEST', '')[:120]}' dedi.")
+        elif so["sonuc"] == "KISMEN":
+            ek_not(KONTROL_LISTEN, f"- [ ] {kod} koşu {n}: Claude 'KISMEN' dedi — NOT: {so.get('NOT', '')[:200]}")
+        elif so["sonuc"] is None:
+            yaz(f"   ⚠ koşu {n}: SONUÇ satırı yok (log'a bak)")
 
     for deneme in range(1, args.deneme + 1):
-        sorun = kontrol(kod)
+        sorun = kontrol(kod) + sonuc_sorunu
+        sonuc_sorunu = []  # yalnızca ilk kontrol turunda geçerli; düzeltme koşusu kendi SONUÇ'unu verir
         acik = acik_kutular(kod)
         if not sorun and acik == 0:
             break
@@ -638,10 +690,12 @@ def asama_kos(idx: int, args) -> bool:
         neden = limit_mi(kodu, cikti)
         if neden:
             return durdur(neden)
+        so = sonuc_oku(cikti)
+        if so["sonuc"] == "KALDI" or so["test_kaldi"]:
+            sonuc_sorunu.append(f"Düzeltme {deneme} sonunda Claude '{so.get('SONUC', '')} / TEST: {so.get('TEST', '')}' dedi.")
 
-    # Hiçbir dosya değişmemiş ve commit'lenecek bir şey yoksa bu aşama gerçekten yapılmadı
-    _, son_commit = git("log", "-1", "--format=%s")
-    if not degisiklik_var() and kod not in son_commit:
+    # Sürücünün kendi yazdıkları (KONTROL_LISTEN, loglar) sayılmaz: Claude gerçekten kod/not değiştirmiş olmalı.
+    if not degisiklik_var() and not son_commit_asamanin(kod):
         return durdur("Claude hiçbir dosyayı değiştirmedi (limit ya da oturum sorunu olabilir; NOTLAR/otomatik/ logunu oku)")
 
     git("add", "-A")
@@ -713,6 +767,8 @@ def main():
         if args.baslangic:
             # bu aşamadan itibaren "tamamlandı" işaretlerini kaldır (yanlışlıkla bitti sayılanlar için)
             d["tamamlanan"] = [k for k in d.get("tamamlanan", []) if KODLAR.index(k) < bas]
+            # süreleri de temizle; yoksa 6 saniyelik sahte koşular ETA ortalamasını bozuyor
+            d["sureler"] = {k: v for k, v in d.get("sureler", {}).items() if k in KODLAR and KODLAR.index(k) < bas}
             d.pop("basarisiz", None)
             json_yaz(DURUM, d)
         secilen = [i for i in range(bas, len(KODLAR)) if KODLAR[i] not in d.get("tamamlanan", [])]

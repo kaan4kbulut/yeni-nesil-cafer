@@ -1235,7 +1235,8 @@ class Agent:
         except InterruptedError:
             raise Cancelled()
         for name in set(REGISTRY.tools) - before:  # yeni araç bu turda hemen kullanılabilsin
-            self.tool_specs.append(REGISTRY.get(name).spec)
+            if REGISTRY.get(name).source == "fabrika":  # aynı anda kaydedilen görev motoru yetenekleri (y_) değil
+                self.tool_specs.append(REGISTRY.get(name).spec)
         return result
 
     def _find_api(self, topic: str) -> str:

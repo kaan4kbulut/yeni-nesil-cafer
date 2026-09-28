@@ -23,8 +23,8 @@ class ModesMixin:
     def _installed_uncensored(self) -> list[str]:
         from .. import model_updates
 
-        try:
-            return [m for m in list_ollama_models(self.settings.ollama_url) if model_updates.is_uncensored(m)]
+        try:  # yalnızca araç sınavını tam geçenler (roster.sansursuz_secilebilir); sınanmamış model seçilemez
+            return roster.sansursuz_secilebilir(list_ollama_models(self.settings.ollama_url))
         except Exception:
             return []
 
@@ -66,6 +66,11 @@ class ModesMixin:
             # araç kullanabilen (dosya, komut, ekip işleri yapabilen) sansürsüz modeller önce
             installed = sorted(self._installed_uncensored(), key=lambda m: "tools" not in
                                specialists._capabilities(self.settings.ollama_url, m))
+            if model and model not in installed:  # menüden seçilen model sınavı geçmemiş: kip açılmaz
+                self._update_free_btn()
+                self.chat.add_notice(f"🔓 {model.split('/')[-1]} araç sınavını tam geçmedi; sansürsüz kipte yalnızca "
+                                     "sınavı geçen modeller seçilebilir (Modeller → kartlar).")
+                return
             model = model or (self.settings.extra.get("uncensored_model") if
                               self.settings.extra.get("uncensored_model") in installed else "") or \
                 (installed[0] if installed else "")

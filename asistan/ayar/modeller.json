@@ -1,8 +1,6 @@
 {
   "guncelleme": "2026-09-28",
   "aciklama": "Programın bildiği model adlarının TEK yeri (CLAUDE.md, MIMARI §3). Kod model adı içermez, buradan okur (asistan/cekirdek/modeller.py). Liste yenilenince yalnızca bu dosya değişir.",
-  "gecici": true,
-  "gecici_not": "kademe listeleri 2026-09-28'de web araştırmasıyla seçildi (ollama.com/library, Anthropic ve OpenAI fiyat sayfaları); gerekçe NOTLAR/MODELLER_ONERI.md. Kullanıcı değiştirince bu iki alanı silsin. Her listede ilk ad o kademenin varsayılanı.",
 
   "kademe": {
     "dusuk":  {"yerel": ["qwen3.5:2b"],
@@ -22,7 +20,7 @@
 
   "temel": {"model": "qwen3.5:4b", "boyut_gb": 3.4,
             "not": "pakete gömülü temel model; 2b testlerde çok adımlı işlerde dosya bozdu, 4b aynı işleri doğru yaptı"},
-  "varsayilan": {"ollama": "qwen3.5:4b", "claude": "claude-opus-5", "bulut_sunucu": "qwen3.5:4b"},
+  "varsayilan": {"ollama": "qwen3.5:4b", "claude": "claude-opus-5-5", "bulut_sunucu": "qwen3.5:4b"},
   "arac_ustasi": "qwen2.5:14b",
   "gomme": "nomic-embed-text",
   "gorme": "gemma4:12b",

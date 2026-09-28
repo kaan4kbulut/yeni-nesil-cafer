@@ -459,6 +459,31 @@ class Browser:
             return self._snapshot(page)
         return self._call(run)
 
+    def extract_items(self, find: str = "", max_items: int = 30) -> str:
+        """Sayfadaki ürün/ilan listesi (JSON-LD → tekrar eden kartlar); her çağrıda DOM yeniden okunur, öğe numarası
+        kullanılmaz (sayfa kendini yeniden çizse de doğru). Bulunamazsa hata: uydurma yok."""
+        import json
+
+        from .cekirdek.araclar import urunler
+        from .cekirdek.araclar.temel import AracHatasi
+
+        def run(ctx):
+            page = self._page(ctx)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=10_000)
+            except Exception:
+                pass
+            return page.content(), page.url
+        html, url = self._call(run)
+        items, method = urunler.cikar(html, url, urunler.EN_COK)
+        items = urunler.suz(items, find)[:max(1, min(int(max_items or 30), urunler.EN_COK))]
+        if not items:
+            raise AracHatasi("liste bulunamadı: bu sayfada fiyatlı ürün/ilan listesi yok (JSON-LD ya da tekrar eden "
+                             "fiyatlı kartlar)" + (f" — '{find}' içeren ürün yok" if find else "")
+                             + ". Başka bir sayfa aç ya da aramayı değiştir; satır uydurma.")
+        head = f"{len(items)} ürün ({'yapısal veri' if method == 'json-ld' else 'sayfa kartları'}) — {url[:200]}"
+        return head + "\n" + "\n".join(json.dumps(o, ensure_ascii=False) for o in items)
+
     def screenshot(self, folder: Path) -> Path:
         folder.mkdir(parents=True, exist_ok=True)
         path = folder / f"sayfa-{time.strftime('%H%M%S')}.png"

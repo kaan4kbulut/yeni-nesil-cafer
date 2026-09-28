@@ -95,7 +95,8 @@ class Yurutucu:
         """Anla → planla → kaydet → koş. Belirsizlik yüksekse görev `bekliyor_kullanici` (rapor = soru).
         `gorev_id`: önceden verilen kimlik (iş klasörünün adı ona göre kurulduysa)."""
         liste = self.yetenekler.listele()
-        anlayis, soru = anlayici.anla(istek, liste, self.model)
+        pasifler = getattr(self.yetenekler, "pasifler", None)  # K5: kayıtlı ama kullanılamayan yetenekler
+        anlayis, soru = anlayici.anla(istek, liste, self.model, pasifler() if pasifler else None)
         if soru:
             gorev = planlayici.gorev_olustur(istek, anlayis, [], self.yetenekler, self.model, self.kademe)
             gorev["gorev_id"] = gorev_id or gorev["gorev_id"]

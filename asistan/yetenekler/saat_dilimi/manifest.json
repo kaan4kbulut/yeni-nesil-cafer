@@ -1,0 +1,32 @@
+{
+  "ad": "saat_dilimi",
+  "surum": "1.0.0",
+  "aciklama": "Verilen şehrin şu anki yerel saatini ve UTC farkını verir (saat kaç, saat farkı, zaman dilimi).",
+  "etiketler": ["ag", "zaman", "bilgi"],
+  "girdi": {
+    "sehir": {"tip": "string", "zorunlu": true, "aciklama": "Şehir adı (Türkçe ya da yerel adıyla: Ankara, Londra, Tokyo) ya da IANA saat dilimi (Europe/Istanbul)"}
+  },
+  "cikti": {
+    "saat": {"tip": "string", "aciklama": "Şehirdeki şu anki tarih ve saat: YYYY-AA-GG SS:DD"},
+    "utc_fark": {"tip": "string", "aciklama": "UTC farkı: UTC+03:00 biçiminde (yaz saati dahil)"},
+    "saat_dilimi": {"tip": "string", "aciklama": "Bulunan IANA saat dilimi (ör. Europe/Istanbul)"},
+    "yer": {"tip": "string", "aciklama": "Eşleşen yer (şehir, ülke): doğru şehrin bulunduğunu denetlemek için"}
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": ["windows", "linux", "macos"],
+    "python": ">=3.12"
+  },
+  "izinler": ["ag"],
+  "zaman_asimi_sn": 20,
+  "sandbox": true,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {"girdi": {"sehir": "Ankara"}, "beklenen": "saat_dilimi Europe/Istanbul, utc_fark UTC+03:00"},
+    {"girdi": {"sehir": "Tokyo"}, "beklenen": "saat_dilimi Asia/Tokyo, utc_fark UTC+09:00"},
+    {"girdi": {"sehir": "Europe/London"}, "beklenen": "ağsız çözülür; utc_fark UTC+00:00 ya da yaz saatinde UTC+01:00"}
+  ]
+}

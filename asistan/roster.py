@@ -290,6 +290,14 @@ def worker_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str] | N
     return best.key
 
 
+def sansursuz_secilebilir(kurulu: list[str]) -> list[str]:
+    """Sansürsüz kipte seçilebilecek modeller: kurulu, sansürsüz ve araç sınavını (`cards.py`) TAM geçenler.
+
+    Ollama'nın "tools" beyanı ya da henüz sınanmamış kart yeterli değildir: sansürsüz kipte güvenlik ajanı kapalıdır,
+    işi yapacak modelin araç çağırdığı programın kendi sınavıyla kanıtlanmış olmalı. Sıra kurulu listesiyle aynı."""
+    return [m for m in kurulu if model_updates.is_uncensored(m) and cards.tools_level(m) == 2]
+
+
 def manager_for(settings: Settings, chat: tuple[str, str], policy: str | None = None) -> tuple[str, str]:
     """Plan çıkarıp denetleyecek model. Karar yönlendiricinin "yönetici" rolünde (`cekirdek/yonlendirici.py`,
     politika otomatik | yerel | bulut); model bulunamazsa sohbet modeli."""

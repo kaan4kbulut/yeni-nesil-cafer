@@ -1,12 +1,13 @@
 """JSON şemaları (docs/SEMALAR.md) ve küçük bir doğrulayıcı.
 
 `jsonschema` paketi kurulum paketinde yok; burada yalnızca şemalarımızın kullandığı alt küme denetlenir: `type` (tek ya
-da liste), `required`, `properties`, `additionalProperties: false`, `items`, `enum`, `const`, `minimum`, `minLength`,
-`minItems`, `maxItems`, yerel `$ref` (`#/$defs/<ad>`). Bilinmeyen anahtar sessizce geçilir (modelin Ollama `format`
-alanına giden şemayla aynı dosya kullanılabilsin).
+da liste), `required`, `properties`, `additionalProperties` (`false` ya da şema), `items`, `enum`, `const`, `minimum`,
+`maximum`, `minLength`, `pattern`, `minItems`, `maxItems`, yerel `$ref` (`#/$defs/<ad>`). Bilinmeyen anahtar sessizce
+geçilir (modelin Ollama `format` alanına giden şemayla aynı dosya kullanılabilsin).
 """
 
 import json
+import re
 from functools import cache
 from pathlib import Path
 
@@ -63,18 +64,25 @@ def dogrula(veri, sema: dict, _kok: dict | None = None, _yol: str = "$") -> list
         hatalar.append(f"{_yol}: şunlardan biri olmalı: {', '.join(map(str, sema['enum']))} ({veri!r} geldi)")
     if isinstance(veri, (int, float)) and not isinstance(veri, bool) and "minimum" in sema and veri < sema["minimum"]:
         hatalar.append(f"{_yol}: en az {sema['minimum']} olmalı")
+    if isinstance(veri, (int, float)) and not isinstance(veri, bool) and "maximum" in sema and veri > sema["maximum"]:
+        hatalar.append(f"{_yol}: en çok {sema['maximum']} olmalı")
     if isinstance(veri, str) and len(veri) < sema.get("minLength", 0):
         hatalar.append(f"{_yol}: boş olmamalı")
+    if isinstance(veri, str) and "pattern" in sema and not re.search(sema["pattern"], veri):
+        hatalar.append(f"{_yol}: biçim uymuyor ({sema['pattern']}; {veri[:60]!r} geldi)")
     if isinstance(veri, dict):
         ozellikler = sema.get("properties") or {}
+        ek = sema.get("additionalProperties")
         for anahtar in sema.get("required") or []:
             if anahtar not in veri:
                 hatalar.append(f"{_yol}: '{anahtar}' eksik")
         for anahtar, alt in veri.items():
             if anahtar in ozellikler:
                 hatalar += dogrula(alt, ozellikler[anahtar], kok, f"{_yol}.{anahtar}")
-            elif sema.get("additionalProperties") is False:
+            elif ek is False:
                 hatalar.append(f"{_yol}: bilinmeyen alan '{anahtar}'")
+            elif isinstance(ek, dict):
+                hatalar += dogrula(alt, ek, kok, f"{_yol}.{anahtar}")
     if isinstance(veri, list):
         if len(veri) < sema.get("minItems", 0):
             hatalar.append(f"{_yol}: en az {sema['minItems']} öğe olmalı")

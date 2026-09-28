@@ -108,12 +108,23 @@ class AjanUyarlayiciTesti(unittest.TestCase):
         ayarlar.confirm_commands = True
         self.yet = AjanYetenekleri(ayarlar, [], self.klasor)
 
-    def test_yalnizca_temel_araclar(self):
-        adlar = {y["ad"] for y in self.yet.listele()}
-        self.assertIn("read_file", adlar)
-        self.assertIn("run_python", adlar)
+    def test_yalnizca_manifestli_yetenekler(self):
+        adlar = {y["ad"] for y in self.yet.listele()}  # K5: araç adları değil, yetenek manifestleri
+        self.assertIn("dosya_oku", adlar)
+        self.assertIn("python_calistir", adlar)
+        self.assertNotIn("read_file", adlar)
         self.assertNotIn("delegate_to_agent", adlar)
         self.assertNotIn("remember", adlar)
+
+    def test_yetenek_izin_hattindan_gecer(self):
+        girdi = {"kod": "open('cikti.txt','w').write('x')", "amac": "test"}
+        self.assertTrue(self.yet.onay_gerekir("python_calistir", girdi))
+        c = self.yet.calistir("python_calistir", girdi)
+        self.assertTrue(c.onay_bekliyor)
+        self.assertFalse(Path(self.klasor, "cikti.txt").exists())
+        c = self.yet.calistir("dosya_oku", {"yol": "not.txt"})
+        self.assertFalse(c.hata or c.onay_bekliyor)
+        self.assertIn("merhaba", c.metin)
 
     def test_okuma_onaysiz_calisir(self):
         self.assertFalse(self.yet.onay_gerekir("read_file", {"path": "not.txt"}))

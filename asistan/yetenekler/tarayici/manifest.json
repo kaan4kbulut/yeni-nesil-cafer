@@ -1,0 +1,33 @@
+{
+  "ad": "tarayici",
+  "surum": "1.0.0",
+  "aciklama": "Gerçek tarayıcıda bir sayfayı açıp okur; islem 'urunler' ise sayfadaki ürün/ilan listesini yapısal verir (ad, fiyat, para birimi, adres). Liste yoksa açıkça hata verir, satır uydurmaz. Tıklama, form doldurma, satın alma yapmaz.",
+  "etiketler": ["ag", "tarayici", "alisveris"],
+  "girdi": {
+    "url": {"tip": "string", "zorunlu": true, "aciklama": "Açılacak http(s) adresi (ör. bir arama sonuçları sayfası)"},
+    "islem": {"tip": "string", "zorunlu": false, "aciklama": "'oku': sayfanın metni · 'urunler': ürün/ilan listesi",
+              "secenekler": ["oku", "urunler"], "varsayilan": "oku"},
+    "bul": {"tip": "string", "zorunlu": false, "aciklama": "Yalnızca bu kelimeleri içeren satırlar / ürünler"}
+  },
+  "cikti": {
+    "sonuc": {"tip": "string", "aciklama": "islem 'oku': sayfanın okunur hali"},
+    "urunler": {"tip": "list", "aciklama": "islem 'urunler': bulunan ürünler",
+                "eleman": {"ad": "string", "fiyat": "float", "para_birimi": "string", "url": "string"}}
+  },
+  "gereksinimler": {
+    "pip": ["playwright"],
+    "ikili": [],
+    "min_kademe": "orta",
+    "isletim": ["windows", "linux", "macos"],
+    "python": ">=3.12"
+  },
+  "izinler": ["ag"],
+  "zaman_asimi_sn": 120,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {"girdi": {"url": "https://example.com"}, "beklenen": "sayfa metninde 'Example Domain'"},
+    {"girdi": {"url": "https://books.toscrape.com", "islem": "urunler"}, "beklenen": "en az 2 ürün, her birinde sayısal fiyat"}
+  ]
+}

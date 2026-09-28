@@ -53,7 +53,8 @@ asistan/
     masaustu/               # PySide6 (mevcut UI buraya taşınır)
     web/                    # FastAPI + PWA (telefon)
     komut/                  # `cafer` CLI: cafer profil | cafer gorev "…" | cafer sunucu
-yetenekler/                 # her yetenek bir klasör: manifest.json + calistir.py + test_*.py
+  yetenekler/               # yerleşik yetenekler (K5): her biri manifest.json + calistir.py + test_<ad>.py
+                            # (asistan/ içinde: güncelleme paketi yalnızca asistan/ taşır; üretilenler DATA_DIR/yetenekler)
 sunucu/                     # Dockerfile, docker-compose.yml, Caddyfile, .env.ornek
 testler/
 docs/
@@ -153,8 +154,12 @@ RAPORLA → kısa özet + ne yapıldı + ne yapılamadı + öneri
 
 Planlayıcı **yalnızca kayıtlı yetenekleri** çağırabilir. Mevcut araçlar (dosya okuma/yazma, komut çalıştırma, Python çalıştırma, web araştırma, tarayıcı) birer yeteneğe dönüştürülür; böylece hepsi aynı kapıdan geçer ve aynı güvenlik politikasına tabi olur.
 
-Her yetenek: `yetenekler/<ad>/manifest.json` + `calistir.py` + `test_<ad>.py`.
-Manifest şeması `docs/SEMALAR.md`'de.
+Her yetenek: `<kök>/<ad>/manifest.json` + `calistir.py` + `test_<ad>.py`; kökler `asistan/yetenekler/` (yerleşik) ve
+`DATA_DIR/yetenekler/` (üretilen, katalog). Manifest şeması `docs/SEMALAR.md`'de.
+
+Yerleşik yetenekler programın araçlarını `baglam.arac` ile çağırır: tek araç yolu (`Agent._execute_tool` →
+`permissions.py`) değişmez. Sandbox yetenekleri izin hattına `y_<ad>` adıyla, manifestin izinlerinden çıkan risk
+sınıfıyla girer (programla gelmeyen ya da güvenilmeyen: her seferinde onay).
 
 Kayıt defteri açılışta tarar; manifesti bozuk ya da gereksinimi karşılanmayan yetenekler "pasif" listelenir (planlayıcıya "var ama kurulmamış" olarak görünür — böylece planlayıcı "bu iş için X yeteneği kurulursa yapılabilir" diyebilir).
 

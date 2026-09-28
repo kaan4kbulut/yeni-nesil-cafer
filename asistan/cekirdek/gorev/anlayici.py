@@ -25,13 +25,18 @@ def bos_anlayis(istek: str) -> dict:
             "gereken_yetenekler": [], "eksik_yetenekler": []}
 
 
-def anla(istek: str, yetenekler: list[dict], model) -> tuple[dict, str]:
-    """(anlayis, soru). `soru` boş değilse görev kullanıcının cevabını bekler."""
+def anla(istek: str, yetenekler: list[dict], model, pasifler: list[dict] | None = None) -> tuple[dict, str]:
+    """(anlayis, soru). `soru` boş değilse görev kullanıcının cevabını bekler. `pasifler`: kayıtlı ama kullanılamayan
+    yetenekler (MIMARI §6: "var ama kurulmamış") — gerekiyorsa eksik yetenek olarak söylenir."""
     adlar = [y["ad"] for y in yetenekler] + [METIN_URET]
     liste = "\n".join(f"- {y['ad']}: {y.get('aciklama', '')[:160]}" for y in yetenekler)
+    kapali = "\n".join(f"- {y['ad']}: {y.get('aciklama', '')[:100]} (not usable now: {y.get('neden', '')[:80]})"
+                       for y in pasifler or [])
     istem = (f"User's request:\n{istek}\n\nCapabilities the assistant has:\n{liste}\n- {METIN_URET}: write text with "
              "a language model\n\n"
-             "Give: niyet (the intent in a few words), kisitlar (limits the user set: folders, formats, what must not "
+             + (f"Registered but NOT usable now (if the request needs one, list it in eksik_yetenekler):\n{kapali}\n\n"
+                if kapali else "")
+             + "Give: niyet (the intent in a few words), kisitlar (limits the user set: folders, formats, what must not "
              "change), belirsizlikler (what is really unclear), gereken_yetenekler (names from the list above), "
              "eksik_yetenekler (what is needed but not in the list), belirsizlik ('yuksek' only if the request "
              "cannot be done without asking the user), soru (one short question for the user when belirsizlik is "

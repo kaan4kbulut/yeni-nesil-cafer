@@ -162,9 +162,11 @@ def _outside_paths(text: str, workspace: str) -> list[str]:
 def forbidden(name: str, args: dict) -> str:
     """Yasak listesindeyse nedeni (her kipte reddedilir, kullanıcı onayı da açmaz); değilse boş."""
     tool = REGISTRY.get(name)
-    if tool is not None and tool.source != "yerlesik":  # MCP araçlarının argümanları komut değil
+    if tool is not None and tool.source not in ("yerlesik", "yetenek"):  # MCP araçlarının argümanları komut değil
         return ""
     text = _text(name, args if isinstance(args, dict) else {})
+    if tool is not None and tool.source == "yetenek" and isinstance(args, dict):  # alan adları Türkçe: hepsi taranır
+        text = " ".join(str(v) for v in args.values())
     return next((why for pattern, why in _FORBIDDEN if re.search(pattern, text, re.I)), "")
 
 
@@ -178,6 +180,13 @@ def classify(name: str, args: dict, workspace: str) -> tuple[str, list[str]]:
     args = args if isinstance(args, dict) else {}
     root = Path(workspace).expanduser().resolve()
     tool = REGISTRY.get(name)
+    if tool is not None and tool.source == "yetenek":  # görev motorunun sandbox yeteneği (K5): manifestin izinleri
+        izin, ad = set(tool.hints.get("izinler") or []), name.removeprefix("y_")
+        if not tool.hints.get("guvenilir") or izin & {"komut", "dosya_sil"}:
+            return HIGH, [f"“{ad}” yeteneği (programla gelmeyen ya da komut/silme izinli kod) sandbox'ta çalışıyor"]
+        if izin & {"ag", "dosya_yaz"} or any(i.startswith("anahtar:") for i in izin):
+            return MEDIUM, [f"“{ad}” yeteneği sandbox'ta çalışıyor (izinler: {', '.join(sorted(izin))})"]
+        return LOW, [f"“{ad}” yeteneği sandbox'ta yalnızca okuyor"]
     if tool is not None and tool.source != "yerlesik":  # takılan MCP sunucusunun aracı: sunucunun işaretlerine göre
         where = tool.source.split(":", 1)[-1]
         if tool.hints.get("readOnlyHint"):

@@ -95,15 +95,19 @@ bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
   üretim: Ollama `format`, json_schema, Claude zorunlu araç + 1 düzeltme), `semalar/` (JSON şemaları + doğrulayıcı),
   `gorev/` (K4 görev motoru: anlayici → planlayici → yurutucu → dogrulayici, `durum` = `DATA_DIR/gorevler.db`, `ajan`
   araçları `_execute_tool` izin hattından koşar, `komut` = `python -m asistan gorev`, `sohbet` = masaüstü sohbeti (bayrak
-  `extra["gorev_motoru"]`, `Manager.motor`, mesajda `_gorev_id`, "devam et"); pencere `gui/gorevler_dialog.py`). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI (`python -m asistan profil`); `eski.py` taşınan
-  adların eski yolu (2.8'de kalkar).
+  `extra["gorev_motoru"]`, `Manager.motor`, mesajda `_gorev_id`, "devam et"); pencere `gui/gorevler_dialog.py`),
+  `yetenek/` (K5 kayıt defteri: `kayit` manifest tarama → aktif/pasif, `calistirici` sandbox = ayrı venv + zaman aşımı +
+  izin kancası `_kum_giris.py`, `komut` = `python -m asistan yetenek`; pencere `gui/yetenekler_dialog.py`),
+  `araclar/urunler.py` (ürün listesi: JSON-LD → tekrar eden kartlar). `arayuz/masaustu` gui'yi sunar, `arayuz/komut` CLI
+  (`python -m asistan profil`); `eski.py` taşınan adların eski yolu (2.8'de kalkar).
 - Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
   `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
   (uzman modele danışma), `profiles.py` (yardımcı ajanlar), `cli_agents.py`, `accounts.py` (OpenRouter OAuth, HF cihaz
   kodu), `ctxprobe.py`.
 - Araçlar: `registry.py`, `tools.py` (`Toolbox._tool_*`), `factory.py`, `mcp.py`, `browser.py`, `apps.py` (`install_app`),
   `api_catalog.py` (hazır HTTP API'leri), `libraries.py` (Python kütüphaneleri), `hooks.py`, `definitions.py` (dosyayla
-  ajan/beceri), `beceriler/` (hazır beceriler; ör. `3d-baski`).
+  ajan/beceri), `beceriler/` (hazır beceriler; ör. `3d-baski`), `yetenekler/` (görev motorunun yerleşik yetenekleri:
+  manifest + `calistir.py` + test).
 - Hafıza/öğrenme: `memory_db.py`, `learning.py`.
 - Güvenlik: `permissions.py`, `security.py`, `askpass.py`, `keystore.py`.
 - Görsel/3D/ses: `imagegen.py`, `inspect_output.py`, `decor3d.py`, `figure3d.py` + `figure3d_worker.py`, `dictation.py` +
@@ -136,6 +140,9 @@ Yeni yerleşik araç: tanımı `tools.py`'de `REGISTRY.add(spec, risk, (etiket, 
 `Toolbox._tool_<ad>` olarak ekle; ajanın durumuna (geri çağrılar, hafıza, alt ajan) ihtiyaç duyuyorsa `Agent._tool_<ad>`,
 araca özgü ek onay kapısı gerekiyorsa `Agent._gate_<ad>`. Onay kuralları yalnızca `permissions.py`'de. Onay listesi,
 etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` önekli, hep `calistirir` risk sınıfında.
+Görev motorunun planlayıcısı yalnızca manifestli yetenekleri görür: yeni iş = `asistan/yetenekler/<ad>/`
+(`/yetenek-ekle`), elle liste yok. Yerleşik yetenek araçları `baglam.arac` ile çağırır (izin hattı aynı); sandbox
+yetenekleri izin hattına `y_<ad>` adıyla girer.
 
 ## Hâlâ geçerli tuzaklar (tam metin ve tarihçe: `NOTLAR/mimari-ayrintilar.md`)
 
@@ -156,7 +163,7 @@ etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` �
 
 1. Adımları kategorisine göre uzman modele dağıtmak (K3'ten kalan); bulut maliyetinin ₺ karşılığı (fiyat listesi).
 2. Görev motorunu sohbette varsayılan yapmak (şimdi Ayarlar'daki bayrakla; önce sınavda Manager'la karşılaştır; NOTLAR K4).
-3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak (K5).
+3. BrowserAgent: ürün listesi okuma (`browser_extract_items`) K5'te; sınav ölçümü NOTLAR K5'te.
 4. Bulut sunucuyu gerçek sunucuda kurmak (K8).
 5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları) (Sonraya).
 

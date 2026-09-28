@@ -1,0 +1,56 @@
+{
+  "ad": "dosya_listele",
+  "surum": "1.0.0",
+  "aciklama": "Bir klasördeki dosya ve klasörleri boyutlarıyla listeler.",
+  "etiketler": [
+    "dosya",
+    "okuma"
+  ],
+  "girdi": {
+    "yol": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Klasör: çalışma klasörüne göre ('.') ya da okunabilir klasörde tam yol",
+      "varsayilan": "."
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_oku"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "yol": "."
+      },
+      "beklenen": "çalışma klasörünün listesi"
+    },
+    {
+      "girdi": {
+        "yol": "alt"
+      },
+      "beklenen": "alt klasörün listesi"
+    }
+  ]
+}

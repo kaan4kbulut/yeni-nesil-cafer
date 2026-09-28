@@ -172,6 +172,12 @@ class HelpMixin:
 
         GorevlerDialog(self.settings, getattr(self, "connections", None), self).exec()
 
+    def open_capabilities(self):
+        """Görev motorunun yetenekleri (K5): aktif/pasif, izinler, kaynak, güvenilir; ayrı pencere."""
+        from .yetenekler_dialog import YeteneklerDialog
+
+        YeteneklerDialog(self).exec()
+
     def open_cards(self):
         from .cards_dialog import CardsDialog
 

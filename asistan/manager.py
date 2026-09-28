@@ -83,6 +83,72 @@ def is_browser_task(text: str) -> bool:
     return bool(_BROWSER.search(learning.original_request(text or "")))
 
 
+# ürün / fiyat LİSTESİ isteği ("adını ve fiyatını yaz", "en ucuz 5 fritöz", "kaç TL"): kelime sınırlı; bir işlem
+# isteği (sepete ekle, satın al, ilan ver…) liste isteği sayılmaz — denetim onu tekrar koşturmasın (K5 denetimi)
+_FIYAT_ISTEGI = re.compile(r"\bfiyat\w*|\ben (ucuz|pahalı|pahali)\b|\bkaç (tl|lira)\b|\bprices?\b", re.I)
+_ISLEM_ISTEGI = re.compile(r"\bsepet\w*|\bsatın al\w*|\bsatin al\w*|\bsipariş\w*|\bsiparis\w*|\bödeme\w*|\bilan (ver|ekle|"
+                           r"yayınla)\w*|\byorum (yap|yaz)\w*|\bgönder\w*|\bbuy\b|\bcheckout\b|\badd to cart\b", re.I)
+# istenen satır sayısı: "ilk 5", "en ucuz 3", "5 tane", "5 ürün" — sayının önünde bir kelime varsa (iPhone 15) sayılmaz
+_ISTENEN = re.compile(r"\b(?:ilk|en ucuz|en pahalı|en iyi)\s+(\d{1,2})\b|(?<![^\W\d_]\s)(?<![^\W\d_])\b(\d{1,2})\s*"
+                      r"(?:tane|adet|ürün|urun|ilan|sonuç|seçenek|model)", re.I)
+
+
+def fiyat_listesi_mi(istek: str) -> bool:
+    return bool(_FIYAT_ISTEGI.search(istek or "")) and not _ISLEM_ISTEGI.search(istek or "")
+
+
+def fiyat_eksigi(task: str, body: str) -> str:
+    """Ürün/fiyat isteğinde programın denetimi (eski Aşama 4): cevapta en az istenen sayıda, her biri sayısal fiyatlı
+    satır var mı? Sorun yoksa boş. Model "buldum" dese de sayısal fiyat yoksa kabul edilmez; dürüst "bulunamadı"
+    cevabı da geçmez ve tekrar denenir — sonunda "tamamlanamadı" diye bildirilir, uydurma satır yazılmaz."""
+    from .cekirdek.araclar import urunler
+
+    istek = learning.original_request(task or "")
+    if not fiyat_listesi_mi(istek):
+        return ""
+    satir = sum(1 for ln in (body or "").splitlines() if urunler.fiyatlar(ln))
+    m = _ISTENEN.search(istek)
+    istenen = int(m.group(1) or m.group(2)) if m else 1
+    if satir >= istenen:
+        return ""
+    if not satir:
+        return "the answer has no line with a real numeric price (use browser_extract_items on the product list page)"
+    return f"{istenen} items were asked, the answer has only {satir} line(s) with a numeric price"
+
+
+def urun_cevabi(task: str, events: list[dict]) -> str:
+    """Ajanın cevabı fiyat denetiminden geçmediyse: bu turda `browser_extract_items`'ın sayfadan okuduğu satırlardan
+    programın kendi cevabı. Satırlar sayfanın kendisinden (uydurma yok); yeterli satır yoksa boş. Canlı sınav
+    (2026-09-28): araç 30 ürünü doğru okudu, yerel model cevaba yer tutucu yazdı."""
+    from .cekirdek.araclar import urunler
+
+    istek = learning.original_request(task or "")
+    if not fiyat_listesi_mi(istek):
+        return ""
+    m = _ISTENEN.search(istek)
+    for e in reversed(events):
+        if e.get("name") != "browser_extract_items" or e.get("error"):
+            continue
+        satirlar = str(e.get("result") or "").splitlines()
+        kayitlar = []
+        for s in satirlar[1:]:
+            try:
+                o = json.loads(s)
+            except ValueError:
+                continue
+            if isinstance(o, dict) and o.get("ad") and isinstance(o.get("fiyat"), (int, float)):
+                kayitlar.append(o)
+        istenen = int(m.group(1) or m.group(2)) if m else min(len(kayitlar), 10)
+        if not kayitlar or len(kayitlar) < istenen:
+            continue
+        kaynak = satirlar[0].rsplit(" — ", 1)[-1] if satirlar else ""
+        return (f"Sayfadan okunan ilk {istenen} ürün ({kaynak}):\n\n" + "\n".join(
+            f"{i}. {o['ad']} — {urunler.tl(o['fiyat'])} "
+            f"{'TL' if o.get('para_birimi') in ('TRY', '', None) else o['para_birimi']}"
+            + (f" — {o['url']}" if o.get("url") else "") for i, o in enumerate(kayitlar[:istenen], 1)))
+    return ""
+
+
 _LIST_ITEM = re.compile(r"(?m)^\s*(?:\d+[.)]|[-*•])\s+\S")
 # iş sayılmayan ama bir iş adımı olabilen fiiller ("oku ve grafiğini çiz" iki adımdır)
 _STEP_VERBS = re.compile(r"\b(oku|bul|ara|araştır|incele|karşılaştır|özetle|hesapla|çıkar|listele|kontrol et|"
@@ -493,6 +559,9 @@ class Manager:
         last = next((m.get("content") for m in reversed(messages) if m.get("role") == "assistant"
                      and isinstance(m.get("content"), str) and m["content"].strip()), "")
         brief = task + (f"\n\nContext (previous answer in this chat):\n{last[:1500]}" if last else "")
+        if fiyat_listesi_mi(task):  # eski Aşama 4: fiyatlar numaralı öğelerden değil, yapısal okumayla
+            brief += ("\n\nOn the product list page call browser_extract_items and write one line per item with its "
+                      "name, numeric price and link.")
         self._emit("on_route", "🌐 Bu iş gerçek tarayıcı gerektiriyor: **Tarayıcı ajanı** yapıyor (pencerede izleyebilirsin; "
                                "satın alma, gönderme, giriş ve indirme öncesi sana sorar).")
         if add_user:
@@ -508,8 +577,15 @@ class Manager:
                 result = a._delegate({"agent": "tarayici", "task": brief})
                 body = result.split("\n", 1)[1] if result.startswith("[") and "\n" in result else result
                 rec.text = body
+                eksik_fiyat = fiyat_eksigi(task, body)  # ürün/fiyat isteği: programın sayımı modelden önce
+                hazir = urun_cevabi(task, rec.events) if eksik_fiyat or _PLACEHOLDER.search(body) else ""
+                if hazir:  # model cevabı yazamadı ama araç sayfadan gerçek satırları okudu: cevap programdan
+                    self._emit("on_route", "🧾 Cevap, tarayıcının sayfadan okuduğu ürün listesinden yazıldı.")
+                    body = hazir
+                    break
                 ok, missing = (False, "the answer contains placeholders instead of real data") \
-                    if _PLACEHOLDER.search(body) else self.check(self.chat[0] if self.chat else "ollama", step, rec)
+                    if _PLACEHOLDER.search(body) else (False, eksik_fiyat) if eksik_fiyat \
+                    else self.check(self.chat[0] if self.chat else "ollama", step, rec)
                 if ok:
                     break
                 if attempt < MAX_FIXES:

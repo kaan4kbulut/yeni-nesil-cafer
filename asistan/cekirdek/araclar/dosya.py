@@ -13,11 +13,11 @@ from .temel import GIZLI_DOSYALAR, AracHatasi
 def yol_coz(kok: Path, okuma_kokleri: list[Path], yol: str, okuma: bool = False) -> Path:
     """Modelin verdiği yolu çözer; çalışma klasörü (okumada program klasörleri de) dışına çıkarsa `AracHatasi`."""
     hedef = (kok / yol).expanduser().resolve()
+    if okuma and hedef.name in GIZLI_DOSYALAR:  # çalışma klasörü ev klasörü seçilse de (K5 denetimi)
+        raise AracHatasi("This file holds the user's API keys and cannot be read.")
     if hedef.is_relative_to(kok):
         return hedef
     if okuma and any(hedef.is_relative_to(r) for r in okuma_kokleri):
-        if hedef.name in GIZLI_DOSYALAR:
-            raise AracHatasi("This file holds the user's API keys and cannot be read.")
         return hedef
     raise AracHatasi(f"Path is outside the workspace: {yol}"
                      + (" (writing is only allowed inside the workspace)" if not okuma and any(
@@ -101,6 +101,30 @@ def yaz(kok: Path, okuma_kokleri: list[Path], yol: str, icerik: str) -> str:
     hedef.parent.mkdir(parents=True, exist_ok=True)
     hedef.write_text(icerik, encoding="utf-8")
     return f"Wrote {len(icerik)} characters to {hedef.relative_to(kok)}"
+
+
+def tasi(kok: Path, okuma_kokleri: list[Path], kaynak: str, hedef: str) -> str:
+    """Dosya ya da klasörü çalışma klasörü içinde taşır / yeniden adlandırır. Hedef var olan bir klasörse içine taşır;
+    var olan bir dosyanın üstüne yazmaz (veri kaybı olmasın)."""
+    import shutil
+
+    k = yol_coz(kok, okuma_kokleri, kaynak)
+    if not k.exists():
+        raise AracHatasi(f"Not found: {kaynak}")
+    if k == kok:
+        raise AracHatasi("The workspace folder itself cannot be moved")
+    h = yol_coz(kok, okuma_kokleri, hedef)
+    if hedef.endswith(("/", "\\")):  # "arsiv/": klasöre taşı (yoksa açılır)
+        h.mkdir(parents=True, exist_ok=True)
+    if h.is_dir():
+        h = h / k.name
+    if h.exists():
+        raise AracHatasi(f"Target already exists: {gorunen(h, kok)} (nothing was overwritten)")
+    if h.is_relative_to(k):
+        raise AracHatasi("A folder cannot be moved into itself")
+    h.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(k), str(h))
+    return f"Moved {gorunen(k, kok)} -> {gorunen(h, kok)}"
 
 
 def duzenle(kok: Path, okuma_kokleri: list[Path], yol: str, eski: str, yeni: str) -> str:

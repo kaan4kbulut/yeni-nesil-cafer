@@ -57,9 +57,17 @@ Alanlar:
 ```python
 def calistir(girdi: dict, baglam: "Baglam") -> dict:
     """girdi manifestteki 'girdi'ye, dönen dict 'cikti'ya uyar.
-    baglam: calisma_klasoru, kademe, gunluk (logger), ayar (salt okunur).
+    baglam: calisma_klasoru, kademe, gunluk (logger), ayar (salt okunur), okuma_kokleri,
+            arac (yalnızca yerleşik, sandbox dışı: programın tek araç yolu → izin hattı).
     Hata durumunda YetenekHatasi(sinif=..., mesaj=...) fırlat."""
 ```
+
+Yer (K5): yerleşikler `asistan/yetenekler/<ad>/` (programla ve güncelleme paketiyle gelir; paketler yalnızca `asistan/`
+taşır), üretilen / katalogdan gelenler `DATA_DIR/yetenekler/<ad>/`. `sandbox: false` yalnızca yerleşik ve
+`kaynak: "yerlesik"` olanda geçerlidir; programla gelmeyen bir yetenek "yerleşik" olamaz (pasif kalır).
+Yerleşik yeteneğin isteğe bağlı işlevleri: `arac_cagrisi(girdi) -> (araç, girdi)` (izin hattı onayı önceden tahmin
+eder), `hazir_mi() -> str` (boş değilse yetenek pasif, metin nedenidir). Klasörde `ornek_dosyalar/` varsa duman testi
+(`python -m asistan yetenek --duman`) onu her örnekten önce geçici çalışma klasörüne kopyalar.
 
 ---
 

@@ -167,10 +167,7 @@ NEW_AGENTS = [
         tools=["list_files", "read_file", "write_file", "look_at_image", "web_search"]),
 ]
 # BrowserAgent: gerçek tarayıcıda çalışan ajan (kategorisiz; yönetici tarayıcı işlerini ona verir)
-BROWSER_AGENT = AgentProfile(
-    id="tarayici", name="Tarayıcı ajanı", icon="globe", category="",
-    description="Gerçek tarayıcıda siteleri açar, arar, tıklar, form doldurur; satın alma ve gönderme öncesi sorar",
-    prompt=(
+BROWSER_PROMPT_OLD = (
         "You are the browser agent. You work in a real browser window that the user can see; its profile keeps the "
         "user's logins. Work in a loop: observe (the numbered elements and text that browser_open / browser_read "
         "return) → decide → act (browser_click / browser_type with an element NUMBER from the latest result) → observe "
@@ -181,9 +178,17 @@ BROWSER_AGENT = AgentProfile(
         "a clear comparison that lists the source URLs. The app asks the user before buying or paying, sending or "
         "posting, deleting or changing an account, logging in and downloading; if the user declines, stop and report. "
         "If the user said not to buy something, never click buying buttons at all. If a CAPTCHA or a login appears, "
-        "ask the user to complete it in the browser window, then continue. Reply in the user's language."),
-    tools=["browser_open", "browser_read", "browser_click", "browser_type", "browser_scroll", "browser_back",
-           "browser_look", "web_search", "fetch_url", "write_file", "remember"])
+        "ask the user to complete it in the browser window, then continue. Reply in the user's language.")
+# K5 (eski Aşama 4): ürün/fiyat listeleri yapısal okunur; kayıtlı profili değişmemiş kullanıcıya profiles.py ekler
+BROWSER_PROMPT_EXTRA = (" On shop or listing pages with prices (product search results, classified ads) call "
+                        "browser_extract_items: it returns real rows (name, price, link); if it finds no list, say so "
+                        "and do not invent rows. Other pages (web search results, articles): read them normally.")
+BROWSER_AGENT = AgentProfile(
+    id="tarayici", name="Tarayıcı ajanı", icon="globe", category="",
+    description="Gerçek tarayıcıda siteleri açar, arar, tıklar, form doldurur; satın alma ve gönderme öncesi sorar",
+    prompt=BROWSER_PROMPT_OLD + BROWSER_PROMPT_EXTRA,
+    tools=["browser_open", "browser_read", "browser_extract_items", "browser_click", "browser_type", "browser_scroll",
+           "browser_back", "browser_look", "web_search", "fetch_url", "write_file", "remember"])
 
 # mevcut ajanların kategorileri
 EXISTING = {"kod": "problem", "gorsel": "goru", "arastirmaci": "dil", "ozet": "dil"}

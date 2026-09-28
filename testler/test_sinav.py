@@ -56,15 +56,15 @@ def kup_stl(yol: Path, kenar: float = 20, kaydir: tuple = (0, 0, 0), eksik: int 
 
 
 class Gorevler(unittest.TestCase):
-    def test_yirmi_gorev_gecerli(self):
+    def test_yirmi_gorev_gecerli(self):  # K5: 21. görev trendyol (eski Aşama 4 ölçümü, internet)
         gorevler = denetim.yukle()
-        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 21)))
-        self.assertEqual(len({g["ad"] for g in gorevler}), 20)
+        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 22)))
+        self.assertEqual(len({g["ad"] for g in gorevler}), 21)
         self.assertEqual(sum(denetim.hizli_mi(g) for g in gorevler), 15)
         # --hizli'de ağır etiketli görev yok; internet/gpu/motor/uzun görevleri talimattaki gibi
         agir = {g["ad"]: sorted(denetim.etiketler(g)) for g in gorevler if not denetim.hizli_mi(g)}
         self.assertEqual(agir, {"uzun-baglam": ["uzun"], "spiral-lamba": ["gpu"], "figur-tilki": ["gpu", "motor"],
-                                "duckduckgo": ["internet"], "hepsiburada": ["internet"]})
+                                "duckduckgo": ["internet"], "hepsiburada": ["internet"], "trendyol": ["internet"]})
 
     def test_bozuk_gorev_hata_verir(self):
         hatalar = denetim.dogrula({"ad": "x", "sira": 1, "istek": "?", "zaman_siniri_sn": 0, "etiketler": ["hizli"],

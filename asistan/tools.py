@@ -545,8 +545,30 @@ BROWSER_SPECS = [
         "input_schema": {"type": "object", "properties": {"question": {"type": "string", "description": "What to find "
                          "out from the screenshot"}}, "required": ["question"]}},
         "danisir", ("sayfaya bak", "bakıldı"), group="tarayici"),
+    REGISTRY.add({"name": "browser_extract_items", "description": (
+        "Read the product / listing list of the current page as structured rows (name, price, currency, link) — for "
+        "prices and product lists use this instead of reading numbered elements. Reads the page again each time. "
+        "If the page has no such list it says so: never invent rows."),
+        "input_schema": {"type": "object", "properties": {
+            "find": {"type": "string", "description": "Optional words every product name must contain"},
+            "max_items": {"type": "integer", "description": "Default 30"}}}},
+        "danisir", ("ürünleri oku", "okundu"), group="tarayici"),
 ]
 BROWSER_TOOLS = {s["name"] for s in BROWSER_SPECS}
+
+# Görev motorunun yetenekleri için (K5 `dosya_tasi`): sohbet ajanlarına verilmez (grup "gorev"), talimat uzamaz
+MOVE_FILE_SPEC = REGISTRY.add({
+    "name": "move_file",
+    "description": "Move or rename a file or folder inside the workspace. Never overwrites an existing file.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "source": {"type": "string", "description": "Path relative to the workspace"},
+            "target": {"type": "string", "description": "New path, or an existing folder to move into"},
+        },
+        "required": ["source", "target"],
+    },
+}, "yazar", ("taşı", "taşındı"), group="gorev")
 
 # Araç fabrikası (Aşama 5): eksik yetenek için test edilmiş yeni araç; ekleme ayrıca kullanıcıya sorulur
 # Kullanıcının beceri dosyaları (definitions.py): talimatta yalnızca adlar; tarifin tamamı bu araçla
@@ -1083,6 +1105,9 @@ class Toolbox:
     def _tool_edit_file(self, path: str, old_text: str, new_text: str) -> str:
         return a_dosya.duzenle(self.root, self.read_roots, path, old_text, new_text)
 
+    def _tool_move_file(self, source: str, target: str) -> str:
+        return a_dosya.tasi(self.root, self.read_roots, source, target)
+
     def _run_process(self, argv: list[str], python: bool = False, env: dict | None = None) -> str:
         return a_komut.surec(argv, self.root, agent_env() if python else env, COMMAND_TIMEOUT)
 
@@ -1120,6 +1145,10 @@ class Toolbox:
     def _tool_browser_back(self) -> str:
         from . import browser
         return browser.get().back()
+
+    def _tool_browser_extract_items(self, find: str = "", max_items: int = 30) -> str:
+        from . import browser
+        return browser.get().extract_items(find, max_items)
 
     def _tool_web_search(self, query: str, max_results: int = 5) -> str:
         return a_web.ara(query, max_results)

@@ -1,0 +1,19 @@
+{
+ "ad": "trendyol",
+ "sira": 21,
+ "istek": "Trendyol'da 'airfryer' ara, ilk 5 ürünün adını ve fiyatını yaz.",
+ "etiketler": [
+  "internet"
+ ],
+ "zaman_siniri_sn": 180,
+ "bitti": [
+  {
+   "tur": "arac_cagrildi",
+   "ad": "browser_*"
+  },
+  {
+   "tur": "python_denetim",
+   "betik": "bes_urun.py"
+  }
+ ]
+}

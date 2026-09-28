@@ -130,10 +130,20 @@ def _categorize(profiles: list[AgentProfile]) -> bool:
             if p.id == "ses" and new is not None and "tr_TR-fahrettin-medium" in p.prompt:  # kullanıcı değiştirmemiş
                 p.prompt = new.prompt
                 changed = True
-    if done < 3:
+    if done < 4:  # K5: tarayıcı ajanı ürün listelerini yapısal okur (browser_extract_items)
+        from .categories import BROWSER_PROMPT_EXTRA, BROWSER_PROMPT_OLD
+
+        for p in profiles:
+            if p.id == "tarayici" and p.tools is not None and "browser_read" in p.tools \
+                    and "browser_extract_items" not in p.tools:
+                p.tools.insert(p.tools.index("browser_read") + 1, "browser_extract_items")
+                if p.prompt == BROWSER_PROMPT_OLD:  # kullanıcı talimatı değiştirmemiş
+                    p.prompt += BROWSER_PROMPT_EXTRA
+                changed = True
+    if done < 4:
         try:
             CONFIG_DIR.mkdir(parents=True, exist_ok=True)
-            marker.write_text("3", encoding="utf-8")
+            marker.write_text("4", encoding="utf-8")
         except OSError:
             pass
     return changed
