@@ -42,25 +42,26 @@ class YonlendiriciModeli:
         return self._karar(rol).sozluk()
 
     def __call__(self, rol: str, mesajlar: list, sistem: str = "", sema: dict | None = None) -> Cevap:
+        """Yedekleme zinciri `yonlendirici.Zincir` ile (MIMARI §4.5): aynı modelde `BASARISIZ_ESIGI` (2) hata → sıradaki;
+        ulaşılamayan sağlayıcı (bağlantı, zaman aşımı, 401) → hemen sıradaki; `Iptal` yeniden fırlatılır; şemaya uymayan
+        cevap zincir başarısızlığı değildir (çağıran `model_yetersiz` sayar)."""
         from .. import saglayici as sg
 
         karar = self._karar(rol)
-        sira = ([karar.anahtar] if karar.anahtar else []) + [tuple(k) for k in karar.zincir]
-        if not sira:
+        zincir = yonlendirici.Zincir.secimden(karar)
+        if zincir.bitti:
             raise ModelYok(karar.neden)
         son_hata: Exception | None = None
         tavan_notu = ""
-        sira = list(dict.fromkeys(sira))
-        i = 0
-        while i < len(sira):
-            ad, model = sira[i]
-            i += 1
+        while not zincir.bitti:
+            ad, model = zincir.su_an
             if _ucretli(ad) and not self._tavan_izni(ad, model):
                 if not tavan_notu:  # tavan onaylanmadı: yerel modeller sıranın sonuna
                     tavan_notu = "bulut tavanı aşıldı, yerel model"
                     yerel = yonlendirici.yerel_sec(self.ayarlar, rol)
-                    ekle = ([yerel.anahtar] if yerel.anahtar else []) + [tuple(k) for k in yerel.zincir]
-                    sira += [k for k in ekle if k not in sira and not _ucretli(k[0])]
+                    zincir.ekle(k for k in ([yerel.anahtar] if yerel.anahtar else []) + [tuple(x) for x in yerel.zincir]
+                                if not _ucretli(k[0]))
+                zincir.atla("bulut tavanı")
                 continue
             try:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
@@ -69,18 +70,23 @@ class YonlendiriciModeli:
                     metin, veri, hatalar = s.ham, s.veri, s.hatalar
                 else:
                     metin, veri, hatalar = saglayici.sohbet(mesajlar, sistem, model=model).metin, None, []
-            except Exception as e:  # bu model olmadı: zincirde sıradaki
+            except sg.Iptal:
+                raise  # kullanıcı durdurdu: başka model denenmez
+            except Exception as e:
                 son_hata = e
-                if _ulasilamadi(e):
+                ulasilamadi = _ulasilamadi(e)
+                if ulasilamadi:
                     yonlendirici.SAGLIK.bildir(ad, False, str(e)[:200])
                 _gunluk.warning("görev modeli %s/%s hata verdi: %s", ad, model, e)
+                zincir.basarisiz(str(e)[:200], zaman_asimi=ulasilamadi)  # ulaşılamıyorsa hemen sıradaki
                 continue
+            zincir.basarili()
             if _ucretli(ad):  # ücretli bulut: token yaklaşık (karakter/4)
                 yonlendirici.harcama_ekle(ad, (len(sistem) + len(str(mesajlar)) + len(metin or "")) // 4)
             neden = (karar.neden if (ad, model) == karar.anahtar else tavan_notu
                      or f"yedek: {karar.anahtar[1] if karar.anahtar else '?'} hata verdi")
             return Cevap(metin or "", veri, {"saglayici": ad, "model": model, "neden": neden}, hatalar)
-        neden = "; ".join(n for n in (karar.neden, tavan_notu) if n)
+        neden = "; ".join(n for n in (karar.neden, tavan_notu, *zincir.gecmis[-3:]) if n)
         raise ModelYok(f"{neden}; son hata: {son_hata}" if son_hata else neden)
 
     def _tavan_izni(self, ad: str, model: str) -> bool:

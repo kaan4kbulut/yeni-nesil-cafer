@@ -511,6 +511,24 @@ class Zincir:
             self.gecmis.append(f"{eski[1]} → {yeni[1] if yeni else 'zincir bitti'} ({sebep})")
         return self.su_an
 
+    def atla(self, neden: str = "") -> tuple[str, str] | None:
+        """Bu basamak kullanılamıyor (bulut tavanı, bilinen sağlıksız sağlayıcı): başarısızlık SAYILMAZ, sıradakine geç."""
+        if self.bitti:
+            return None
+        eski = self.su_an
+        self.konum += 1
+        self.sayac = 0
+        yeni = self.su_an
+        self.gecmis.append(f"{eski[1]} → {yeni[1] if yeni else 'zincir bitti'} ({neden or 'atlandı'})")
+        return self.su_an
+
+    def ekle(self, anahtarlar) -> None:
+        """Zincirin sonuna yeni basamaklar (ör. tavan reddedilince yerel modeller); olanlar bir daha eklenmez."""
+        for k in anahtarlar:
+            k = tuple(k)
+            if k not in self.sira:
+                self.sira.append(k)
+
     def hata_kaydi(self, adim=None, belirti: str = "") -> dict:
         """docs/SEMALAR.md §3: zincirin sonu `model_yetersiz`."""
         return {
