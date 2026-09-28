@@ -2,7 +2,7 @@
 
 Biçim: sürüm → başlıklar. Tarihli deneyler `NOTLAR/`, kalıcı kurallar `CLAUDE.md`.
 
-## 3.1 — 2026-09-28 (inceleme, temizlik, "yazdı ama yapmadı")
+## 3.1 — 2026-09-29 (inceleme, temizlik, "yazdı ama yapmadı", güç ve donanım farkındalığı)
 
 - **Kod incelemesi ve 50'den fazla düzeltme:** üç bağımsız incelemede bulunan güvenlik, onay, sandbox, ayar, donma ve
   bulut sorunları giderildi. Onay listesi artık salt okunur işlemlerle sınırlı; sırlar (anahtar dosyaları, bulut ayarı)
@@ -21,9 +21,13 @@ Biçim: sürüm → başlıklar. Tarihli deneyler `NOTLAR/`, kalıcı kurallar `
 - **Sürüm sayfası sade:** platform başına tek kurulum dosyası, "Hangisini indireyim?" tablosu, Linux'ta `--install` ile
   menü ve masaüstü kısayolu; eski ve ön sürümler kaldırıldı. Kurulum sırasında model indirmesi yarıda kalırsa kaldığı
   yerden sürer.
-- **Testler ve depo:** 784 test, hiçbiri atlanmıyor; deney notları arşivlendi, paketleme betikleri tek klasörde.
-- **Sırada (3.2):** güç ve donanım farkındalığı — dizüstü pilde/fişte kendini uyarlar, uyuyan ekran kartını ve
-  işlemciye düşen modeli fark eder, ölçüme göre en iyi seçeneği seçer.
+- **Testler ve depo:** 824 test, hiçbiri atlanmıyor; deney notları arşivlendi, paketleme betikleri tek klasörde.
+- **Güç ve donanım farkındalığı:** dizüstü pilde mi fişte mi olduğunu, ekran kartının uyuyup uyumadığını ve modelin
+  kartın yerine işlemciye düşüp düşmediğini fark eder; hızlı bir ölçümle o an en uygun ayarı seçer. Donanım profili
+  penceresinde "Şimdi ölç", "Otomatik uyarla" ve onaylı Ollama yeniden başlatma düğmeleri var; sohbet ya da görev
+  sürerken ayar değişmez.
+- **Görev motoru sohbette varsayılan açık:** çok adımlı işler önce plana bölünüp adım adım yapılır ve doğrulanır;
+  ayarlardan kapatılırsa eski yol aynen çalışır.
 
 ## 3.0 — 2026-09-28 (K serisi: kademeli + bulut mimarisi)
 
