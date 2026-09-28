@@ -17,6 +17,32 @@ from .temel import PENCERESIZ, AracHatasi
 
 ZAMAN_ASIMI = 120
 
+# Alt sürece geçen ortam: yalnızca beyaz liste (MIMARI §10 "anahtarlar alt sürece geçirilmez"). Modelin yazdığı komut ya
+# da Python kodu `env` deyip ANTHROPIC_API_KEY / CAFER_TOKEN gibi sırları okuyamaz; yetenek manifesti `anahtar:<AD>`
+# ile açıkça istediği tek bir değişkeni `izinli` ile alır. CAFER_* ve ANTHROPIC_API_KEY istense de geçmez.
+ORTAM_BEYAZ_LISTESI = frozenset({
+    "PATH", "HOME", "LANG", "LANGUAGE", "TERM", "TMPDIR", "TEMP", "TMP", "USER", "LOGNAME", "SHELL", "TZ",
+    "DISPLAY", "WAYLAND_DISPLAY", "XAUTHORITY", "DBUS_SESSION_BUS_ADDRESS", "SSL_CERT_FILE", "SSL_CERT_DIR",
+    "REQUESTS_CA_BUNDLE", "MPLBACKEND", "VIRTUAL_ENV", "OLLAMA_HOST",
+    # Windows
+    "SYSTEMROOT", "SYSTEMDRIVE", "COMSPEC", "PATHEXT", "WINDIR", "APPDATA", "LOCALAPPDATA", "USERPROFILE",
+    "PROGRAMFILES", "PROGRAMDATA", "USERNAME", "HOMEDRIVE", "HOMEPATH",
+})
+ORTAM_BEYAZ_ONEKLER = ("LC_", "XDG_", "PYTHON")  # yerel ayarlar, masaüstü klasörleri, PYTHONPATH/PYTHONUTF8…
+ORTAM_ASLA = re.compile(r"^CAFER_|^ANTHROPIC_API_KEY$")  # açıkça istense de geçmez
+
+
+def guvenli_ortam(kaynak: dict | None = None, ek: dict | None = None, izinli=()) -> dict:
+    """Alt süreç ortamı: `kaynak`tan (varsayılan `os.environ`) yalnızca beyaz listedekiler + `izinli` adlar + `ek`."""
+    kaynak = os.environ if kaynak is None else kaynak
+    ortam = {ad: deger for ad, deger in kaynak.items()
+             if (ad in ORTAM_BEYAZ_LISTESI or ad.startswith(ORTAM_BEYAZ_ONEKLER)) and not ORTAM_ASLA.search(ad)}
+    for ad in izinli:
+        if ad in kaynak and not ORTAM_ASLA.search(ad):
+            ortam[ad] = kaynak[ad]
+    ortam.update(ek or {})
+    return ortam
+
 
 def surec(argv: list[str], kok: Path, ortam: dict | None = None, zaman_asimi: float = ZAMAN_ASIMI) -> str:
     """Alt süreci çalıştırır; çıkış kodu + stdout + stderr metni döner (modele gider)."""
@@ -41,16 +67,16 @@ def komut_calistir(komut: str, kok: Path, *, python_yolu: Callable[[], str], aja
     """Linux/macOS: bash; Windows: PowerShell. `sudo` parolayı grafik pencereyle ister (terminal yok)."""
     if sys.platform == "win32":  # Windows: PowerShell (sistem istemi modele Windows olduğunu söyler)
         # Windows'ta çoğu zaman Python yok: `python` komutu paketteki Python'u (ve hazır kütüphaneleri) bulsun
-        ortam = ajan_ortami()
+        ortam = guvenli_ortam(ajan_ortami())
         ortam["PATH"] = str(Path(python_yolu()).parent) + os.pathsep + ortam.get("PATH", "")
         return surec(["powershell", "-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", komut], kok, ortam,
                      zaman_asimi)
     if re.search(r"\bsudo\b", komut):
         # terminal yok: sudo parolayı grafik pencereyle istesin (komut güvenlik ajanından geçti)
-        ortam = {**os.environ, "SUDO_ASKPASS": askpass(), "YA_SUDO_COMMAND": komut}
+        ortam = guvenli_ortam(ek={"SUDO_ASKPASS": askpass(), "YA_SUDO_COMMAND": komut})
         komut = re.sub(r"\bsudo\b(?!\s+-A)", "sudo -A", komut)
         return surec(["bash", "-c", komut], kok, ortam, zaman_asimi)
-    return surec(["bash", "-c", komut], kok, None, zaman_asimi)
+    return surec(["bash", "-c", komut], kok, guvenli_ortam(), zaman_asimi)
 
 
 def kacislari_coz(kod: str) -> str:
@@ -74,12 +100,13 @@ def kacislari_coz(kod: str) -> str:
 
 def python_calistir(kod: str, kok: Path, *, python_yolu: str, ortam: dict, arac_adlari: set | dict = (),
                     zaman_asimi: float = ZAMAN_ASIMI) -> str:
-    """Kodu geçici dosyaya yazıp ajan Python'unda çalıştırır. `arac_adlari`: kayıtlı araçlar (yanlış kullanım uyarısı)."""
+    """Kodu geçici dosyaya yazıp ajan Python'unda çalıştırır. `arac_adlari`: kayıtlı araçlar (yanlış kullanım uyarısı).
+    `ortam` (ajan kütüphaneleri, PYTHONPATH) beyaz listeden geçirilir: sırlar koda ulaşmaz."""
     with tempfile.NamedTemporaryFile("w", suffix=".py", delete=False, encoding="utf-8") as f:
         f.write(kacislari_coz(kod))
         betik = f.name
     try:
-        sonuc = surec([python_yolu, betik], kok, ortam, zaman_asimi)
+        sonuc = surec([python_yolu, betik], kok, guvenli_ortam(ortam), zaman_asimi)
     finally:
         Path(betik).unlink(missing_ok=True)
     # küçük modeller aracı Python işlevi gibi çağırıyor (make_decor_model(...) → NameError, 2026-09-27)

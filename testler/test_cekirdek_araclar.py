@@ -90,9 +90,42 @@ class KomutTesti(unittest.TestCase):
             komut.komut_calistir("ls", self.kok, python_yolu=lambda: "py", ajan_ortami=dict, askpass=lambda: "/a.sh")
             komut.komut_calistir("sudo pacman -S x", self.kok, python_yolu=lambda: "py", ajan_ortami=dict,
                                  askpass=lambda: "/a.sh")
-        self.assertEqual(cagrilar[0], (["bash", "-c", "ls"], None))
+        self.assertEqual(cagrilar[0][0], ["bash", "-c", "ls"])
+        self.assertIsInstance(cagrilar[0][1], dict)  # artık None (bütün ortam) değil: beyaz liste
         self.assertEqual(cagrilar[1][0], ["bash", "-c", "sudo -A pacman -S x"])
         self.assertEqual(cagrilar[1][1]["SUDO_ASKPASS"], "/a.sh")
+        self.assertEqual(cagrilar[1][1]["YA_SUDO_COMMAND"], "sudo pacman -S x")
+
+    SIRLAR = {"ANTHROPIC_API_KEY": "sk-gizli", "CAFER_TOKEN": "cafer-gizli", "CAFER_SUNUCU_TOKEN": "x",
+              "OPENAI_API_KEY": "sk-2", "HF_TOKEN": "hf", "GITHUB_TOKEN": "gh", "MY_SECRET": "s"}
+
+    def test_guvenli_ortam_beyaz_liste(self):
+        kaynak = {**self.SIRLAR, "PATH": "/usr/bin", "HOME": "/ev", "LANG": "tr_TR.UTF-8", "TERM": "xterm",
+                  "PYTHONPATH": "/kut", "LC_ALL": "C", "XDG_RUNTIME_DIR": "/run", "RASTGELE_DEGISKEN": "1"}
+        ortam = komut.guvenli_ortam(kaynak)
+        for ad in self.SIRLAR:
+            self.assertNotIn(ad, ortam, ad)
+        self.assertNotIn("RASTGELE_DEGISKEN", ortam)  # listede olmayan hiçbir şey geçmez
+        for ad in ("PATH", "HOME", "LANG", "TERM", "PYTHONPATH", "LC_ALL", "XDG_RUNTIME_DIR"):
+            self.assertEqual(ortam[ad], kaynak[ad], ad)
+        # manifest `anahtar:<AD>` ile açıkça istenen geçer; CAFER_* ve ANTHROPIC_API_KEY istense de geçmez
+        ortam = komut.guvenli_ortam(kaynak, izinli=["HF_TOKEN", "CAFER_TOKEN", "ANTHROPIC_API_KEY"])
+        self.assertEqual(ortam["HF_TOKEN"], "hf")
+        self.assertNotIn("CAFER_TOKEN", ortam)
+        self.assertNotIn("ANTHROPIC_API_KEY", ortam)
+        self.assertEqual(komut.guvenli_ortam(kaynak, ek={"SUDO_ASKPASS": "/a"})["SUDO_ASKPASS"], "/a")
+
+    @unittest.skipIf(sys.platform == "win32", "bash yolu")
+    def test_alt_surecte_sir_yok(self):
+        with mock.patch.dict(os.environ, self.SIRLAR):
+            cikti = komut.komut_calistir("env", self.kok, python_yolu=lambda: sys.executable,
+                                         ajan_ortami=lambda: dict(os.environ), askpass=lambda: "/a.sh")
+            py = komut.python_calistir("import os; print(sorted(os.environ))", self.kok,
+                                       python_yolu=sys.executable, ortam=dict(os.environ))
+        for ad in self.SIRLAR:
+            self.assertNotIn(ad, cikti, ad)
+            self.assertNotIn(ad, py, ad)
+        self.assertIn("PATH=", cikti)
 
     def test_python_ve_arac_uyarisi(self):
         cikti = komut.python_calistir("print(2 + 3)", self.kok, python_yolu=sys.executable, ortam=dict(os.environ))
