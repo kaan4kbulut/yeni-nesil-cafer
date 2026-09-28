@@ -18,6 +18,8 @@
     "kod": "cli_ajan > bulut > yerel"
   },
 
+  "dagitim": {"tam_modeller": ["qwen3.5:4b", "qwen3.5:2b"], "butce_gb": 1.9,
+              "not": "K11 Full paket: bütçeye (GitHub 2 GB) sığan en büyük model; sığan yoksa Full modelsiz çıkar"},
   "temel": {"model": "qwen3.5:4b", "boyut_gb": 3.4,
             "not": "pakete gömülü temel model; 2b testlerde çok adımlı işlerde dosya bozdu, 4b aynı işleri doğru yaptı"},
   "varsayilan": {"ollama": "qwen3.5:4b", "claude": "claude-opus-5-5", "bulut_sunucu": "qwen3.5:4b"},

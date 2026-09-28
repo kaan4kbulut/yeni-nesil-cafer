@@ -238,6 +238,28 @@ class SetupWizard(QDialog):
         return page
 
     def _scan(self):
+        self._scan_sistem()
+        try:  # K11: sistem analizi + yetenek önerisi (kayıtlı yetenekler, pasif olanların nedeni, kapalı özellikler)
+            self.scan_text.setText(self.scan_text.text() + self._yetenek_ozeti())
+        except Exception as e:  # sihirbaz yetenek özeti yüzünden durmaz
+            self.scan_text.setText(self.scan_text.text() + f"<br><small>yetenek özeti alınamadı: {e}</small>")
+
+    def _yetenek_ozeti(self) -> str:
+        from ..cekirdek import profil
+        from ..cekirdek.yetenek.kayit import Kayit
+
+        k = Kayit()
+        aktif, pasif = k.aktifler(), k.pasifler()
+        kapali = [profil.AGIR_OZELLIKLER[o] for o in profil.AGIR_OZELLIKLER if not profil.acik_mi(o)]
+        satir = f"<br><b>Yetenekler:</b> {len(aktif)} hazır"
+        if pasif:
+            satir += ", " + str(len(pasif)) + " kurulunca açılır: " + "; ".join(
+                f"{y.ad} ({y.neden[:60]})" for y in pasif[:3]) + (" …" if len(pasif) > 3 else "")
+        if kapali:
+            satir += f"<br><small>Bu kademede kapalı: {', '.join(kapali)} (Görünüm → Gelişmiş arayüz ile bakabilirsin)</small>"
+        return satir
+
+    def _scan_sistem(self):
         self.scan_text.setText("taranıyor…")
         QApplication.processEvents()
         info = self.info = sysinfo.scan(self.settings.ollama_url)

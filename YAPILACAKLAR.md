@@ -415,6 +415,25 @@ azalabilir ama hiçbir eylemin kaybolmadığını eylem listesini önce/sonra ka
 
 ---
 
+## Aşama K11 — Dağıtım (otomatik.py'deki tanım; BÖLÜM 5, 2026-09-28)
+**Hedef:** Tek dosyalık kurulum: Windows `.exe`, macOS `.dmg`, Linux `.AppImage`; Full ≤ 1,9 GB (gömülü motor +
+varsayılan yerel model, kurulur kurulmaz çevrimdışı) ve Light ~200 MB; üç platform GitHub Actions'ta derlenir ve sürüme
+yüklenir; ilk açılışta sistem analizi + yetenek önerisi sihirbazı; mevcut uygulama içi güncelleme mekanizmasıyla uyum.
+
+- [x] `dagitim/paketle.py`: `--hafif` (PyInstaller, platform kabı: .exe / .dmg / AppImage), `--tam` (Light + Ollama +
+      bütçeye sığan model; `--butce-gb 1.9`), `--guncelleme` (updates.ASSET + sha256), `--kuru` (plan JSON)
+- [x] `.github/workflows/dagitim.yml`: `v*` etiketinde üç platformda Light derleme, güncelleme paketi, taslak sürüm
+- [x] İlk açılış sihirbazı: sistem analizi + yetenek önerisi (kayıtlı/pasif yetenekler, kapalı özellikler)
+- [x] Uygulama içi güncelleme uyumu: sürümde `updates.ASSET` kod paketi + `.sha256` her zaman var
+- [ ] Full paket ≤ 1,9 GB: gömülü motor Ollama (llama.cpp değil); bugünkü model listesinde bütçeye sığan yok
+      (qwen3.5:2b 2,7 GB) → Full modelsiz çıkar; küçük model seçimi ve gerçek derleme/yükleme ELLE (SORULAR K11)
+- [ ] Üç platformda gerçek derleme denemesi (CI etiketle tetiklenir; bu oturumda çalıştırılmadı)
+
+**Bitti sayılır:** `v3.0` etiketi ile CI üç Light paketi ve güncelleme paketini taslak sürüme yüklüyor; Light bir
+makinede açılıp sihirbazdan geçiyor; uygulama içi güncelleme yeni sürümü görüyor.
+
+---
+
 ## Ölçüm defteri (her aşamadan sonra bir satır)
 
 | Tarih | Aşama | Yönetici | İşçi | Sınav (hizli) | Süre | Not |

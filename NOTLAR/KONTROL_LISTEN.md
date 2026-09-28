@@ -46,3 +46,8 @@
 - [ ] Yardım → Gelişmiş: Online/Offline menüleri, kipler, Modeller… hepsi çalışıyor mu? Ana menüde model seçimi kalmadı mı?
 - [ ] Program 3 sn içinde açılıyor mu (düşük kademe kilidiyle)?
 - [ ] `paketleme/aktar.sh` ile kurulu kopyaya aktar; Yardım → Hakkında 3.0; tanıtım penceresi 3.0 maddelerini gösteriyor mu?
+
+## K11 — Dağıtım (2026-09-28 sabah)
+- [ ] `pip install pyinstaller` → `python dagitim/paketle.py --hafif` → `dist/dagitim/YeniNesilCafer-3.0-Light-Linux.AppImage` (appimagetool yoksa tar.gz) açılıyor mu, sihirbaz geliyor mu?
+- [ ] `git tag v3.0 && git push origin v3.0` → Actions "Dağıtım" üç platformda geçiyor mu, taslak sürümde 3 paket + güncelleme zip'i var mı?
+- [ ] Full için küçük model kararı (SORULAR K11), sonra `python dagitim/paketle.py --tam` boyutu ≤ 1,9 GB mi?
