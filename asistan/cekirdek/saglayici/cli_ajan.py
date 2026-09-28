@@ -8,7 +8,7 @@ Kural (CLAUDE.md): yalnızca kullanıcının sohbette gönderdiği istekte çal�
 from collections.abc import Callable, Iterator
 
 from ... import cli_agents
-from .temel import METIN, SON, Parca, Saglayici, Saglik
+from .temel import METIN, SON, Iptal, Parca, Saglayici, Saglik
 
 
 def istem(mesajlar: list, gecmis_sayisi: int = 6, karakter: int = 1500) -> str:
@@ -34,8 +34,11 @@ class CliAjanSaglayici(Saglayici):
         """Tek parça METIN + SON. `araclar` yok sayılır (CLI ajanı kendi araçlarını kullanır).
 
         İptal edilirse `InterruptedError`; `duzenleyebilir=False` iken ajan dosya değiştiremez (onay bekleyen tur)."""
-        metin = cli_agents.run(self.ad, istem(mesajlar), klasor, sistem, edits=duzenleyebilir, cancelled=iptal,
-                               on_step=adim, model=model or self.model)
+        try:
+            metin = cli_agents.run(self.ad, istem(mesajlar), klasor, sistem, edits=duzenleyebilir, cancelled=iptal,
+                                   on_step=adim, model=model or self.model)
+        except InterruptedError:  # K12-E6: ■ zincirde aynı CLI'ı ve ücretli modeli denemesin
+            raise Iptal() from None
         yield Parca(METIN, metin)
         yield Parca(SON, son={"model": self.ajan.title.lower()})
 

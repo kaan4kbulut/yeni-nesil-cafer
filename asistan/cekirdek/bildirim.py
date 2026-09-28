@@ -4,6 +4,7 @@ eşleşmiş Telegram sohbeti (`bulut.json`). Yapılandırılmamışsa sessiz; hi
 Model bunu `send_notification` aracıyla (izin hattından, `calistirir`) çağırır; program onay beklerken kendisi çağırır
 (`onay_bekliyor`, arka planda)."""
 
+import base64
 import logging
 import threading
 
@@ -47,6 +48,13 @@ def ayarli() -> bool:
 KONU_EN_AZ = 12  # K12-A13: ntfy.sh'ta konuyu bilen herkes okur; kısa/sözlük konu tahmin edilir
 
 
+def _ntfy_baslik(baslik: str) -> str:
+    """HTTP başlığı ASCII olmalı; Türkçe başlık RFC 2047 ile (ntfy destekler; K12-E10: latin-1 "Ã–" bozuyordu)."""
+    if baslik.isascii():
+        return baslik
+    return "=?UTF-8?B?" + base64.b64encode(baslik.encode("utf-8")).decode("ascii") + "?="
+
+
 def gonder(baslik: str, metin: str, oncelik: str = "default", istemci=None, gizli: str = "") -> str:
     """Bütün kanallara gönderir; "ntfy ✓, telegram ✗ (neden)" gibi özet döner. Kanal yoksa "bildirim ayarlanmadı".
     `gizli`: yalnızca özel kanala (Telegram) giden ek metin (istek içeriği); herkese açık ntfy sunucusuna gitmez."""
@@ -59,7 +67,7 @@ def gonder(baslik: str, metin: str, oncelik: str = "default", istemci=None, gizl
         sunucu = str(ayar.deger("bildirim.ntfy_sunucu") or "https://ntfy.sh").rstrip("/")
         try:
             r = post(f"{sunucu}/{konu}", content=metin.encode("utf-8"), timeout=ZAMAN,
-                     headers={"Title": baslik.encode("utf-8").decode("latin-1", "replace"), "Priority": oncelik,
+                     headers={"Title": _ntfy_baslik(baslik), "Priority": oncelik,
                               "Tags": "robot"})
             sonuc.append("ntfy ✓" if r.status_code < 300 else f"ntfy ✗ ({r.status_code})")
         except Exception as e:

@@ -2,6 +2,7 @@ import json
 import os
 import shutil
 import sys
+import time
 import threading
 from pathlib import Path
 
@@ -22,6 +23,8 @@ def update_state_file() -> Path:
 def rollback_if_needed(state_file: Path, app_dir: Path = APP_DIR) -> str:
     """Güncellemeden sonra yeni sürüm bir önceki açılışı onaylayamadıysa (çöktüyse) yedekteki sürüme döner.
     İlk açılışta yalnızca deneme sayısını artırır. Kullanıcıya gösterilecek not ya da boş metin döner."""
+    if getattr(sys, "frozen", False):  # K12-E3: tek dosya kurulumda güncelleme/geri alma yok
+        return ""
     try:
         state = json.loads(state_file.read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -35,6 +38,11 @@ def rollback_if_needed(state_file: Path, app_dir: Path = APP_DIR) -> str:
         if (backup / "main.py").is_file():
             shutil.copy2(backup / "main.py", app_dir / "main.py")
         state_file.unlink(missing_ok=True)
+        try:  # K12-E4: açılamayan sürüm bir daha önerilmesin (updates.atlanan_surum)
+            _atomik_yaz(state_file.with_name("guncelleme-atla.json"),
+                        json.dumps({"version": state.get("to"), "zaman": time.time()}))
+        except OSError:
+            pass
         return (f"Güncelleme {state.get('to')} açılamadı; {state.get('from')} sürümüne geri dönüldü. Sorunu "
                 "Yardım → Sorun bildir ile raporlayabilirsin.")
     state["tries"] = state.get("tries", 0) + 1

@@ -13,6 +13,7 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 import tempfile
 import time
 import zipfile
@@ -42,6 +43,8 @@ def enabled() -> tuple[bool, str]:
     """(açık mı, neden değil). Geliştirme klasöründe ve yazılamayan kurulumda kapalı."""
     if not GITHUB_REPO:
         return False, "Güncelleme deposu tanımlı değil."
+    if getattr(sys, "frozen", False):  # K12-E3: PyInstaller tek dosya — geçici klasöre "güncelleme" sahte döngü yaratıyordu
+        return False, "Tek dosya (PyInstaller) kurulum: uygulama içi güncelleme yok; yeni sürümü indirme sayfasından al."
     if (PROGRAM_DIR / ".git").exists():
         return False, "Geliştirme klasöründen çalışıyor (git deposu): güncellemeler git ile alınır."
     try:
@@ -72,8 +75,17 @@ def latest(timeout: float = 15) -> dict | None:
             "sha_url": sha["browser_download_url"] if sha else "", "page": data.get("html_url", "")}
 
 
+def atlanan_surum() -> str:
+    """K12-E4: geri alınan (açılamayan) sürüm; bir daha önerilmez (`main.rollback_if_needed` yazar)."""
+    try:
+        return str(json.loads(STATE_FILE.with_name("guncelleme-atla.json").read_text(encoding="utf-8")).get("version") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
 def newer(info: dict | None) -> bool:
-    return bool(info) and version_tuple(info["version"]) > version_tuple(__version__)
+    return (bool(info) and version_tuple(info["version"]) > version_tuple(__version__)
+            and str(info["version"]) != atlanan_surum())
 
 
 def _expected_sha(info: dict) -> str:

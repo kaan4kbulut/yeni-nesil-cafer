@@ -240,6 +240,8 @@ class _Recorder:
 class Manager:
     """Sohbet turunu yöneten döngü. `agent.run` yerine `Manager(agent).run(...)` çağrılır."""
 
+    sartli = False  # K12-E8: bir adım denetleyici olmadan geçtiyse (özet ve öğrenme bunu bilir)
+
     def __init__(self, agent: Agent):
         self.agent = agent
         self.cb = agent.cb
@@ -481,8 +483,9 @@ class Manager:
             "Was the step really done? If not, say briefly in the user's language (usually Turkish) exactly what is "
             'missing or wrong. Respond as JSON: {"done": true/false, "missing": "..."}')
         data = self._ask_json(provider, CHECKER_SYSTEM, prompt, CHECK_SCHEMA)
-        if data is None:
-            return True, ""  # denetçi cevap veremediyse adımı durdurma
+        if data is None:  # K12-E8: denetleyici yoksa adım geçmiş sayılmaz, ŞARTLI (CLAUDE.md: model çıktısına güvenme)
+            self.sartli = True
+            return True, "ŞARTLI: denetleyici model cevap vermedi — adım denetlenmeden geçildi"
         return bool(data.get("done", True)), str(data.get("missing") or "").strip()
 
     # ---- ana döngü

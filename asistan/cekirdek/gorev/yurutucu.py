@@ -57,7 +57,10 @@ def _kaydir(deger, n: int):
     if isinstance(deger, list):
         return [_kaydir(v, n) for v in deger]
     if isinstance(deger, str):
-        return re.sub(r"\{\{\s*adim_(\d+)\.sonuc\s*\}\}", lambda m: "{{adim_%d.sonuc}}" % (int(m.group(1)) + n), deger)
+        deger = re.sub(r"\{\{\s*adim_(\d+)\.sonuc\s*\}\}", lambda m: "{{adim_%d.sonuc}}" % (int(m.group(1)) + n), deger)
+        # K12-E7: biten adımların sonucu — numarası kaymaz (yeni plan 1'den sayar; eskiden {{adim_N}} n kaydırılınca
+        # biten 1. adım yeni 1. adıma bağlanıyordu, biten adımların çıktısı hiç kullanılamıyordu)
+        return planlayici.YER_TUTUCU_ONCEKI.sub(lambda m: "{{adim_%d.sonuc}}" % int(m.group(1)), deger)
     return deger
 
 
@@ -361,7 +364,8 @@ class Yurutucu:
         gecmis = "".join(f"Done step {a['id']} ({a['amac']}): {str(a.get('sonuc') or '')[:800]}\n" for a in bitenler)
         istek = (f"{gorev['istek']}\n\n(Replanning after a failure. Already done — do NOT repeat:\n{gecmis}"
                  f"Failed step: {adim['amac']} — {neden[:300]}\nIts output:\n{(sonuc or '')[:1000]}\n"
-                 "Plan only the remaining work; earlier results are available as {{adim_N.sonuc}} with the numbers above.)")
+                 "Plan only the remaining work. Number the new steps from 1. To use an earlier result write exactly "
+                 "{{onceki_N.sonuc}} with N = the done step's number above (NOT adim_N).)")
         try:
             adimlar = planlayici.planla(istek, gorev["anlayis"], self.yetenekler.listele(), self.model, self.klasor,
                                         self.okunur)

@@ -135,20 +135,26 @@ def gorevleri_esitle(depo, istemci: Istemci) -> dict:
     kazanır, iki yanda da değişmiş görevler `cakismalar`a yazılır. Döner: {gonderilen, alinan, cakismalar}."""
     d = senkron_durumu()
     since_yerel, since_uzak = float(d.get("son_yerel") or 0), float(d.get("son_uzak") or 0)
+    kayma = float(d.get("kayma") or 0)  # K12-E1: sunucu saati − yerel saat (önceki eşitlemeden); damgalar çevrilir
     yerel = depo.degisenler(since_yerel)
     simdi = time.time()
     cevap = istemci.istek("POST", "/gorev/esitle", {
-        "since": since_uzak, "gorevler": [{"gorev": {k: v for k, v in g.items() if k != "_surum"}, "guncelleme": g["_surum"]}
-                                          for g in yerel]})
+        "since": since_uzak, "gorevler": [{"gorev": {k: v for k, v in g.items() if k != "_surum"},
+                                           "guncelleme": g["_surum"] + kayma} for g in yerel]})
+    sunucu_simdi = float(cevap.get("now") or (simdi + kayma))
+    kayma = sunucu_simdi - (simdi + time.time()) / 2  # "son yazan kazanır" fiilen "ileri saat kazanır" olmasın
+    if abs(kayma) < 1:
+        kayma = 0.0  # ağ gecikmesi kadar fark: damgalar aynen kalsın (aynı kaydın geri yansıması "eski" kalır)
     cakismalar = list(cevap.get("cakismalar") or [])
     alinan = 0
     for kayit in cevap.get("gorevler") or []:
-        sonuc = depo.ice_aktar(kayit["gorev"], float(kayit["guncelleme"]), since_yerel)
+        damga = min(float(kayit["guncelleme"]) - kayma, time.time())  # sunucu damgası yerel saate; gelecekten yazılmaz
+        sonuc = depo.ice_aktar(kayit["gorev"], damga, since_yerel)
         if sonuc == "cakisma":
             cakismalar.append({"gorev_id": kayit["gorev"]["gorev_id"], "yer": "yerel", "zaman": simdi})
         if sonuc != "eski":
             alinan += 1
-    d.update(son_yerel=simdi, son_uzak=float(cevap.get("now") or simdi),
+    d.update(son_yerel=simdi, son_uzak=sunucu_simdi, kayma=round(kayma, 3),
              cakismalar=(list(d.get("cakismalar") or []) + cakismalar)[-50:], son_esitleme=simdi)
     _senkron_yaz(d)
     return {"gonderilen": len(yerel), "alinan": alinan, "cakismalar": cakismalar}

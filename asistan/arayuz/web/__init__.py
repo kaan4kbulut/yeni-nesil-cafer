@@ -44,6 +44,8 @@ def anahtar_bul() -> str:
         from ... import cloud_server
 
         return str(cloud_server.load_config().get("token") or "")
+    except RuntimeError:
+        raise  # bulut.json bozuk: rastgele anahtarla sessizce açılmak yerine dur (K12-E5)
     except Exception:
         return secrets.token_urlsafe(24)
 
@@ -255,15 +257,19 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
         now = time.time()
         cakismalar = []
         d = depo_al()
+        gelenler = set()
         for kayit in govde.get("gorevler") or []:
             g = kayit.get("gorev") or {}
             if not g.get("gorev_id"):
                 continue
-            sonuc = d.ice_aktar(g, float(kayit.get("guncelleme") or now), since)
+            # K12-E1: istemcinin damgasına körü körüne güvenilmez; ileri saatli istemci "gelecekten" yazamaz
+            sonuc = d.ice_aktar(g, min(float(kayit.get("guncelleme") or now), now), since)
+            if sonuc != "eski":
+                gelenler.add(g["gorev_id"])  # kabul edilen kayıt geri yansımaz; sunucununki daha yeniyse döner
             if sonuc == "cakisma":
                 cakismalar.append({"gorev_id": g["gorev_id"], "yer": "sunucu", "zaman": now})
         degisen = [{"gorev": {k: v for k, v in g.items() if k != "_surum"}, "guncelleme": g["_surum"]}
-                   for g in d.degisenler(since)]
+                   for g in d.degisenler(since) if g["gorev_id"] not in gelenler]  # bu istekte gelen geri yansımaz
         return {"gorevler": degisen, "now": now, "cakismalar": cakismalar}
 
     @app.get("/onaylar", dependencies=[Depends(yetki)])

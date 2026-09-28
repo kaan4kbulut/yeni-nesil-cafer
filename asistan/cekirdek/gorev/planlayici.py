@@ -15,6 +15,8 @@ from .durum import simdi, yeni_id
 EN_COK_ADIM = 6
 EN_COK_DENEME = 3
 YER_TUTUCU = re.compile(r"\{\{\s*adim_(\d+)\.sonuc\s*\}\}")
+# K12-E7: yeniden planlamada BİTEN adımların sonucu (numaraları kaymaz; yürütücü adim_N'e çevirir)
+YER_TUTUCU_ONCEKI = re.compile(r"\{\{\s*onceki_(\d+)\.sonuc\s*\}\}")
 
 SISTEM = ("You are the planner of a personal assistant running on the user's computer. You do not do the work: you "
           "split the request into a short ordered plan of capability calls. Answer with one JSON object only.")
@@ -58,7 +60,8 @@ def plan_semasi(adlar: list[str]) -> dict:
 
 def _girdi_hatalari(girdi: dict, sema: dict, yol: str) -> list[str]:
     """Yer tutucular çalışma anında çözülür: türü metin olmayan alana yer tutucu yazılmışsa tür denetimi atlanır."""
-    sade = {k: v for k, v in girdi.items() if not (isinstance(v, str) and YER_TUTUCU.search(v))}
+    sade = {k: v for k, v in girdi.items()
+            if not (isinstance(v, str) and (YER_TUTUCU.search(v) or YER_TUTUCU_ONCEKI.search(v)))}
     eksik = [f"{yol}: '{k}' eksik" for k in sema.get("required") or [] if k not in girdi]
     ozellik = {k: v for k, v in (sema.get("properties") or {}).items() if k in sade}
     return eksik + semalar.dogrula(sade, {"type": "object", "properties": ozellik}, _yol=yol)
@@ -77,7 +80,10 @@ def ek_denetim(veri: dict, yetenekler: list[dict]) -> list[str]:
         for n in YER_TUTUCU.findall(metin):
             if int(n) >= i:
                 hatalar.append(f"{yol}.girdi: {{{{adim_{n}.sonuc}}}} yalnızca önceki adımlara bakabilir")
-        for bozuk in re.findall(r"\{\{.*?\}\}", YER_TUTUCU.sub("", metin)):
+        for n in YER_TUTUCU_ONCEKI.findall(metin):
+            if int(n) < 1:
+                hatalar.append(f"{yol}.girdi: {{{{onceki_{n}.sonuc}}}} geçersiz")
+        for bozuk in re.findall(r"\{\{.*?\}\}", YER_TUTUCU_ONCEKI.sub("", YER_TUTUCU.sub("", metin))):
             hatalar.append(f"{yol}.girdi: {bozuk[:60]} geçersiz; yalnızca tam olarak {{{{adim_N.sonuc}}}} yazılır "
                            "(ifade yok). Tek bir değer gerekiyorsa önceki adımın kodu YALNIZCA o değeri yazdırsın.")
         if isinstance(adim.get("girdi"), dict) and adim.get("yetenek") in semasi:

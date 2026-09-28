@@ -79,7 +79,12 @@ _local = threading.local()  # bu isteğin kanalı (queue_for_computer işi nerey
 def load_config() -> dict:
     try:
         conf = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError:
+        conf = {}
+    except ValueError:  # K12-E5: bozuk dosyada yeni anahtar üretilirse eski anahtar sessizce geçersiz olurdu
+        raise RuntimeError(f"{CONFIG_FILE} bozuk (JSON okunamadı); düzeltilmeden ya da silinmeden sunucu anahtarı "
+                           "yenilenmez") from None
+    if not isinstance(conf, dict):
         conf = {}
     changed = False
     if not conf.get("token"):
@@ -283,10 +288,10 @@ def notify(channel: str, text: str) -> None:
                 _tg(conf, "sendMessage", chat_id=int(channel.split(":", 1)[1]), text=text[i:i + 4000])
         except Exception:
             pass
-    elif channel == "web":
-        messages = history("web")
+    elif channel.startswith("web"):  # K12-E2: PWA kanalı "web:<sohbet>" — sonuç o sohbetin geçmişine düşer
+        messages = history(channel)
         messages.append({"role": "assistant", "content": text})
-        _save_history("web", messages)
+        _save_history(channel, messages)
 
 
 def handle_telegram(conf: dict, update: dict) -> str | None:
