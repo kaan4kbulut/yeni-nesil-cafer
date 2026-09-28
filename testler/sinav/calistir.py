@@ -300,8 +300,6 @@ def ortam_hazirla(g: Path, a) -> dict:
     s["extra"]["kurulum"] = True
     if a.yonetici:
         s["extra"]["yonetici_politikasi"] = a.yonetici  # K3: otomatik | yerel | bulut (cekirdek/yonlendirici.py)
-    if not bulut:
-        s["anthropic_api_key"] = ""
     if a.model and ":" not in a.model:
         s.update(auto_model=False, provider="ollama", ollama_model=a.model)
     elif not a.model:

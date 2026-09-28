@@ -3,7 +3,7 @@
 import subprocess
 import sys
 
-GIZLI_DOSYALAR = {"anahtarlar.json"}  # API anahtarları: asistan bunları okuyamaz
+GIZLI_DOSYALAR = {"anahtarlar.json", "ayarlar.json"}  # anahtarlar ve ayarlar: asistan bunları okuyamaz
 PENCERESIZ = subprocess.CREATE_NO_WINDOW if sys.platform == "win32" else 0  # Windows: konsol penceresi açılmasın
 
 

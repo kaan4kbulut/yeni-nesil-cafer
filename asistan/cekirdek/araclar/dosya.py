@@ -7,6 +7,7 @@ veriler) serbest, ama anahtar dosyaları hiçbir zaman okunmaz. Onay ve risk sı
 import re
 from pathlib import Path
 
+from .. import ayar
 from .temel import GIZLI_DOSYALAR, AracHatasi
 
 
@@ -15,6 +16,8 @@ def yol_coz(kok: Path, okuma_kokleri: list[Path], yol: str, okuma: bool = False)
     hedef = (kok / yol).expanduser().resolve()
     if okuma and hedef.name in GIZLI_DOSYALAR:  # çalışma klasörü ev klasörü seçilse de (K5 denetimi)
         raise AracHatasi("This file holds the user's API keys and cannot be read.")
+    if okuma and hedef.is_relative_to(ayar.CONFIG_DIR.resolve()):  # ayar klasörü okuma kökü olsa da (anahtarlar orada)
+        raise AracHatasi("The program's settings folder cannot be read.")
     if hedef.is_relative_to(kok):
         return hedef
     if okuma and any(hedef.is_relative_to(r) for r in okuma_kokleri):

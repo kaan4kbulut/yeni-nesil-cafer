@@ -199,6 +199,15 @@ def _ezilenler() -> dict:
 # ---- ayarlar.json (arayüzün yazdığı ayarlar; biçimi değişmez) ----
 
 
+def eski_anahtar() -> str:
+    """2.x sürümleri Claude anahtarını `ayarlar.json`'a yazıyordu (`anthropic_api_key`). Alan artık yok: anahtar
+    yalnızca anahtar zincirinde (`keystore`). Açılışta arayüz bunu okur, zincire taşır ve `save()` dosyadan siler."""
+    try:
+        return str(json.loads(CONFIG_FILE.read_text(encoding="utf-8")).get("anthropic_api_key") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
 @dataclass
 class Settings:
     provider: str = "ollama"  # "ollama" veya "claude"
@@ -207,7 +216,6 @@ class Settings:
     claude_model: str = field(default_factory=lambda: modeller.deger("varsayilan.claude"))
     ollama_url: str = "http://localhost:11434"
     ollama_num_ctx: int = 8192  # 14B model + 16K bağlam 12 GB VRAM'e sığmaz
-    anthropic_api_key: str = ""  # eski sürümlerden kalma; açılışta anahtar zincirine taşınır
     api_models: dict = field(default_factory=dict)  # API bağlantısı id -> seçili model
     workspace: str = str(Path.home() / "YeniNesilCafer")  # yeni kurulumda; mevcut ayarlardaki klasör korunur
     confirm_commands: bool = True

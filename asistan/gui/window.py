@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, catalog, cli_agents, factory, mcp, power, roster
+from ..cekirdek import ayar as cekirdek_ayar
 from ..config import CONFIG_DIR, DATA_DIR, Settings
 from ..connections import ANTHROPIC_KEY, load_connections
 from ..keystore import set_secret
@@ -54,9 +55,9 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
     def __init__(self):
         super().__init__()
         self.settings = Settings.load()
-        if self.settings.anthropic_api_key:  # eski sürümden: anahtarı anahtar zincirine taşı
-            set_secret(ANTHROPIC_KEY, self.settings.anthropic_api_key)
-            self.settings.anthropic_api_key = ""
+        eski = cekirdek_ayar.eski_anahtar()  # 2.x ayarlar.json'daki anahtar: zincire taşınır, dosyadan silinir
+        if eski:
+            set_secret(ANTHROPIC_KEY, eski)
             self.settings.save()
         self.connections = load_connections()
         self.profiles = load_profiles()
