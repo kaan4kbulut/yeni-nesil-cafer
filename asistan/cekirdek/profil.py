@@ -544,6 +544,21 @@ def acik_mi(ozellik: str) -> bool:
     return ozellik not in KAPALI.get(kademe(), ())
 
 
+def tarayici_klasoru() -> str:
+    """Chromium'un yeri: programın kendi klasörü (kurulum paketine gömülür); yoksa boş."""
+    kok = Path(__file__).resolve().parents[2]  # <program>/asistan/cekirdek/profil.py → <program>
+    for p in (kok / "tarayici", Path.home() / ".local/share/yeni-nesil-cafer-app/tarayici"):
+        if p.is_dir():
+            return str(p)
+    return ""
+
+
+def tarayici_hazir() -> bool:
+    """Tarayıcı otomasyonu kullanılabilir mi: kademe açık + `playwright` paketi + gömülü Chromium. Çekirdek bunu
+    `asistan.browser`'ı (Playwright'a bağlı, ağır) içe aktarmadan sorar (MIMARI §11.7); `browser.available` buraya devreder."""
+    return acik_mi("tarayici") and find_spec("playwright") is not None and bool(tarayici_klasoru())
+
+
 def kapali_notu(ozellik: str) -> str:
     """Arayüz metni: "… — bu kademede kapalı (düşük)"; açıksa boş."""
     if acik_mi(ozellik):

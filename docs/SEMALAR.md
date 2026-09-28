@@ -52,6 +52,20 @@ Alanlar:
 | `guvenilir` | `uretildi` yetenekler `false` başlar; kullanıcı yükseltir |
 | `ornekler` | `/kontrol` bunları duman testi olarak koşar |
 
+**İzinler → izin hattı eşlemesi (K5/BÖLÜM 3a).** Manifestteki `izinler` kümesi `kayit.Yetenek.risk()` ile tek bir risk
+sınıfına iner; sandbox yeteneği izin hattına `y_<ad>` adıyla bu sınıfla girer, yerleşik (sarmalayıcı) yetenek ise
+sardığı aracın kendi sınıfıyla. Onay kuralı yalnızca `permissions.decide`'da:
+
+| `izinler` | risk sınıfı | izin hattı (`permissions.decide`) |
+|---|---|---|
+| yalnızca `dosya_oku` (ya da boş) | `okur` | izin; ✓ beklemez, sorulmaz |
+| `dosya_yaz` (+ okuma) | `yazar` | değişiklik: ✓ turunda bekler (`gate_actions`), ▶ turunda ve izin bağlamı olmayan yolda (komut satırı, Görevler penceresi: `must_act`) sorulur, güvenlik ajanı kipinde ajan denetler |
+| `komut`, `dosya_sil`, `ag`, `anahtar:<AD>` | `calistirir` | her seferinde sorulur / güvenlik ajanı denetler ("hep izin ver" ve otomatik onay listesi geçebilir; bulut tavanı geçemez) |
+| `kaynak ≠ yerlesik` ya da `guvenilir: false` | `calistirir` | izinleri ne olursa olsun her seferinde sorulur |
+
+`anahtar:<AD>` yalnızca o değişkeni alt sürece geçirir (`komut.guvenli_ortam` beyaz listesi); `CAFER_*` ve
+`ANTHROPIC_API_KEY` istense de geçmez.
+
 `calistir.py` sözleşmesi:
 
 ```python

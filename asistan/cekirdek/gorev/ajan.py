@@ -82,7 +82,11 @@ class AjanYetenekleri:
         self.olay, self.iptal, self.ust_cb = olay, iptal, ust_cb
         self.ajan = Agent(ayarlar, _GeriCagri(self), None, baglantilar or [])
         self.ajan.gate_actions = False  # ✓ beklemesi yok: onay adım adım (yürütücü)
-        self.ajan.must_act = False
+        # sohbet dışı yol (komut satırı, Görevler penceresi): izin bağlamı yok → yazan/çalıştıran HER adım izin
+        # hattında sorulur ("komutları onayla" kapalı olsa da), kullanıcı onaylayana kadar adım bekler (BÖLÜM 3a)
+        self.ajan.must_act = True
+        if izin_kaynagi is None:
+            self.ajan.settings = replace(self.ajan.settings, confirm_commands=True)
         if izin_kaynagi is not None:  # sohbet ajanının izin bağlamı (▶ turu, hep izin ver, otomatik onay)
             if getattr(izin_kaynagi, "confirm_commands", False):  # ✓ turu: "komutları onayla" kapalı olsa da sorulur
                 self.ajan.settings = replace(self.ajan.settings, confirm_commands=True)
@@ -105,11 +109,11 @@ class AjanYetenekleri:
     def _arac_ekle(self) -> None:
         """Motor ajanının araçları: temel araçlar (eski yol ve yerleşik yetenekler) + yeteneklerin kullandığı ek araçlar
         (`move_file`, tarayıcı) + sandbox yetenekleri (`y_<ad>`). Sohbet ajanlarının listesi değişmez."""
-        from ... import browser
         from ...registry import REGISTRY, Tool
+        from .. import profil
 
         ek = [REGISTRY.get("move_file").spec]
-        if browser.available():
+        if profil.tarayici_hazir():  # `asistan.browser` (Playwright) çekirdekten içe aktarılmaz (MIMARI §11.7)
             ek += REGISTRY.specs("tarayici")
         for y in self.kayit.aktifler():
             if not y.sandbox:

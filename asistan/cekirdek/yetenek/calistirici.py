@@ -120,19 +120,26 @@ def venv_python(ad: str, python: str, ortamlar: Path) -> str:
 
 
 def _ortam(yetenek: Yetenek, gecici: str, kutuphane_yollari, anahtar_bul) -> dict:
-    """Alt sürecin ortamı: yalnızca gerekenler; API anahtarları yok (izin verilen hariç)."""
-    ortam = {"PATH": os.environ.get("PATH", ""), "HOME": gecici, "TMPDIR": gecici, "TEMP": gecici, "TMP": gecici,
-             "LANG": os.environ.get("LANG") or "C.UTF-8", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
-             "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
-             "PYTHONPATH": os.pathsep.join([str(PROGRAM_KOKU), *[str(y) for y in kutuphane_yollari]])}
+    """Alt sürecin ortamı: `komut.guvenli_ortam` beyaz listesi (BÖLÜM 2.1) üzerinden, ev/geçici klasör sandbox'ın kendi
+    klasörü; API anahtarı yalnızca manifest `anahtar:<AD>` ile (anahtar zincirinden ya da ortamdan). CAFER_* ve
+    ANTHROPIC_API_KEY istense de geçmez (`komut.ORTAM_ASLA`)."""
+    from ..araclar import komut
+
+    izinli = [izin.split(":", 1)[1] for izin in yetenek.izinler if izin.startswith("anahtar:")]
+    ortam = komut.guvenli_ortam(os.environ, izinli=izinli)
+    ortam.pop("PYTHONPATH", None)  # programın kütüphaneleri değil, yeteneğin: aşağıda yeniden kurulur
+    ortam.update({"HOME": gecici, "TMPDIR": gecici, "TEMP": gecici, "TMP": gecici,
+                  "LANG": os.environ.get("LANG") or "C.UTF-8", "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1",
+                  "PYTHONDONTWRITEBYTECODE": "1", "PYTHONNOUSERSITE": "1",
+                  "PYTHONPATH": os.pathsep.join([str(PROGRAM_KOKU), *[str(y) for y in kutuphane_yollari]])})
     if sys.platform == "win32":
-        ortam["SYSTEMROOT"] = os.environ.get("SYSTEMROOT", r"C:\Windows")
-    for izin in yetenek.izinler:
-        if izin.startswith("anahtar:"):
-            ad = izin.split(":", 1)[1]
-            deger = (anahtar_bul(ad) if anahtar_bul else None) or os.environ.get(ad)
-            if deger:
-                ortam[ad] = deger
+        ortam.setdefault("SYSTEMROOT", r"C:\Windows")
+    for ad in izinli:
+        if komut.ORTAM_ASLA.search(ad):
+            continue
+        deger = (anahtar_bul(ad) if anahtar_bul else None) or os.environ.get(ad)
+        if deger:
+            ortam[ad] = deger
     return ortam
 
 

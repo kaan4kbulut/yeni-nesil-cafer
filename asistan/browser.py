@@ -30,25 +30,17 @@ NAV_TIMEOUT = 45_000
 
 
 def _browsers_path() -> str:
-    """Chromium'un yeri: programın kendi klasörü (kurulum paketine gömülür)."""
-    from .tools import PROGRAM_DIR
+    """Chromium'un yeri: programın kendi klasörü (kurulum paketine gömülür); karar `cekirdek.profil.tarayici_klasoru`."""
+    from .cekirdek import profil
 
-    for p in (PROGRAM_DIR / "tarayici", Path.home() / ".local/share/yeni-nesil-cafer-app/tarayici"):
-        if p.is_dir():
-            return str(p)
-    return ""
+    return profil.tarayici_klasoru()
 
 
 def available() -> bool:
+    """Kademe açık + playwright + gömülü Chromium (`cekirdek.profil.tarayici_hazir`; çekirdek bu modülü içe aktarmaz)."""
     from .cekirdek import profil
 
-    if not profil.acik_mi("tarayici"):  # dusuk kademede tarayıcı otomasyonu kapalı (MIMARI §3)
-        return False
-    try:
-        import playwright  # noqa: F401
-    except ImportError:
-        return False
-    return bool(_browsers_path())
+    return profil.tarayici_hazir()
 
 
 # ---------------------------------------------------------------- onay kapısı

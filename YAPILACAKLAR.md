@@ -203,15 +203,15 @@ YAPMA: sistem talimatını uzatma (lean bütçesi 8K'da ~1.100 token); araç şe
 ## Aşama K5 — Yetenek kayıt defteri
 **Hedef:** Planlayıcı yalnızca manifestli yetenekleri çağırır; mevcut araçlar yeteneğe dönüştü.
 
-- [ ] `cekirdek/semalar/manifest.json` (JSON Schema) — `docs/SEMALAR.md` §1
-- [ ] `yetenek/kayit.py`: `yetenekler/*/manifest.json` tarama, doğrulama, aktif/pasif listeleme (gereksinim karşılanmıyorsa pasif)
-- [ ] `yetenek/calistirici.py`: `calistir(girdi, baglam)` çağrısı; `sandbox: true` ise ayrı venv + zaman aşımı + izin kontrolü
-- [ ] Mevcut araçlar yeteneğe dönüştürüldü: `dosya_listele`, `dosya_oku`, `dosya_yaz`, `dosya_tasi`, `komut_calistir`, `python_calistir`, `web_arama`, `web_oku`, (varsa) `tarayici`
-- [ ] Planlayıcı yetenek listesini **manifestlerden** okuyor; elle liste yok
-- [ ] Masaüstünde Yetenekler sekmesi: aktif/pasif, izinler, kaynak, güvenilir mi
-- [ ] `/yetenek-ekle` komutu ile bir deneme yeteneği eklendi ve planlayıcı onu kullandı
-- [ ] Testler: manifest doğrulama (bozuk manifest pasif), sandbox zaman aşımı, izin dışı erişim engeli
-- [ ] `tarayici` yeteneğinde ürün/ilan listesini yapısal okuma (`extract_items`) — mevcut plandan taşındı (eski Aşama 4,
+- [x] `cekirdek/semalar/manifest.json` (JSON Schema) — `docs/SEMALAR.md` §1
+- [x] `yetenek/kayit.py`: `yetenekler/*/manifest.json` tarama, doğrulama, aktif/pasif listeleme (gereksinim karşılanmıyorsa pasif)
+- [x] `yetenek/calistirici.py`: `calistir(girdi, baglam)` çağrısı; `sandbox: true` ise ayrı venv + zaman aşımı + izin kontrolü
+- [x] Mevcut araçlar yeteneğe dönüştürüldü: `dosya_listele`, `dosya_oku`, `dosya_yaz`, `dosya_tasi`, `komut_calistir`, `python_calistir`, `web_arama`, `web_oku`, (varsa) `tarayici`
+- [x] Planlayıcı yetenek listesini **manifestlerden** okuyor; elle liste yok
+- [x] Masaüstünde Yetenekler sekmesi: aktif/pasif, izinler, kaynak, güvenilir mi
+- [x] `/yetenek-ekle` komutu ile bir deneme yeteneği eklendi ve planlayıcı onu kullandı
+- [x] Testler: manifest doğrulama (bozuk manifest pasif), sandbox zaman aşımı, izin dışı erişim engeli
+- [x] `tarayici` yeteneğinde ürün/ilan listesini yapısal okuma (`extract_items`) — mevcut plandan taşındı (eski Aşama 4,
       talimat aşağıda)
 
 **Bitti sayılır:** `/kontrol` 8 tüm yetenekler için yeşil; K4'teki görev artık yetenekler üzerinden koşuyor. Taşınan eski Aşama 4'ün bitti ölçütü de sağlanmış.
@@ -230,6 +230,7 @@ YAPMA: siteye özel seçici gömme (site adına göre if yok); giriş gerektiren
 ```
 
 **Bitti (eski Aşama 4):** üç internet görevi 3/3 geçiyor; boş sonuçta cevap "bulunamadı", uydurma yok.
+(K5 sınavı 2026-09-28: hepsiburada 3/3, trendyol 2/3, duckduckgo 1/3 — DuckDuckGo başlık okuma açık; NOTLAR/2026-09-28-K5.md.)
 
 ---
 

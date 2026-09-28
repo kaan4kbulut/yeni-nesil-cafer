@@ -386,7 +386,7 @@ class MotorTesti(unittest.TestCase):
                              ({"kaynak": "alt", "hedef": "alt/ic/"}, "into itself"),
                              ({"kaynak": ".", "hedef": "baska"}, "workspace folder itself"),
                              ({"kaynak": "not.txt", "hedef": "/tmp/k5-disari.txt"}, "outside the workspace")):
-            c = yet.calistir("dosya_tasi", girdi)
+            c = yet.calistir("dosya_tasi", girdi, onayli=True)  # izin bağlamı yok: onaysız yazma olmaz (BÖLÜM 3a)
             self.assertTrue(c.hata, girdi)
             self.assertIn(parca, c.metin, girdi)
         self.assertEqual(Path(self.klasor, "b.txt").read_text(encoding="utf-8"), "b")  # üstüne yazılmadı
@@ -407,6 +407,9 @@ class MotorTesti(unittest.TestCase):
     def test_tasima_ve_eski_adlar(self):
         yet = self.yet()
         c = yet.calistir("dosya_tasi", {"kaynak": "not.txt", "hedef": "arsiv/"})
+        self.assertTrue(c.onay_bekliyor)  # komut satırı / Görevler penceresi: yazan adım onay bekler (BÖLÜM 3a)
+        self.assertFalse(Path(self.klasor, "arsiv").exists())
+        c = yet.calistir("dosya_tasi", {"kaynak": "not.txt", "hedef": "arsiv/"}, onayli=True)
         self.assertFalse(c.hata, c.metin)
         self.assertTrue(Path(self.klasor, "arsiv", "not.txt").exists())
         c = yet.calistir("read_file", {"path": "arsiv/not.txt"})  # K4'te kaydedilmiş görev adımı

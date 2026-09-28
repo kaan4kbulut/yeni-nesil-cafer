@@ -279,7 +279,7 @@ class AjanUyarlayiciSohbetTesti(unittest.TestCase):
         serbest = self.Yet(self.ayarlar, [], self.klasor)
         uygula = self.Yet(self.ayarlar, [], self.klasor,
                           izin_kaynagi=SimpleNamespace(must_act=True, always_allowed=False, auto_approve=None))
-        self.assertFalse(serbest.onay_gerekir("write_file", girdi))  # izin bağlamı verilmezse (komut satırı) eskisi gibi
+        self.assertTrue(serbest.onay_gerekir("write_file", girdi))  # izin bağlamı yok (komut satırı): yazma da sorulur (BÖLÜM 3a)
         self.assertTrue(uygula.onay_gerekir("write_file", girdi))
         hep = self.Yet(self.ayarlar, [], self.klasor,
                        izin_kaynagi=SimpleNamespace(must_act=True, always_allowed=True, auto_approve=None))
