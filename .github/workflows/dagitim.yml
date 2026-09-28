@@ -41,7 +41,7 @@ jobs:
           curl -fsSL -o /usr/local/bin/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x /usr/local/bin/appimagetool
       - name: Bağımlılıklar
-        run: python -m pip install -r requirements.txt pyinstaller
+        run: python -m pip install -r requirements.txt pyinstaller pillow  # pillow: macOS .icns simge dönüşümü
       - name: Light paket
         run: python dagitim/paketle.py --hafif
       - uses: actions/upload-artifact@v4
