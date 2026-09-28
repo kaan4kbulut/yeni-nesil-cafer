@@ -16,12 +16,17 @@ Kullanım (repo kökünde, cafer-plan.zip'in yanında):
     python otomatik.py --deneme 3      # başarısız aşamayı en fazla 3 kez tekrar dene (varsayılan 2)
     python otomatik.py --tam-yetki     # Claude Code'u izin sormadan çalıştır (uyarıyı oku)
     python otomatik.py --python ~/.local/share/yeni-nesil-cafer-app/python/bin/python3   # testler bu Python'la
+    python otomatik.py --bekle         # kullanım limitinde sıfırlanma saatine kadar uyu, aynı aşamayı yeniden başlat
+    python otomatik.py --model opus    # bütün oturumlar bu modelle (varsayılan sonnet; adında "mimari" geçen aşama opus)
 
 Kesilirse (Ctrl+C, elektrik, hata) tekrar `python otomatik.py` → kaldığı aşamadan sürer.
 
 Nasıl çalışır:
-  - Her aşama için TAZE bir `claude -p` oturumu (bir oturum = bir aşama).
-  - Claude Code'a "otomatik mod" önsözü gider: soru sorma, makul varsayımı seç, NOTLAR'a yaz, devam et.
+  - Her aşama için TAZE `claude -p` oturumları: YAPILACAKLAR'daki her alt başlık (`###`) ayrı oturum (20 dk;
+    zaman aşımında SIGINT, 30 sn bekleme). Varsayılan model sonnet; denetçi turu ayrı bir haiku oturumu (ana
+    oturuma yalnızca denetçinin SONUÇ satırı ve rapor yolu geçer). İsteme SORULAR/KONTROL_LISTEN'in son 10 maddesi eklenir.
+  - "hit your … limit" / "usage limit" görülürse aşama bitmiş SAYILMAZ, commit ATILMAZ; yarım değişiklikler stash'e,
+    sıfırlanma saati loglanır ve sürücü durur (`--bekle` ile o saate kadar uyuyup aynı aşamayı yeniden başlatır).
   - Aşama bitince sürücü kendisi kontrol eder: pytest (yoksa unittest) + import dumanı + açık kutucuklar
     + Claude'un son mesajındaki SONUÇ/TEST satırı (KALDI → düzeltme turu; sürücünün kendi yazdığı
     KONTROL_LISTEN/log dosyaları "değişiklik" sayılmaz).
@@ -66,7 +71,7 @@ PY = sys.executable
 
 ONSOZ = """OTOMATİK MOD — dikkatle oku:
 - Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
-- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'nin SONUNA "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et. SORULAR.md ve KONTROL_LISTEN.md'nin tamamını okuma; son maddeleri aşağıda.
 - Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
 - Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
 - Bitirince son mesajın şu biçimde olsun:
@@ -194,16 +199,84 @@ def komut_metni(ad: str, argumanlar: str) -> str:
     return f"/{ad} {argumanlar}"
 
 
-def p_asama(kod: str, ek: str = "") -> str:
-    return komut_metni("asama", f"{kod} onaysız {ek}".strip())
+def ajan_metni(ad: str) -> str:
+    """.claude/agents/<ad>.md gövdesi (frontmatter'sız); yoksa .claude/skills/<ad>/SKILL.md; o da yoksa kısa yedek."""
+    for yol in (KOK / ".claude" / "agents" / f"{ad}.md", KOK / ".claude" / "skills" / ad / "SKILL.md"):
+        if yol.exists():
+            return re.sub(r"^---\n.*?\n---\n", "", yol.read_text(encoding="utf-8"), count=1, flags=re.S)
+    return ("Değişikliği (git diff) bağımsız gözle denetle: testleri koş, mimari kuralları (çekirdekte Qt yok, model adı "
+            "kodda yok, yeni modülün testi var) uygula. Rapor: '## Sonuç: GEÇTİ | ŞARTLI | KALDI', sonra Engelleyici / Uyarı.")
 
 
-def p_denetci(kod: str, odak: str = "") -> str:
+def p_asama(kod: str, ek: str = ""):
+    """Aşama koşusu; `asama_kos` YAPILACAKLAR'daki alt başlıklara göre ayrı oturumlara böler (3c)."""
+    return ("asama", kod, ek)
+
+
+def p_denetci(kod: str, odak: str = ""):
+    """Denetçi turu: ayrı bir haiku oturumu; ana oturuma yalnızca SONUÇ satırı + rapor yolu geçer (3d)."""
+    return ("denetci", kod, odak)
+
+
+def p_denetci_metni(kod: str, odak: str = "") -> str:
     return (
-        f"denetci ajanını kullanarak {kod} aşamasında yapılan değişikliği (git diff HEAD) denetle. "
-        f"{odak} Engelleyici bulursa sen düzelt, testi ekle, tekrar denetlet; GEÇTİ alana kadar sürdür "
-        "(en fazla 3 tur). Son mesajında SONUÇ satırını yaz."
+        "DENETÇİ TURU — kod DEĞİŞTİRME, yalnızca bul ve raporla. Kimse soru cevaplayamaz; eksik bilgiyi varsayım olarak yaz.\n\n"
+        + ajan_metni("denetci")
+        + f"\n\nDenetlenecek değişiklik: `git diff {kod.lower()}-basi` (aşama başı etiketi; çalışma ağacı dahil). {odak}\n"
+        "Raporun İLK satırı mutlaka `## Sonuç: GEÇTİ | ŞARTLI | KALDI` olsun; sonra Engelleyici / Uyarı / Testler."
     )
+
+
+def model_sec(baslik: str, istenen: str = "") -> str:
+    """3a: --model verildiyse o; aşama adında "mimari" geçiyorsa opus; yoksa sonnet."""
+    if istenen:
+        return istenen
+    return "opus" if "mimari" in baslik.lower() else "sonnet"
+
+
+def son_maddeler(yol: Path, n: int = 10, genislik: int = 240) -> list[str]:
+    """Dosyadaki `- ` ile başlayan SON n madde (3e: SORULAR/KONTROL_LISTEN tam değil, son maddeler isteme girer)."""
+    if not yol.exists():
+        return []
+    maddeler = [s.rstrip() for s in yol.read_text(encoding="utf-8").splitlines() if re.match(r"^\s*-\s", s)]
+    return [(m if len(m) <= genislik else m[:genislik - 1] + "…") for m in maddeler[-n:]]
+
+
+def baglam_ozeti(n: int = 10) -> str:
+    parca = []
+    for ad, yol in (("SORULAR.md", SORULAR), ("KONTROL_LISTEN.md", KONTROL_LISTEN)):
+        m = son_maddeler(yol, n)
+        if m:
+            parca.append(f"NOTLAR/{ad} — son {len(m)} madde (dosyanın tamamını OKUMA; yeni madde sona eklenir):\n" + "\n".join(m))
+    return "\n\n".join(parca)
+
+
+def onsoz() -> str:
+    """ONSOZ + not dosyalarının son maddeleri (her oturumun başına)."""
+    b = baglam_ozeti()
+    return ONSOZ + ("\n" + b + "\n" if b else "")
+
+
+def alt_basliklar(kod: str) -> list[tuple[str, int]]:
+    """3c: YAPILACAKLAR'da aşamanın alt başlıkları → [(başlık, açık madde sayısı)]; ilk öğe `###` öncesi "ana maddeler".
+    Aşamada hiç `###` yoksa boş liste (aşama tek oturumda koşar)."""
+    y = KOK / "YAPILACAKLAR.md"
+    if not y.exists():
+        return []
+    m = re.search(rf"^##\s+Aşama\s+{kod}\b.*?(?=^##\s+|\Z)", y.read_text(encoding="utf-8"), re.S | re.M)
+    if not m:
+        return []
+    parcalar = re.split(r"^###\s+(.+?)\s*$", m.group(0), flags=re.M)  # [ana, başlık1, gövde1, başlık2, gövde2, …]
+    if len(parcalar) < 3:
+        return []
+
+    def acik(t: str) -> int:
+        return len(re.findall(r"^\s*-\s*\[ \]", t, re.M))
+
+    sonuc = [("ana maddeler", acik(parcalar[0]))]
+    for i in range(1, len(parcalar), 2):
+        sonuc.append((parcalar[i].strip(), acik(parcalar[i + 1])))
+    return sonuc
 
 
 ASAMALAR = [
@@ -526,12 +599,18 @@ class Cubuk:
         sys.stdout.flush()
 
 
-def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | None = None) -> tuple[int, str]:
-    """Taze bir claude -p oturumu. (çıkış kodu, çıktı) döner ve NOTLAR/otomatik/ altına loglar."""
+SON_LOG: Path | None = None  # son claude oturumunun log dosyası (denetçi raporunu ana oturuma yol olarak vermek için)
+
+
+def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | None = None, model: str = "sonnet",
+               zaman_asimi_dk: int | None = None) -> tuple[int, str]:
+    """Taze bir claude -p oturumu. (çıkış kodu, çıktı) döner ve NOTLAR/otomatik/ altına loglar.
+    `model`: sonnet/opus/haiku (3a); `zaman_asimi_dk`: bu oturuma özel süre (None → --zaman-asimi)."""
+    global SON_LOG
     LOGLAR.mkdir(parents=True, exist_ok=True)
     zaman = time.strftime("%Y-%m-%d_%H-%M-%S")
     log = LOGLAR / f"{zaman}_{kod}_{ad or 'kosu'}.log"
-    cmd = [claude_yolu(), "-p", "--output-format", "text"]
+    cmd = [claude_yolu(), "-p", "--output-format", "text", "--model", model]
     if args.tam_yetki:
         cmd.append("--dangerously-skip-permissions")
     else:
@@ -540,14 +619,16 @@ def claude_kos(kod: str, prompt: str, args, ad: str = "", cubuk_obj: Cubuk | Non
     if cubuk_obj:
         t = threading.Thread(target=cubuk_obj.calis, daemon=True)
         t.start()
+    dk = args.zaman_asimi if zaman_asimi_dk is None else zaman_asimi_dk
     try:
-        kodu, cikti = calistir_nazik(cmd, girdi=prompt,
-                                     zaman_asimi=(args.zaman_asimi * 60) if args.zaman_asimi else None)
+        kodu, cikti = calistir_nazik(cmd, girdi=prompt, zaman_asimi=(dk * 60) if dk else None)
     finally:
         if cubuk_obj:
             cubuk_obj.dur.set()
             t.join(timeout=3)
-    log.write_text(f"### PROMPT\n{prompt}\n\n### ÇIKTI (kod {kodu})\n{cikti}", encoding="utf-8")
+    log.write_text(f"### MODEL {model} · zaman aşımı {dk or 'yok'} dk\n### PROMPT\n{prompt}\n\n### ÇIKTI (kod {kodu})\n{cikti}",
+                   encoding="utf-8")
+    SON_LOG = log
     son = cikti.strip().splitlines()
     ozet = "\n".join(son[-6:]) if son else "(çıktı yok)"
     yaz("   ┌ Claude:")
@@ -613,6 +694,9 @@ LIMIT_DESENI = re.compile(
     r"kullan[ıi]m limit|limit doldu|overloaded|too many requests|not logged in|please (log|sign) in|"
     r"authentication|invalid api key|credit balance)", re.I,
 )
+# 3b: bu ifadeler çıktının NERESİNDE ve çıktı ne kadar uzun olursa olsun limittir ("hit your session limit",
+# "hit your weekly limit", "usage limit"); aşama bitmiş sayılmaz, commit atılmaz.
+LIMIT_KESIN = re.compile(r"hit your (?:[\w-]+ ){0,3}limit|usage limit", re.I)
 
 
 def limit_mi(kodu: int, cikti: str) -> tuple[str | None, str]:
@@ -623,12 +707,41 @@ def limit_mi(kodu: int, cikti: str) -> tuple[str | None, str]:
         return "zaman_asimi", "zaman aşımı (--zaman-asimi): Claude SIGINT ile durduruldu, yarım değişiklikler stash'te"
     if not kisa:
         return "bos", "claude boş çıktı verdi"
+    m = LIMIT_KESIN.search(kisa)
+    if m:
+        satir = kisa[kisa.rfind("\n", 0, m.start()) + 1:].splitlines()[0]
+        return "limit", satir.strip()[:160]
     # Limit metni başta ya da sonda olabilir; kısa çıktı (< 2500) + desen = limit.
     if len(kisa) < 2500 and (LIMIT_DESENI.search(kisa[:1500]) or LIMIT_DESENI.search(kisa[-1500:])):
         return "limit", kisa.splitlines()[0][:160]
     if kodu != 0 and len(kisa) < 400:
         return "hata", f"claude {kodu} ile çıktı: {kisa[:160]}"
     return None, ""
+
+
+def sifirlanma_zamani(cikti: str, simdi: float | None = None) -> float | None:
+    """Limit mesajındaki sıfırlanma saati (epoch): "resets at 5pm", "resets 3:30pm (Europe/Istanbul)", "reset in 2 hours",
+    "resets Oct 3 at 9am". Bulunamazsa None. Saat geçmişteyse yarın sayılır."""
+    simdi = time.time() if simdi is None else simdi
+    m = re.search(r"reset\w*\s+in\s+(\d+)\s*(h|hour|m|min)", cikti, re.I)
+    if m:
+        return simdi + int(m.group(1)) * (3600 if m.group(2).lower().startswith("h") else 60)
+    m = re.search(r"reset\w*\s*(?:at\s*)?(?:[A-Za-z]{3,9}\.?\s+\d{1,2},?\s*(?:at\s*)?)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\b",
+                  cikti, re.I)
+    if not m:
+        return None
+    saat, dakika, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").lower()
+    if ap == "pm" and saat < 12:
+        saat += 12
+    if ap == "am" and saat == 12:
+        saat = 0
+    if not (0 <= saat < 24 and 0 <= dakika < 60):
+        return None
+    t = time.localtime(simdi)
+    hedef = time.mktime((t.tm_year, t.tm_mon, t.tm_mday, saat, dakika, 0, 0, 0, -1))
+    if hedef <= simdi:
+        hedef += 86400
+    return hedef
 
 
 def sonuc_oku(cikti: str) -> dict:
@@ -674,31 +787,79 @@ def deneme_kaydet(kod: str, ad: str, sure: float, sinif: str | None) -> None:
     json_yaz(DURUM, d)
 
 
-def asama_durdur(kod: str, neden: str, sinif: str, sure: float) -> bool:
-    """Aşama durdu. `zaman_asimi`: yarım değişiklikler COMMIT edilmez, stash'e alınır, aşama KISMEN sayılır (sürücü
-    yeniden koşunca `git stash pop` ile devam edilebilir). Diğer sınıflar (limit/boş/hata): eskisi gibi yarım commit."""
+def asama_durdur(kod: str, neden: str, sinif: str, sure: float, cikti: str = "") -> bool:
+    """Aşama durdu. `zaman_asimi`: yarım değişiklikler COMMIT edilmez, stash'e alınır, aşama KISMEN (yeniden koşunca
+    `git stash pop`). `limit` (3b): commit YOK, yarım değişiklikler stash'e (aşama yeniden başlayınca kendiliğinden geri
+    alınır), sıfırlanma saati loglanır. Diğer sınıflar (boş/hata): eskisi gibi yarım commit."""
     yaz(f"   ✖ {kod} DURDU ({sinif}): {neden}")
+    hedef = None
     if sinif == "zaman_asimi":
         if degisiklik_var(surucu_haric=False):
             git("stash", "push", "-u", "-m", f"{kod}: zaman aşımı (otomatik) — KISMEN")
             yaz("   ⏸ yarım değişiklikler stash'e alındı: git stash list · git stash pop")
         ek_not(KONTROL_LISTEN, f"- [ ] **{kod} KISMEN (zaman aşımı):** {neden}. Değişiklikler `git stash list`'te; "
                                f"`git stash pop` sonra `python otomatik.py --asama {kod}` ya da süreyi artır.")
+    elif sinif == "limit":
+        if degisiklik_var(surucu_haric=False):
+            git("stash", "push", "-u", "-m", f"{kod}: limit (otomatik)")
+            yaz("   ⏸ yarım değişiklikler stash'e alındı; aşama yeniden başlayınca geri alınır")
+        hedef = sifirlanma_zamani(cikti)
+        saat = time.strftime("%Y-%m-%d %H:%M", time.localtime(hedef)) if hedef else "bilinmiyor"
+        yaz(f"   ⏳ kullanım limiti; sıfırlanma: {saat}")
+        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU (limit):** {neden}. Sıfırlanma: {saat}. "
+                               f"`python otomatik.py --bekle` o saati bekleyip aynı aşamayı yeniden başlatır.")
+        ek_not(LOGLAR / "limit.log", f"{time.strftime('%Y-%m-%d %H:%M')} | {kod} | sıfırlanma {saat} | {neden}")
     else:
         if degisiklik_var(surucu_haric=False):
             git("add", "-A")
             git("commit", "-m", f"{kod}: yarım — {neden[:60]} (otomatik)")
-        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU ({sinif}):** {neden}. Limit ise dolunca `python otomatik.py` yeter; kaldığı yerden sürer.")
+        ek_not(KONTROL_LISTEN, f"- [ ] **{kod} DURDU ({sinif}):** {neden}. `python otomatik.py` kaldığı yerden sürer.")
     d2 = json_oku(DURUM)
     d2["basarisiz"] = kod
     d2["durma_nedeni"] = neden
     d2["durma_sinifi"] = sinif
-    d2["durum"] = "KISMEN" if sinif == "zaman_asimi" else "KALDI"
+    d2["durum"] = "KISMEN" if sinif in ("zaman_asimi", "limit") else "KALDI"
+    d2["limit_sifirlanma"] = hedef
     d2.setdefault("sureler", {})  # ilk denemenin süresi kaybolmasın (tamamlanmayan aşama da ölçülür)
     d2.setdefault("yarim_sureler", {})[kod] = round(sure, 1)
     json_yaz(DURUM, d2)
     bildir(f"{kod} durdu", neden[:80])
     return False
+
+
+def limit_stash_geri_al(kod: str) -> bool:
+    """Limitte stash'e alınan yarım değişiklikleri aşama yeniden başlarken geri koyar."""
+    _, liste = git("stash", "list")
+    for satir in liste.splitlines():
+        if f"{kod}: limit (otomatik)" in satir:
+            k, _ = git("stash", "pop", satir.split(":", 1)[0])
+            yaz("   ▶ limit öncesi yarım değişiklikler geri alındı" if k == 0 else "   ⚠ stash geri alınamadı; elle: git stash pop")
+            return k == 0
+    return False
+
+
+def denetci_sonuc(cikti: str) -> tuple[str | None, str]:
+    """Denetçi raporundaki `## Sonuç: GEÇTİ | ŞARTLI | KALDI` satırı → ("GECTI"|"SARTLI"|"KALDI"|None, satır)."""
+    m = None
+    for m in re.finditer(r"Sonu[çc]\s*:\s*\**\s*(GEÇTİ|GEÇTI|GECTI|ŞARTLI|SARTLI|KALDI)", cikti, re.I):
+        pass
+    if not m:
+        return None, ""
+    s = m.group(1).upper().replace("Ç", "C").replace("İ", "I").replace("Ş", "S")
+    return s, m.group(0).strip()
+
+
+ALT_OTURUM_DK = 20  # 3c: her alt başlık ayrı oturum, en çok bu kadar dakika (SIGINT → 30 sn → SIGTERM)
+DENETCI_TUR = 3  # 3d: denetçi (haiku) + düzeltme (ana model) en çok bu kadar tur
+
+
+def oturum(kod: str, prompt: str, args, ad: str, cb: "Cubuk | None", model: str, zaman_asimi_dk: int | None = None):
+    """Bir Claude oturumu: koş, sınıflandır, süresini kaydet → (sınıf, neden, çıktı, SONUÇ sözlüğü)."""
+    t0 = time.time()
+    kodu, cikti = claude_kos(kod, prompt, args, ad=ad, cubuk_obj=cb, model=model, zaman_asimi_dk=zaman_asimi_dk)
+    sinif, neden = limit_mi(kodu, cikti)
+    deneme_kaydet(kod, ad, time.time() - t0, sinif)
+    return sinif, neden, cikti, sonuc_oku(cikti)
 
 
 def asama_kos(idx: int, args) -> bool:
@@ -708,31 +869,96 @@ def asama_kos(idx: int, args) -> bool:
     yaz(f" AŞAMA {kod} — {baslik}   ({idx + 1}/{len(ASAMALAR)})")
     yaz("━" * 70)
     baslangic = time.time()
+    model = model_sec(baslik, args.model)
+    alt_dk = args.zaman_asimi or ALT_OTURUM_DK
+    git("tag", "-f", f"{kod.lower()}-basi")  # denetçi diff'i bu noktadan
+    limit_stash_geri_al(kod)
+    yaz(f"   model: {model} · alt oturum en çok {alt_dk} dk")
 
-    def durdur(neden: str, sinif: str = "limit") -> bool:
-        return asama_durdur(kod, neden, sinif, time.time() - baslangic)
+    def durdur(neden: str, sinif: str = "limit", cikti: str = "") -> bool:
+        return asama_durdur(kod, neden, sinif, time.time() - baslangic, cikti)
+
+    def cb() -> Cubuk:
+        return Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
 
     sonuc_sorunu: list[str] = []
-    for n, uret in enumerate(kosular, 1):
-        yaz(f"▸ koşu {n}/{len(kosular)}")
-        cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
-        t0 = time.time()
-        kodu, cikti = claude_kos(kod, ONSOZ + "\n" + uret(), args, ad=f"kosu{n}", cubuk_obj=cb)
-        sinif, neden = limit_mi(kodu, cikti)
-        deneme_kaydet(kod, f"kosu{n}", time.time() - t0, sinif)
-        if sinif:
-            return durdur(neden, sinif)
-        # Claude'un kendi beyanı: KALDI ya da TEST kaldı → aşama bitmiş sayılmaz, düzeltme turuna girer.
-        so = sonuc_oku(cikti)
+
+    def beyan(so: dict, ad: str) -> None:
+        """Claude'un kendi beyanı: KALDI ya da TEST kaldı → aşama bitmiş sayılmaz; SONUÇ satırı zorunlu."""
         if so["sonuc"] == "KALDI":
-            sonuc_sorunu.append(f"Claude koşu {n} sonunda 'SONUÇ: KALDI' dedi. NOT: {so.get('NOT', '')[:200]}")
+            sonuc_sorunu.append(f"Claude {ad} sonunda 'SONUÇ: KALDI' dedi. NOT: {so.get('NOT', '')[:200]}")
         elif so["test_kaldi"]:
-            sonuc_sorunu.append(f"Claude koşu {n} sonunda 'TEST: {so.get('TEST', '')[:120]}' dedi.")
+            sonuc_sorunu.append(f"Claude {ad} sonunda 'TEST: {so.get('TEST', '')[:120]}' dedi.")
         elif so["sonuc"] == "KISMEN":
-            ek_not(KONTROL_LISTEN, f"- [ ] {kod} koşu {n}: Claude 'KISMEN' dedi — NOT: {so.get('NOT', '')[:200]}")
-        elif so["sonuc"] is None:  # SONUÇ satırı zorunlu: yoksa aşama bitmiş sayılmaz, düzeltme turu ister
-            sonuc_sorunu.append(f"Koşu {n}: son mesajda SONUÇ satırı yok (ONSOZ biçimi zorunlu: SONUÇ/DEĞİŞEN/TEST/NOT).")
-            yaz(f"   ⚠ koşu {n}: SONUÇ satırı yok (düzeltme turunda istenecek)")
+            ek_not(KONTROL_LISTEN, f"- [ ] {kod} {ad}: Claude 'KISMEN' dedi — NOT: {so.get('NOT', '')[:200]}")
+        elif so["sonuc"] is None:
+            sonuc_sorunu.append(f"{ad}: son mesajda SONUÇ satırı yok (ONSOZ biçimi zorunlu: SONUÇ/DEĞİŞEN/TEST/NOT).")
+            yaz(f"   ⚠ {ad}: SONUÇ satırı yok (düzeltme turunda istenecek)")
+
+    n = 0
+    for uret in kosular:
+        k = uret()
+        k = ("metin", k) if isinstance(k, str) else k
+        if k[0] == "asama":
+            ek = k[2]
+            bolumler = [(b, a) for b, a in alt_basliklar(kod) if a > 0]
+            if not bolumler:  # alt başlık yok (ya da hepsi kapalı): aşama tek oturumda
+                n += 1
+                yaz(f"▸ koşu {n}: {kod} (tek oturum)")
+                sinif, neden, cikti, so = oturum(kod, onsoz() + "\n" + komut_metni("asama", f"{kod} onaysız {ek}".strip()),
+                                                 args, f"kosu{n}", cb(), model)
+                if sinif:
+                    return durdur(neden, sinif, cikti)
+                beyan(so, f"koşu {n}")
+                continue
+            for b, acik in bolumler:  # 3c: her alt başlık ayrı oturum
+                n += 1
+                yaz(f"▸ koşu {n}: «{b}» ({acik} açık madde, en çok {alt_dk} dk)")
+                ek2 = (f"Bu oturumda YALNIZCA «{b}» bölümü ({acik} açık madde); diğer bölümlere dokunma, bitirdiğin "
+                       f"maddeleri [x] yap. {ek}").strip()
+                sinif, neden, cikti, so = oturum(kod, onsoz() + "\n" + komut_metni("asama", f"{kod} onaysız {ek2}"),
+                                                 args, f"kosu{n}", cb(), model, alt_dk)
+                if sinif == "zaman_asimi":  # alt oturum: durma, not düş, sıradaki bölüme geç
+                    yaz(f"   ⏱ «{b}» {alt_dk} dk'da durduruldu (SIGINT); kalanı düzeltme turuna")
+                    ek_not(KONTROL_LISTEN, f"- [ ] {kod} «{b}»: {alt_dk} dk zaman aşımı (SIGINT ile durduruldu); "
+                                           "kalan maddeler düzeltme turunda.")
+                    continue
+                if sinif:
+                    return durdur(neden, sinif, cikti)
+                beyan(so, f"koşu {n} «{b}»")
+        elif k[0] == "denetci":  # 3d: haiku denetçi, ana oturuma yalnızca SONUÇ satırı + rapor yolu
+            odak = k[2]
+            satir = ""
+            for tur in range(1, DENETCI_TUR + 1):
+                n += 1
+                yaz(f"▸ koşu {n}: denetçi turu {tur}/{DENETCI_TUR} (haiku)")
+                sinif, neden, cikti, _ = oturum(kod, p_denetci_metni(kod, odak), args, f"denetci{tur}", cb(), "haiku", alt_dk)
+                if sinif:
+                    return durdur(neden, sinif, cikti)
+                karar, satir = denetci_sonuc(cikti)
+                if karar == "GECTI":
+                    yaz("   ✔ denetçi: GEÇTİ")
+                    break
+                satir = satir or "Sonuç satırı yok (denetçi raporu biçimsiz)"
+                yaz(f"   ✖ denetçi: {satir}")
+                rapor = SON_LOG.relative_to(KOK) if SON_LOG else "NOTLAR/otomatik/"
+                n += 1
+                duzelt = (onsoz() + f"\n{kod} denetçi turu {tur}/{DENETCI_TUR} — denetçinin SONUÇ satırı: «{satir}». "
+                          f"Tam rapor: {rapor} (yalnızca 'Engelleyici' bölümünü oku). Engelleyicileri düzelt (kök neden, semptom "
+                          "değil), her düzeltmeye test ekle, testleri koş; uyarıları yalnızca ucuzsa düzelt.")
+                sinif, neden, cikti, so = oturum(kod, duzelt, args, f"denetci{tur}-duzeltme", cb(), model, alt_dk)
+                if sinif:
+                    return durdur(neden, sinif, cikti)
+                beyan(so, f"denetçi düzeltmesi {tur}")
+            else:
+                sonuc_sorunu.append(f"Denetçi {DENETCI_TUR} turda GEÇTİ demedi: {satir}")
+        else:  # düz metin istem (profil, model araştırması, sunucu…)
+            n += 1
+            yaz(f"▸ koşu {n}")
+            sinif, neden, cikti, so = oturum(kod, onsoz() + "\n" + k[1], args, f"kosu{n}", cb(), model)
+            if sinif:
+                return durdur(neden, sinif, cikti)
+            beyan(so, f"koşu {n}")
 
     for deneme in range(1, args.deneme + 1):
         sorun = kontrol(kod) + sonuc_sorunu
@@ -758,17 +984,12 @@ def asama_kos(idx: int, args) -> bool:
             json_yaz(DURUM, d)
             bildir(f"{kod} KALDI", "sürücü durdu — terminale bak")
             return False
-        duzelt = ONSOZ + f"\n{kod} aşaması bitti sayılmıyor. Sürücü kontrolü şunları buldu:\n\n" + "\n\n".join(sorun or []) \
+        duzelt = onsoz() + f"\n{kod} aşaması bitti sayılmıyor. Sürücü kontrolü şunları buldu:\n\n" + "\n\n".join(sorun or []) \
             + (f"\n\nYAPILACAKLAR.md'de {kod} altında {acik} madde hâlâ [ ]." if acik else "") \
             + "\n\nÖnce bunları düzelt (kök neden, semptom değil), sonra aşamanın kalan maddelerini bitir, /kontrol'ün yaptığı kontrolleri koş, NOTLAR'ı güncelle."
-        cb = Cubuk(kod, idx + 1, len(ASAMALAR), d.get("baslangic", baslangic), d.get("sureler", {}))
-        t0 = time.time()
-        kodu, cikti = claude_kos(kod, duzelt, args, ad=f"duzeltme{deneme}", cubuk_obj=cb)
-        sinif, neden = limit_mi(kodu, cikti)
-        deneme_kaydet(kod, f"duzeltme{deneme}", time.time() - t0, sinif)
+        sinif, neden, cikti, so = oturum(kod, duzelt, args, f"duzeltme{deneme}", cb(), model)
         if sinif:
-            return durdur(neden, sinif)
-        so = sonuc_oku(cikti)
+            return durdur(neden, sinif, cikti)
         if so["sonuc"] == "KALDI" or so["test_kaldi"]:
             sonuc_sorunu.append(f"Düzeltme {deneme} sonunda Claude '{so.get('SONUC', '')} / TEST: {so.get('TEST', '')}' dedi.")
         elif so["sonuc"] is None:
@@ -787,8 +1008,8 @@ def asama_kos(idx: int, args) -> bool:
     if kod not in d["tamamlanan"]:
         d["tamamlanan"].append(kod)
     d.setdefault("sureler", {})[kod] = sure
-    d.pop("basarisiz", None)
-    d.pop("durma_nedeni", None)
+    for anahtar in ("basarisiz", "durma_nedeni", "durma_sinifi", "limit_sifirlanma"):
+        d.pop(anahtar, None)
     json_yaz(DURUM, d)
     if elle:
         ek_not(KONTROL_LISTEN, f"\n## {kod} — {baslik} ({time.strftime('%Y-%m-%d %H:%M')})")
@@ -797,6 +1018,19 @@ def asama_kos(idx: int, args) -> bool:
     yaz(f"✔ {kod} bitti ({sure_metni(sure)}) — commit + etiket {kod.lower()}-bitti\n")
     bildir(f"{kod} bitti", f"{baslik} · {sure_metni(sure)}")
     return True
+
+
+def limit_bekle(hedef: float | None, varsayilan_dk: int = 60, pay_sn: int = 120) -> None:
+    """3b `--bekle`: sıfırlanma saatine (+pay) kadar uyu; saat bilinmiyorsa `varsayilan_dk` bekle."""
+    simdi = time.time()
+    hedef = (hedef + pay_sn) if hedef and hedef > simdi else simdi + varsayilan_dk * 60
+    yaz(f"⏳ kullanım limiti: {time.strftime('%H:%M', time.localtime(hedef))}'e kadar bekleniyor (Ctrl+C ile çık)")
+    while (kalan := hedef - time.time()) > 0:
+        if sys.stdout.isatty():
+            sys.stdout.write(f"\r   kalan {sure_metni(kalan)}   ")
+            sys.stdout.flush()
+        time.sleep(min(60, kalan))
+    yaz("\n▶ süre doldu; aynı aşama yeniden başlıyor")
 
 
 def ozet_yaz():
@@ -830,6 +1064,8 @@ def main():
     ap.add_argument("--zaman-asimi", type=int, default=0, help="tek Claude koşusu için dakika (0 = sınırsız)")
     ap.add_argument("--tam-yetki", action="store_true", help="Claude Code'u izin sormadan çalıştır (--dangerously-skip-permissions)")
     ap.add_argument("--python", default="", help="testler ve import dumanı için Python (varsayılan: .venv/bin/python varsa o, yoksa bu yorumlayıcı)")
+    ap.add_argument("--bekle", action="store_true", help="kullanım limitinde sıfırlanma saatine kadar uyu ve aynı aşamayı yeniden başlat")
+    ap.add_argument("--model", default="", help="Claude modeli (varsayılan sonnet; adında 'mimari' geçen aşama opus; denetçi hep haiku)")
     args = ap.parse_args()
     global PY
     PY = python_sec(args.python)
@@ -864,12 +1100,20 @@ def main():
     yaz(f"Sıra: {', '.join(KODLAR[i] for i in secilen)}\n")
     try:
         for i in secilen:
-            if not asama_kos(i, args):
-                break
+            while True:
+                if asama_kos(i, args):
+                    break
+                d = json_oku(DURUM)
+                if args.bekle and d.get("durma_sinifi") == "limit":  # 3b: bekle, aynı aşamayı yeniden başlat
+                    limit_bekle(d.get("limit_sifirlanma"))
+                    continue
+                raise StopIteration
             if args.dur and i != secilen[-1]:
                 cevap = input("Devam için Enter, çıkmak için q: ").strip().lower()
                 if cevap == "q":
                     break
+    except StopIteration:
+        pass
     except KeyboardInterrupt:
         yaz("\n⏸ durduruldu; tekrar `python otomatik.py` ile kaldığın aşamadan sürer.")
     ozet_yaz()
