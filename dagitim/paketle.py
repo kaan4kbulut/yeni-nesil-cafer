@@ -175,10 +175,12 @@ def tam(build: Path, butce_gb: float) -> None:
     bootstrap.ollama(uyg)
     if model:
         subprocess.run(["ollama", "pull", model], check=True)
-        # paketleme/paketle.py gomulu_model ile aynı yol: blob + Modelfile program/modeller/
-        sys.path.insert(0, str(PROJE / "paketleme"))
-        import paketle as eski  # noqa: E402
+        # paketleme/paketle.py gomulu_model ile aynı yol: blob + Modelfile program/modeller/ (ad çakışmasın: dosyadan yükle)
+        import importlib.util
 
+        spec = importlib.util.spec_from_file_location("paketleme_paketle", PROJE / "paketleme" / "paketle.py")
+        eski = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(eski)
         for src, rel in eski.gomulu_model():
             hedef = uyg / Path(*rel.parts[1:])
             hedef.parent.mkdir(parents=True, exist_ok=True)

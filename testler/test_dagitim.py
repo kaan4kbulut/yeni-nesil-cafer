@@ -12,12 +12,15 @@ from unittest import mock
 
 KOK = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(KOK))
-sys.path.insert(0, str(KOK / "dagitim"))
 _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
-import paketle  # noqa: E402
+import importlib.util  # noqa: E402
+
+_spec = importlib.util.spec_from_file_location("dagitim_paketle", KOK / "dagitim" / "paketle.py")  # paketleme/paketle ile ad çakışmasın
+paketle = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(paketle)
 from asistan import updates  # noqa: E402
 from asistan.cekirdek import modeller  # noqa: E402
 

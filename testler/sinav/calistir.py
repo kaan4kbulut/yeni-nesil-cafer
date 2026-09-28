@@ -61,6 +61,8 @@ def secenekler(argv=None):
     p.add_argument("--hepsi", action="store_true", help="bütün görevler")
     p.add_argument("--tekrar", type=int, default=1, help="her görev kaç kez")
     p.add_argument("--gorev", default="", help="yalnızca bu görevler (virgülle)")
+    p.add_argument("--motor", action="store_true", help="görev motoru bayrağı AÇIK (extra.gorev_motoru; Manager ile karşılaştırma)")
+    p.add_argument("--motorsuz", action="store_true", help="görev motoru bayrağı KAPALI (Manager yolu)")
     p.add_argument("--kademe", default="", choices=("", "dusuk", "orta", "yuksek"),
                    help="K7: program bu kademeye kilitli koşar, yalnızca o kademede beklenen görevler; sonuç yönlendirmeye geri beslenir")
     p.add_argument("--cocuk", type=int, default=0, help=argparse.SUPPRESS)  # bir tekrarı yürüten alt süreç
@@ -75,7 +77,8 @@ def kapsam(a) -> str:
     if a.etiket:
         return "etiket:" + a.etiket
     on = f"kademe:{a.kademe}+" if getattr(a, "kademe", "") else ""
-    return on + ("hepsi" if a.hepsi else "hizli")
+    motor = "+motor" if getattr(a, "motor", False) else "+manager" if getattr(a, "motorsuz", False) else ""
+    return on + ("hepsi" if a.hepsi else "hizli") + motor
 
 
 def secilenler(a) -> list[dict]:
@@ -334,6 +337,8 @@ def ortam_hazirla(g: Path, a) -> dict:
     s["extra"]["kurulum"] = True
     if a.yonetici:
         s["extra"]["yonetici_politikasi"] = a.yonetici  # K3: otomatik | yerel | bulut (cekirdek/yonlendirici.py)
+    if getattr(a, "motor", False) or getattr(a, "motorsuz", False):  # K4/BÖLÜM 7: motor ↔ Manager karşılaştırması
+        s["extra"]["gorev_motoru"] = bool(a.motor)
     if a.model and ":" not in a.model:
         s.update(auto_model=False, provider="ollama", ollama_model=a.model)
     elif not a.model:
