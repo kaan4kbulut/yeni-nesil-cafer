@@ -75,12 +75,9 @@ jobs:
           cp dist/dagitim/*.zip dist/dagitim/*.sha256 dist/surum/ 2>/dev/null || true
           ls -la dist/surum
       - name: Sürüm notları
-        run: python - <<'PY' > dist/surum/NOTLAR.md
-          import re
-          m = open("CHANGELOG.md", encoding="utf-8").read()
-          b = re.split(r"^## ", m, flags=re.M)
-          print("## " + b[1] if len(b) > 1 else m)
-          PY
+        run: |
+          python -c 'import re; m = open("CHANGELOG.md", encoding="utf-8").read(); b = re.split(r"^## ", m, flags=re.M); print("## " + b[1] if len(b) > 1 else m)' > dist/surum/NOTLAR.md
+          head -5 dist/surum/NOTLAR.md
       - uses: softprops/action-gh-release@v2
         with:
           draft: true
