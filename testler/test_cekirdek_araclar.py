@@ -167,7 +167,7 @@ class WebTesti(unittest.TestCase):
     def test_oku(self):
         with self.assertRaisesRegex(AracHatasi, "http"):
             web.oku("file:///etc/passwd")
-        with mock.patch.object(web, "_adres_denetle"):  # ağ çözümlemesi yok; yerel ağ engeli test_kucuk_duzeltmeler'de
+        with mock.patch.object(web, "_adres_denetle", return_value="93.184.216.34"):  # çözümleme yok; yerel ağ engeli test_kucuk_duzeltmeler'de
             with self._akis("<title>T</title><p>gövde</p>".encode()):
                 self.assertEqual(web.oku("http://x"), "T\n\ngövde")
             with self._akis(durum=404):

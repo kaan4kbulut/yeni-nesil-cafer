@@ -227,7 +227,8 @@ def classify(name: str, args: dict, workspace: str) -> tuple[str, list[str]]:
         if re.search(pattern, text, re.I):
             return FORBIDDEN, [why]
     findings = [why for pattern, why in _HIGH if re.search(pattern, text)]
-    if re.search(r"\.ssh/|\.gnupg|\.aws/|\.netrc|keyring|anahtarlar\.json|/etc/shadow|\.password-store|"
+    if re.search(r"\.ssh/|\.gnupg|\.aws/|\.netrc|keyring|secretstorage|SecretService|kwallet|anahtarlar\.json|bulut\.json|"
+                 r"/etc/shadow|\.password-store|"
                  r"\.mozilla/[^\n]*(logins|key4)|Login Data", text):
         findings.append("gizli anahtar ya da parola dosyalarına erişiyor")  # okumak bile yüksek risk
     outside = _outside_paths(text, workspace)

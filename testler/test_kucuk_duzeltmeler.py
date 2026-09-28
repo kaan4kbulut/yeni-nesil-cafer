@@ -121,13 +121,13 @@ class WebOku(unittest.TestCase):
 
     def test_govde_siniri(self):
         buyuk = b"<title>T</title><p>" + b"a" * (web.EN_COK_BAYT + 100_000) + b"</p>"
-        with self._akis(buyuk), mock.patch.object(web, "_adres_denetle"):
+        with self._akis(buyuk), mock.patch.object(web, "_adres_denetle", return_value="93.184.216.34"):
             metin = web.oku("http://ornek.test/")
         self.assertLessEqual(len(metin.encode()), web.EN_COK_BAYT + 1000)
         self.assertIn("kesildi", metin)  # kullanıcı/model gövdenin kısaltıldığını görür
 
     def test_normal_okuma(self):
-        with self._akis(b"<title>T</title><p>g\xc3\xb6vde</p>"), mock.patch.object(web, "_adres_denetle"):
+        with self._akis(b"<title>T</title><p>g\xc3\xb6vde</p>"), mock.patch.object(web, "_adres_denetle", return_value="93.184.216.34"):
             self.assertEqual(web.oku("http://ornek.test/"), "T\n\ngövde")
 
 

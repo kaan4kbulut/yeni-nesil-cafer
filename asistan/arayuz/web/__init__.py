@@ -27,6 +27,12 @@ DOSYALAR = {"/": ("index.html", "text/html"), "/stil.css": ("stil.css", "text/cs
             "/simge.svg": ("simge.svg", "image/svg+xml")}
 
 
+def maskele(anahtar: str) -> str:
+    """K12-B10: anahtar günlüğe (docker/journald) tam yazılmaz; tamamı `bulut.json`/`CAFER_TOKEN`'da."""
+    a = str(anahtar or "")
+    return (a[:4] if len(a) >= 12 else "") + f"…({len(a)} karakter)"
+
+
 def anahtar_bul() -> str:
     """`CAFER_TOKEN` → `bulut.json → token` (cloud_server ilk açılışta üretir) → rastgele (ekrana yazılır)."""
     import os
@@ -371,7 +377,7 @@ def calistir(host: str = "127.0.0.1", port: int = 8765, telegram: bool = True) -
 
     app = uygulama()
     print(f"YENİ NESİL CAFER · sunucu — http://{host}:{port}  (kademe: {profil.kademe()})")
-    print(f"Erişim anahtarı (CAFER_TOKEN): {app.state.anahtar}")
+    print(f"Erişim anahtarı (CAFER_TOKEN): {maskele(app.state.anahtar)} — tamamı bulut.json'da (günlüğe yazılmaz)")
     if telegram:
         try:
             from ... import cloud_server

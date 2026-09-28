@@ -27,7 +27,11 @@ from pathlib import Path
 PROJE = Path(__file__).resolve().parent.parent
 PAKET = Path(__file__).resolve().parent
 ATLA = {".venv", "__pycache__", ".git", "paketleme", ".pytest_cache", ".ruff_cache", "modeller", "python", "ollama",
-        "ajan-kutuphaneleri", "tarayici", "dist"}  # dist: bulut sunucusu paketi (kuruluma girmez)
+        "ajan-kutuphaneleri", "tarayici", "dist",  # dist: bulut sunucusu paketi (kuruluma girmez)
+        ".cafer", ".claude", "NOTLAR", "sunucu", ".github"}  # K12-B9: geliştirici artıkları, sunucu/.env (anahtarlar)
+# adıyla hariç: sunucu ayarları; sınav kayıtları (model konuşmaları, makine yolları)
+ATLA_ADLAR = {".env"}
+ATLA_YOLLAR = (("testler", "sinav", "sonuclar"),)
 # Playwright'ın Chromium'u hangi sistem için indirileceği (Linux'tan Windows sürümü de indirilebilir)
 PW_PLATFORM = {"windows": "win64", "linux": ""}
 ONBELLEK = Path.home() / ".cache" / "yeni-nesil-cafer-paketleme"
@@ -255,6 +259,8 @@ def program_dosyalari():
     for path in sorted(PROJE.rglob("*")):
         rel = path.relative_to(PROJE)
         if path.is_dir() or any(part in ATLA for part in rel.parts) or path.suffix == ".pyc":
+            continue
+        if rel.name in ATLA_ADLAR or any(rel.parts[:len(y)] == y for y in ATLA_YOLLAR):
             continue
         if rel.name in ("calistir.sh",):  # geliştirici başlatıcısı; kurulum kendi başlatıcısını yazar
             continue

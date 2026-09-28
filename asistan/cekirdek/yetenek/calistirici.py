@@ -150,6 +150,15 @@ def _ortam(yetenek: Yetenek, gecici: str, kutuphane_yollari, anahtar_bul) -> dic
     return ortam
 
 
+def sandbox_isi_yasaklari() -> dict:
+    """Sandbox kancasının hiçbir izinle açmadığı yerler: ayar klasörü, DATA_DIR'deki gizli klasörler (K12-B5), gizli
+    dosya adları."""
+    from ..araclar.temel import GIZLI_DOSYALAR, gizli_yollar
+    from ..ayar import CONFIG_DIR, DATA_DIR
+
+    return {"yasak_kokler": [str(CONFIG_DIR), *map(str, gizli_yollar(DATA_DIR))], "yasak_adlar": sorted(GIZLI_DOSYALAR)}
+
+
 def _durdur(proc: subprocess.Popen) -> None:
     try:
         if sys.platform == "win32":
@@ -173,14 +182,11 @@ def kum_havuzunda(yetenek: Yetenek, girdi: dict, baglam: Baglam, *, python: str 
     sure = max(1, min(yetenek.zaman_asimi, ust_sinir if ust_sinir is not None else ust_zaman_siniri()))
     gecici = tempfile.mkdtemp(prefix=f"yetenek-{yetenek.ad}-")
     ayar = {k: v for k, v in dict(baglam.ayar or {}).items() if isinstance(v, (str, int, float, bool, type(None)))}
-    from ..araclar.temel import GIZLI_DOSYALAR
-    from ..ayar import CONFIG_DIR
     is_ = {"ad": yetenek.ad, "yetenek_klasoru": str(yetenek.klasor.resolve()),
            "calisma_klasoru": str(Path(baglam.calisma_klasoru).resolve()),
            "okuma_kokleri": [str(k) for k in baglam.okuma_kokleri], "kademe": baglam.kademe, "ayar": ayar,
            "izinler": yetenek.izinler, "gecici": gecici, "program_koku": str(PROGRAM_KOKU),
-           "kutuphane_yollari": [str(y) for y in kutuphane_yollari], "girdi": girdi,
-           "yasak_kokler": [str(CONFIG_DIR)], "yasak_adlar": sorted(GIZLI_DOSYALAR)}
+           "kutuphane_yollari": [str(y) for y in kutuphane_yollari], "girdi": girdi, **sandbox_isi_yasaklari()}
     onek = () if "ag" in yetenek.izinler else _agsiz_onek()
     argv = [*onek, exe, "-B", str(GIRIS)]
     try:

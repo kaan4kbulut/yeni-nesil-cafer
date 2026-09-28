@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 
 from .. import ayar
-from .temel import GIZLI_DOSYALAR, AracHatasi
+from .temel import GIZLI_DOSYALAR, AracHatasi, gizli_yollar
 
 
 def yol_coz(kok: Path, okuma_kokleri: list[Path], yol: str, okuma: bool = False) -> Path:
@@ -18,6 +18,8 @@ def yol_coz(kok: Path, okuma_kokleri: list[Path], yol: str, okuma: bool = False)
         raise AracHatasi("This file holds the user's API keys and cannot be read.")
     if okuma and hedef.is_relative_to(ayar.CONFIG_DIR.resolve()):  # ayar klasörü okuma kökü olsa da (anahtarlar orada)
         raise AracHatasi("The program's settings folder cannot be read.")
+    if okuma and any(hedef == g or hedef.is_relative_to(g) for g in map(Path.resolve, gizli_yollar(ayar.DATA_DIR))):
+        raise AracHatasi("This folder holds the browser session / server logs and cannot be read.")  # K12-B5
     if hedef.is_relative_to(kok):
         return hedef
     if okuma and any(hedef.is_relative_to(r) for r in okuma_kokleri):

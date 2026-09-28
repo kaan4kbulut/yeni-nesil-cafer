@@ -199,9 +199,12 @@ def _offline_prefix() -> list[str]:
 def install_packages(packages: list[str]) -> str:
     from .tools import python_exe
 
+    from .cekirdek.araclar import komut
+
     PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
     out = subprocess.run([python_exe(), "-m", "pip", "install", "--disable-pip-version-check", "--target",
-                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
+                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, encoding="utf-8",
+                         errors="replace", timeout=900, env=komut.guvenli_ortam(os.environ))  # K12-B3: kurulum kancaları sır görmez
     if out.returncode != 0:
         lines = [ln for ln in (out.stderr or out.stdout).splitlines() if ln.strip()]
         raise FactoryError("paket kurulamadı: " + " | ".join(lines[-4:]))
@@ -209,9 +212,13 @@ def install_packages(packages: list[str]) -> str:
 
 
 def sandbox_test(tool: dict) -> tuple[bool, str]:
-    """(geçti mi, çıktı). Geçici klasörde, internetsiz, zaman sınırlı."""
+    """(geçti mi, çıktı). Geçici klasörde, internetsiz, zaman sınırlı.
+    K12-B8: Linux'ta `unshare -rn` yoksa "internetsiz" sözü tutulamaz → test koşulmaz, araç kaydedilmez."""
     from .tools import python_exe
 
+    if sys.platform == "linux" and not _offline_prefix():
+        return False, ("araç sandbox'ı izole edilemedi: bu sistemde `unshare -rn` çalışmıyor (util-linux / kullanıcı ad "
+                       "alanı); modelin yazdığı kod ağsız koşturulamadığı için fabrika aracı kaydedilmedi")
     with tempfile.TemporaryDirectory(prefix="arac-sinav-") as tmp:
         d = Path(tmp)
         (d / "arac.py").write_text(tool["code"], encoding="utf-8")
@@ -302,13 +309,20 @@ def tools() -> list[dict]:
     return out
 
 
+def git_ortami() -> dict:
+    """K12-B3: git alt sürecine beyaz listeli ortam + kimlik (sırlar geçmez)."""
+    from .cekirdek.araclar import komut
+
+    return komut.guvenli_ortam(os.environ, ek={"GIT_AUTHOR_NAME": "YENİ NESİL CAFER", "GIT_AUTHOR_EMAIL": "asistan@localhost",
+                                               "GIT_COMMITTER_NAME": "YENİ NESİL CAFER", "GIT_COMMITTER_EMAIL": "asistan@localhost"})
+
+
 def _git(*args: str) -> None:
     """Araç klasörü git ile sürümlenir (asistanın yaptığı her ekleme/silme geri alınabilsin)."""
     if not shutil.which("git"):
         return
     TOOLS_DIR.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "GIT_AUTHOR_NAME": "YENİ NESİL CAFER", "GIT_AUTHOR_EMAIL": "asistan@localhost",
-           "GIT_COMMITTER_NAME": "YENİ NESİL CAFER", "GIT_COMMITTER_EMAIL": "asistan@localhost"}
+    env = git_ortami()
     if not (TOOLS_DIR / ".git").exists():
         subprocess.run(["git", "init", "-q"], cwd=TOOLS_DIR, env=env, capture_output=True)
     subprocess.run(["git", "add", "-A"], cwd=TOOLS_DIR, env=env, capture_output=True)

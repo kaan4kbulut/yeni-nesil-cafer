@@ -103,6 +103,12 @@ def _yeni_eslesme_kodu() -> str:
     return secrets.token_urlsafe(9)  # 12 karakter (6 haneli sayı sınırsız denemeyle kırılıyordu)
 
 
+def maskele(anahtar: str) -> str:
+    """K12-B10: anahtar günlüğe tam yazılmaz."""
+    a = str(anahtar or "")
+    return (a[:4] if len(a) >= 12 else "") + f"…({len(a)} karakter)"
+
+
 def save_config(conf: dict) -> None:
     CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
     tmp = CONFIG_FILE.with_suffix(".tmp")
@@ -448,7 +454,8 @@ def make_server(conf: dict | None = None) -> ThreadingHTTPServer:
 def main() -> None:
     conf = load_config()
     print(f"YENİ NESİL CAFER · bulut — http://{conf['host']}:{conf['port']}  (model: {conf['model']})")
-    print(f"Erişim anahtarı (programın Ayarlar → Bulut asistan kısmına ve web sayfasına): {conf['token']}")
+    print(f"Erişim anahtarı (programın Ayarlar → Bulut asistan kısmına ve web sayfasına): {maskele(conf['token'])} — "
+          f"tamamı {CONFIG_FILE} içinde 'token'")
     if conf.get("telegram_token") and not conf.get("telegram_chat"):
         print(f"Telegram: bota şunu yaz → /baglan {conf['pair_code']}")
     elif not conf.get("telegram_token"):

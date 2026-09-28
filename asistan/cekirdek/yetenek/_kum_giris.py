@@ -11,14 +11,18 @@ Kanca manifestteki `izinler`i uygular:
 - silme: `dosya_sil` ile yalnızca çalışma klasörü (+ geçici klasör hep)
 - ağ: `ag` yoksa soket bağlantısı ve ad çözümleme engelli (Linux'ta ayrıca ağsız ad alanı: `unshare -rn`)
 - alt süreç / ctypes: `komut` yoksa engelli
-Denetim kancası tek başına kesin bir sınır değildir; asıl sınırlar ayrı süreç, zaman aşımı, anahtarsız ortam ve ağsız
-ad alanıdır. Kanca, iyi niyetli ama yanlış kodu ve bilinen yolları durdurur.
+Denetim kancası tek başına kesin bir sınır değildir (`gc.get_referrers` gibi yollarla yamalanan işlev bulunabilir);
+asıl sınırlar ayrı süreç, zaman aşımı, anahtarsız ortam ve ağsız ad alanıdır. Kanca, iyi niyetli ama yanlış kodu ve
+bilinen yolları durdurur; işletim sistemi düzeyinde yalıtım (bubblewrap/seccomp) SORULAR K12'de ertelendi.
 """
 
 import json
 import os
 import sys
 import traceback
+
+
+_KOMUT_MODULLERI = {"_posixsubprocess", "_winapi", "_multiprocessing", "multiprocessing", "pty"}
 
 
 def _kokler(liste) -> list[str]:
@@ -107,9 +111,12 @@ def kanca_kur(is_: dict) -> None:
                       "os.forkpty", "pty.spawn", "os.startfile", "ctypes.dlopen", "ctypes.dlsym"):
             if "komut" not in izin:
                 red(f"{olay} (izin: komut yok)")
+        elif olay == "import" and "komut" not in izin and args and args[0] in _KOMUT_MODULLERI:
+            # K12-B1: fork_exec yaması sys.modules'tan silinip modül yeniden içe aktarılarak atlatılıyordu (inceleme b);
+            # taze `_posixsubprocess`/`_winapi` yüklenemez (import olayı yalnızca sys.modules'ta olmayan modülde gelir)
+            red(f"{args[0]} içe aktarma (izin: komut yok)")
 
-    sys.addaudithook(kanca)
-    if "komut" not in izin:  # subprocess'in fork_exec'i denetim olayı üretmez: yol kapatılır
+    if "komut" not in izin:  # subprocess'in fork_exec'i denetim olayı üretmez: yol kapatılır (kancadan ÖNCE yüklenir)
         def kapali(*_a, **_k):
             red("alt süreç (izin: komut yok)")
         try:
@@ -121,6 +128,7 @@ def kanca_kur(is_: dict) -> None:
                 subprocess._fork_exec = kapali
         except ImportError:  # Windows: CreateProcess yolu "subprocess.Popen" olayıyla kapalı
             pass
+    sys.addaudithook(kanca)
 
 
 def main() -> int:

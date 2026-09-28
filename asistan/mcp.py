@@ -27,6 +27,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek.araclar import komut as _komut
 from .config import CONFIG_DIR, DATA_DIR
 from .registry import REGISTRY, Tool, safe_name
 
@@ -60,6 +61,13 @@ def load_config() -> dict:
 # ---------------------------------------------------------------- bağlantılar
 
 
+def sunucu_ortami(conf: dict) -> dict:
+    """K12-B2: MCP sunucusu (npx/uvx ile inen üçüncü taraf kod) yalnızca beyaz listeli ortamı + mcp.json'daki `env`'i
+    görür; ANTHROPIC_API_KEY / CAFER_* / OPENAI_API_KEY geçmez (CLAUDE.md pazarlık dışı)."""
+    ek = {str(k): str(v) for k, v in (conf.get("env") or {}).items()}
+    return _komut.guvenli_ortam(os.environ, ek=ek)
+
+
 class _Stdio:
     """Yerel süreç: stdin'e istek yazılır, stdout'tan satır satır cevap okunur."""
 
@@ -67,7 +75,7 @@ class _Stdio:
         command = os.path.expanduser(str(conf.get("command") or ""))
         exe = shutil.which(command) or command  # Windows: npx → npx.cmd
         args = [os.path.expanduser(str(a)) for a in conf.get("args") or []]
-        env = {**os.environ, **{str(k): str(v) for k, v in (conf.get("env") or {}).items()}}
+        env = sunucu_ortami(conf)
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         self.log = open(LOG_DIR / f"{safe_name(name)}.log", "ab")
         try:

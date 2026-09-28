@@ -68,6 +68,36 @@ def claude_code_available() -> bool:
     return shutil.which("claude") is not None
 
 
+SALT_OKUNUR_YASAK = "Bash,Edit,Write,MultiEdit,NotebookEdit"  # K12-B6: kullanıcının global ayarı yazma açsa da
+DUZENLEME_YASAK = "Bash"  # edits=True: dosya düzenler, komut çalıştırmaz (docstring'deki söz artık bayrakla)
+
+
+def claude_komutu(exe: str, prompt: str, model: str, edits: bool, system: str) -> list[str]:
+    """`claude -p` komut satırı: salt okunur çağrıda dosya/komut araçları kapalı (`--disallowedTools`)."""
+    cmd = [exe, "-p", prompt, "--output-format", "text"]
+    if model and model != CLAUDE_CODE[1]:
+        cmd += ["--model", model]
+    if edits:
+        cmd += ["--permission-mode", "acceptEdits", "--disallowedTools", DUZENLEME_YASAK]
+    else:
+        cmd += ["--disallowedTools", SALT_OKUNUR_YASAK]
+    if system:
+        cmd += ["--append-system-prompt", system]
+    return cmd
+
+
+def claude_ortami() -> dict:
+    """K12-B3: beyaz listeli ortam (ANTHROPIC_API_KEY geçmez: abonelik hesabı kullanılır, API faturası değil) + Claude
+    Code'un kendi CLAUDE_* ayarları; iç içe oturum sayılmasın diye CLAUDECODE*/CLAUDE_CODE_ENTRYPOINT yok."""
+    import os
+
+    from .cekirdek.araclar import komut
+
+    ek = {k: v for k, v in os.environ.items()
+          if k.startswith("CLAUDE_") and not k.startswith("CLAUDECODE") and k != "CLAUDE_CODE_ENTRYPOINT"}
+    return komut.guvenli_ortam(os.environ, ek=ek)
+
+
 def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, cancelled=None,
                 timeout: int = 1800, model: str = "") -> str:
     """Claude Code'u komut satırından çalıştırır (`claude -p`); yanıt metnini döndürür.
@@ -75,7 +105,6 @@ def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, ca
     edits=True: çalışma klasöründeki dosyaları düzenleyebilir (komut çalıştırmak yine kapalı).
     cancelled: çağrılabilir; True dönerse süreç durdurulur ve Cancelled benzeri bir hata atılır.
     """
-    import os
     import shutil
     import subprocess
     import time
@@ -83,15 +112,8 @@ def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, ca
     exe = shutil.which("claude")
     if exe is None:
         raise RuntimeError("Claude Code bulunamadı. Kurmak için: https://claude.com/claude-code")
-    cmd = [exe, "-p", prompt, "--output-format", "text"]
-    if model and model != CLAUDE_CODE[1]:
-        cmd += ["--model", model]
-    if edits:
-        cmd += ["--permission-mode", "acceptEdits"]
-    if system:
-        cmd += ["--append-system-prompt", system]
-    # başka bir Claude Code oturumundan başlatıldıysa iç içe oturum sayılmasın
-    env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDECODE") and k != "CLAUDE_CODE_ENTRYPOINT"}
+    cmd = claude_komutu(exe, prompt, model, edits, system)
+    env = claude_ortami()
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     start = time.time()

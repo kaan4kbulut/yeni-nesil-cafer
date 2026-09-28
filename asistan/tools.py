@@ -73,6 +73,18 @@ def agent_env() -> dict:
         paths.append(os.environ["PYTHONPATH"])
     return {**os.environ, "PYTHONPATH": os.pathsep.join(paths), "PYTHONIOENCODING": "utf-8", "PYTHONUTF8": "1", "MPLBACKEND": "Agg"}
 
+
+def guvenli_ajan_ortami() -> dict:
+    """K12-B3: ajan kütüphaneli Python ortamı, beyaz listeden geçmiş (pip kurulumu, 3D denetimi, dekor üretimi sır görmez)."""
+    return a_komut.guvenli_ortam(agent_env())
+
+
+def uygulama_ortami() -> dict:
+    """K12-B3: `open_app` ile başlayan masaüstü uygulaması oturum değişkenlerini (DISPLAY, DBUS, XDG) alır, sırları almaz."""
+    import os
+
+    return a_komut.guvenli_ortam(os.environ)
+
 TOOL_SPECS = [
     {
         "name": "list_files",
@@ -957,7 +969,7 @@ class Toolbox:
         if not re.fullmatch(r"\s*\d+(\.\d+)?\s*x\s*\d+(\.\d+)?\s*x\s*\d+(\.\d+)?\s*", bed or ""):
             raise ToolError("bed must look like 220x220x250 (mm)")
         out = subprocess.run([python_exe(), "-c", _CHECK_3D, str(target), bed.replace(" ", "")], capture_output=True,
-                             text=True, encoding="utf-8", errors="replace", timeout=120, env=agent_env(), creationflags=NO_WINDOW)
+                             text=True, encoding="utf-8", errors="replace", timeout=120, env=guvenli_ajan_ortami(), creationflags=NO_WINDOW)
         if out.returncode != 0:
             if "No module named 'trimesh'" in out.stderr:
                 raise ToolError("trimesh is not installed: install it with install_python_package (trimesh "
@@ -985,7 +997,7 @@ class Toolbox:
                 raise missing_image(self.root, image)
             args["image"] = str(picture)
         out = subprocess.run([python_exe(), str(DECOR_SCRIPT), json.dumps(args)], capture_output=True, text=True,
-                             encoding="utf-8", errors="replace", timeout=300, env=agent_env(), creationflags=NO_WINDOW)
+                             encoding="utf-8", errors="replace", timeout=300, env=guvenli_ajan_ortami(), creationflags=NO_WINDOW)
         if out.returncode != 0:
             last = (out.stderr.strip().splitlines() or ["?"])[-1]
             if "No module named" in last:
@@ -1068,16 +1080,17 @@ class Toolbox:
         if engel:
             raise ToolError(engel)
         detached = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
-                    "cwd": str(Path.home())}
+                    "cwd": str(Path.home()), "env": uygulama_ortami()}  # K12-B3: sırlar uygulamaya geçmez
         if sys.platform == "win32":
             ps = f"Start-Process -FilePath {_ps_tirnak(name)}"
             proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                  timeout=30, creationflags=NO_WINDOW)
+                                  timeout=30, creationflags=NO_WINDOW, env=uygulama_ortami())
             if proc.returncode:
                 return f"'{name}' NOT FOUND or could not start: {proc.stderr.strip()[:500]}"
             return f"Opened '{name}'."
         if sys.platform == "darwin":
-            proc = subprocess.run(["open", "-a", name], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30)
+            proc = subprocess.run(["open", "-a", name], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
+                                  env=uygulama_ortami())
             return f"Opened '{name}'." if proc.returncode == 0 else f"'{name}' NOT FOUND: {proc.stderr.strip()}"
 
         # Linux: uygulama menüsündeki .desktop dosyalarında ad, Türkçe ad, anahtar kelime ve dosya adına bak
@@ -1180,7 +1193,7 @@ class Toolbox:
         return bildirim.gonder(str(title)[:100], str(text)[:2000])
 
     def _run_process(self, argv: list[str], python: bool = False, env: dict | None = None) -> str:
-        return a_komut.surec(argv, self.root, agent_env() if python else env, COMMAND_TIMEOUT)
+        return a_komut.surec(argv, self.root, guvenli_ajan_ortami() if python else env, COMMAND_TIMEOUT)
 
     def _tool_run_command(self, command: str, purpose: str = "") -> str:
         return a_komut.komut_calistir(command, self.root, python_yolu=python_exe, ajan_ortami=agent_env,

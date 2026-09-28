@@ -121,6 +121,15 @@ def installed(provider: str) -> bool:
     return False
 
 
+def ajan_ortami() -> dict:
+    """K12-B3: CLI ajanına (Codex/Gemini) beyaz listeli ortam + Node/npm ve ajanın kendi ayar değişkenleri; ANTHROPIC_API_KEY
+    ve CAFER_* geçmez (kullanıcının hesabıyla çalışır, programın anahtarlarıyla değil)."""
+    from .cekirdek.araclar import komut
+
+    ek = {k: v for k, v in os.environ.items() if k.startswith(("NODE", "NPM_", "CODEX", "GEMINI", "GOOGLE_"))}
+    return komut.guvenli_ortam(os.environ, ek=ek)
+
+
 def _run(cmd: list[str], timeout: float = 20, env: dict | None = None) -> subprocess.CompletedProcess | None:
     try:
         flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
@@ -330,7 +339,7 @@ def login(provider: str, cancelled=lambda: False, timeout: float = 600) -> None:
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", errors="replace", creationflags=flags,
-                            cwd=tempfile.gettempdir())
+                            cwd=tempfile.gettempdir(), env=ajan_ortami())
     if feed:
         proc.stdin.write(feed)
         proc.stdin.flush()
@@ -418,7 +427,7 @@ def run(provider: str, prompt: str, cwd: str, system: str = "", edits: bool = Fa
             cmd += ["-m", model]
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, encoding="utf-8", errors="replace", creationflags=flags)
+                            text=True, encoding="utf-8", errors="replace", creationflags=flags, env=ajan_ortami())
     lines: "list[str]" = []
     errors: "list[str]" = []
     err_reader = threading.Thread(target=lambda: errors.extend(proc.stderr), daemon=True)
