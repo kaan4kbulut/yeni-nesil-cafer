@@ -441,6 +441,7 @@ makinede açılıp sihirbazdan geçiyor; uygulama içi güncelleme yeni sürüm�
 | 2026-09-27 | 1 (taban) | sohbet modeli (otomatik: qwen2.5:14b) | — | 15/30 (15 görev ×2, %50) | 7,7 + 7,9 dk | ilk ölçüm; süre sınırı olmasa 19/30; hep ✓ 5, hep ✗ 5, kararsız 5; --hepsi 9/20 |
 | 2026-09-27 | K0 | — | — | koşulmadı (kod değişmedi) | — | birim 249 ✓ / 21 atlandı (`.venv`); arayüz denetimi 714 eylem, 0 hata |
 | 2026-09-28 | K2 | — | — | koşulmadı (model seçimi değişmedi: sabitler birebir aynı) | — | birim 360 ✓ / 21 atlandı (`.venv`); arayüz denetimi 722 eylem, 0 hata; kademe bu makinede `yuksek` |
+| 2026-09-28 | 3.1 hazırlık | sohbet modeli (qwen2.5:14b), motor açık | — | 9/32 (16 görev ×2, %28) | 17,0 dk | tek koşular %12 ve %25; 22. görev (yazdı-ama-yapmadı-2) 0/4; v3.1 kapısı (%33) geçilmedi, etiket atılmadı |
 
 ## Sonraya (aşamaları bölmemek için buraya)
 
