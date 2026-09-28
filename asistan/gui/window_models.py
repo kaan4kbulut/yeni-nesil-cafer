@@ -7,6 +7,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import cards, catalog, cli_agents, roster, specialists, sysinfo
+from ..cekirdek import modeller
 from ..config import CLAUDE_MODELS
 
 from .sidebar import run_in_background
@@ -16,8 +17,7 @@ from .theme import C
 _NOT_CHAT = ("embed", "tts", "image", "audio", "whisper", "dall-e", "moderation", "realtime", "transcribe", "imagen",
              "veo", "aqa", "learnlm")
 
-_CODE_HINTS = ("codex", "coder", "codestral", "devstral", "gpt-6", "gpt-5", "gemini-3", "grok", "deepseek",
-               "mistral-medium", "claude")
+_CODE_HINTS = tuple(modeller.deger("aileler.kod_menusu"))  # ayar/modeller.json
 
 
 def _upper_tr(text: str) -> str:
@@ -326,19 +326,36 @@ class ModelsMixin:
             self._set_default_model(kind, value)
 
     # ---- Offline: yerel modeller
-    def _system_info(self):
-        """Sistem taraması (menü her açıldığında taramamak için kısa süre saklanır)."""
+    def _system_info(self, arka_plan: bool = True):
+        """Sistem taraması; sonuç 60 sn saklanır. K12-D3: tarama (`ensure_ollama` 15 sn bekleme, model başına
+        `/api/show`) ARKA PLANDA yapılır; elde sonuç yoksa None döner (menü "taranıyor…" gösterir), eskiyse eski sonuç
+        döner ve arkada yenilenir. `arka_plan=False`: eşzamanlı (arayüz dışı çağıranlar)."""
         import time as _time
 
         cached = getattr(self, "_sysinfo_cache", None)
-        if cached is None or _time.time() - cached[0] > 60:
+        eski = cached is None or _time.time() - cached[0] > 60
+        if eski and not arka_plan:
             cached = self._sysinfo_cache = (_time.time(), sysinfo.scan(self.settings.ollama_url))
-        return cached[1]
+        elif eski and not getattr(self, "_sysinfo_taraniyor", False):
+            self._sysinfo_taraniyor = True
+            url = self.settings.ollama_url
+
+            def bitti(info, error):
+                self._sysinfo_taraniyor = False
+                if error is None and info is not None:
+                    self._sysinfo_cache = (_time.time(), info)
+
+            run_in_background(lambda: sysinfo.scan(url), bitti, self)
+        return cached[1] if cached else None
 
     def _fill_offline(self, menu: QMenu, live):
         from .. import model_updates
 
         info = self._system_info()
+        if info is None:  # K12-D3: ilk tarama arka planda sürüyor
+            menu.addSeparator()
+            menu.addAction("sistem taranıyor… (menüyü birazdan yeniden aç)").setEnabled(False)
+            return
         installed = set(info.ollama_models)
         menu.addSeparator()
         best = menu.addMenu("Bugünün en iyi 10'u  ·  sistemine göre")  # alt menü: ana menü ekranı kaplamasın
@@ -373,7 +390,7 @@ class ModelsMixin:
             self._local_action(sub, {"model": u["model"], "size": u["size"], "fits": u["size"] <= budget},
                                "uncensored", installed, n)
         # kurulu modeller tek bir alt menüde: menü ekranı kaplamasın
-        local = [c for c in roster.candidates(self.settings, refresh=True) if c.local]
+        local = [c for c in roster.candidates(self.settings, refresh=False) if c.local]  # K12-D3: menüde N×/api/show yok
         menu.addSeparator()
         mine = menu.addMenu(f"Kurulu modeller  ·  {len(local)}")
         for c in sorted(local, key=lambda c: -c.score):

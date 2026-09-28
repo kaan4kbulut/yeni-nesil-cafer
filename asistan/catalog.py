@@ -7,6 +7,13 @@ liste yalnızca "öne çıkanlar"dır: bir firmaya bağlanınca hesabın gerçek
 
 from dataclasses import dataclass, field
 
+from .cekirdek import modeller
+
+
+def _katalog(firma: str, tur: str) -> list:
+    """Firmanın öne çıkan modelleri [(model id, kısa açıklama)] — ayar/modeller.json → bulut_katalog."""
+    return [tuple(m) for m in modeller.deger(f"bulut_katalog.{firma}.{tur}", [])]
+
 
 @dataclass
 class Provider:
@@ -26,63 +33,59 @@ class Provider:
 PROVIDERS = [
     Provider(
         "anthropic", "Anthropic · Claude", "anthropic", "anthropic.com", "https://console.anthropic.com/settings/keys",
-        chat=[("claude-opus-5-5", "önerilen"), ("claude-fable-5-1", "en güçlü"), ("claude-sonnet-5", "dengeli"),
-              ("claude-haiku-4-5", "hızlı, ucuz")],
-        code=[("claude-opus-5-5", "önerilen"), ("claude-fable-5-1", "en zor işler"), ("claude-sonnet-5", "dengeli")],
+        chat=_katalog("anthropic", "chat"),
+        code=_katalog("anthropic", "code"),
         login="cli:claude",
     ),
     Provider(
         "openai", "OpenAI · GPT", "OpenAI", "openai.com", "https://platform.openai.com/api-keys",
-        chat=[("gpt-6-astra", "en güçlü"), ("gpt-6-sol", "dengeli"), ("gpt-6-luna", "hızlı, ucuz")],
-        code=[("gpt-6-sol", "kod ve ajan işleri"), ("gpt-6-astra", "en zor işler"), ("gpt-6-luna", "hızlı, ucuz")],
+        chat=_katalog("openai", "chat"),
+        code=_katalog("openai", "code"),
         login="cli:codex",
     ),
     Provider(
         "google", "Google · Gemini", "Google Gemini", "googleapis.com", "https://aistudio.google.com/apikey",
         note="ücretsiz kota var",
-        chat=[("gemini-3.8-flash", "önerilen"), ("gemini-3.1-pro-preview", "en güçlü, önizleme"),
-              ("gemini-3.5-flash-lite", "hızlı, ucuz")],
-        code=[("gemini-3.8-flash", "yazılım ve ajan işleri"), ("gemini-3.1-pro-preview", "en güçlü, önizleme")],
+        chat=_katalog("google", "chat"),
+        code=_katalog("google", "code"),
         login="cli:gemini",
     ),
     Provider(
         "xai", "xAI · Grok", "xAI (Grok)", "x.ai", "https://console.x.ai",
-        chat=[("grok-4.7", "en güçlü")],
-        code=[("grok-4.7", "kod dahil her iş")],
+        chat=_katalog("xai", "chat"),
+        code=_katalog("xai", "code"),
     ),
     Provider(
         "deepseek", "DeepSeek", "DeepSeek", "deepseek.com", "https://platform.deepseek.com/api_keys",
         note="çok ucuz",
-        chat=[("deepseek-v4-pro", "güçlü"), ("deepseek-flash", "hızlı, ucuz")],
-        code=[("deepseek-v4-pro", "güçlü"), ("deepseek-flash", "hızlı, ucuz")],
+        chat=_katalog("deepseek", "chat"),
+        code=_katalog("deepseek", "code"),
     ),
     Provider(
         "groq", "Groq", "Groq", "groq.com", "https://console.groq.com/keys",
         note="ücretsiz kota, çok hızlı",
-        chat=[("openai/gpt-oss-120b", "en güçlü, düşünür"), ("llama-3.3-70b-versatile", "dengeli"),
-              ("llama-3.1-8b-instant", "en hızlı")],
-        code=[("openai/gpt-oss-120b", "kod ve ajan işleri"), ("openai/gpt-oss-20b", "hızlı")],
+        chat=_katalog("groq", "chat"),
+        code=_katalog("groq", "code"),
     ),
     Provider(
         "openrouter", "OpenRouter", "OpenRouter", "openrouter.ai", "https://openrouter.ai/settings/keys",
         note="tek anahtarla yüzlerce model, ücretsizler dahil",
-        chat=[("openrouter/auto", "işe göre en uygun modeli seçer")],
-        code=[("openrouter/auto", "işe göre en uygun modeli seçer")],
+        chat=_katalog("openrouter", "chat"),
+        code=_katalog("openrouter", "code"),
         login="openrouter",
     ),
     Provider(
         "huggingface", "Hugging Face", "Hugging Face", "huggingface.co", "https://huggingface.co/settings/tokens",
         note="aylık ücretsiz kredi, açık modeller",
-        chat=[("openai/gpt-oss-120b", "güçlü, düşünür"), ("meta-llama/Llama-3.3-70B-Instruct", "dengeli")],
-        code=[("Qwen/Qwen3-Coder-480B-A35B-Instruct", "kod ve ajan işleri"), ("openai/gpt-oss-120b", "genel")],
+        chat=_katalog("huggingface", "chat"),
+        code=_katalog("huggingface", "code"),
         login="huggingface",
     ),
     Provider(
         "mistral", "Mistral", "Mistral", "mistral.ai", "https://console.mistral.ai/api-keys",
         note="ücretsiz kota",
-        chat=[("mistral-medium-latest", "önerilen"), ("mistral-large-latest", "açık ağırlıklı, büyük"),
-              ("mistral-small-latest", "hızlı, ucuz")],
-        code=[("codestral-latest", "kod tamamlama"), ("mistral-medium-latest", "kod ve ajan işleri")],
+        chat=_katalog("mistral", "chat"),
+        code=_katalog("mistral", "code"),
     ),
 ]
 

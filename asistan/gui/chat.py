@@ -174,6 +174,12 @@ class RichText(QWidget):
         self.buffer += delta
         self.dirty = True
 
+    def reset(self):
+        """Yazılanı geri al (yönetici boş vaadi devraldı): parçalar silinir, akış boş sürer."""
+        for w in self.parts:
+            w.deleteLater()
+        self.parts, self.buffer, self.dirty = [], "", False
+
     def flush(self):
         if not self.dirty:
             return
@@ -546,7 +552,12 @@ class PlanCard(QFrame):
         self.rows[i].setText(text)
         done = sum(s.get("status") == "done" for s in self.steps)
         failed = sum(s.get("status") == "failed" for s in self.steps)
-        self.head.setText(f"PLAN  ·  {done}/{len(self.steps)} adım bitti" + (f"  ·  {failed} başarısız" if failed else ""))
+        who = ""  # K3: yönlendiricinin kararı (yönetici değiştiyse "X → Y")
+        if st.get("yonetici"):
+            who = f"  ·  Yönetici: {st['yonetici']}" + (f"  ·  İşçi: {st['secim'].get('model')}"
+                                                        if isinstance(st.get("secim"), dict) else "")
+        self.head.setText(f"PLAN  ·  {done}/{len(self.steps)} adım bitti" + (f"  ·  {failed} başarısız" if failed else "")
+                          + who)
 
 
 class ToolCard(QFrame):
@@ -1203,6 +1214,11 @@ class ChatView(QScrollArea):
             self.turn_pending.append(self.current_text)
             self.current_thinking = None
         self.current_text.append(delta)
+
+    def retract_text(self):
+        """Ajanın konuşup bıraktığı cevap geri alındı (Manager._devral): açık metin akışı boşaltılır, baloncuk kalır."""
+        if self.current_text is not None:
+            self.current_text.reset()
 
     def append_thinking(self, delta: str):
         if self.current_thinking is None:

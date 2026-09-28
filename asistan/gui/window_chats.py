@@ -238,12 +238,39 @@ class ChatsMixin:
                 "çalıştırabilir, web'de araştırma yapabilirim.",
                 lambda: suggest.pick("", folder=folder),  # her açılışta farklı; son sohbetlerine göre kişisel
                 "Attığım her adımı sağ paneldeki adımlarda görebilirsin · Ctrl+J", self._pick_suggestion)
+            self._yarim_gorev_notu()
         self.agent_panel.select(agent_id)
         self.chat_tree.clearSelection()
         self._auto_route()  # üst menüdeki seçim (Online · Offline) açılışta da etikete yansısın
         self._update_header()
         self._update_context_label()
         self.input.setFocus()
+
+    def _yarim_gorev_notu(self):
+        """Görev motoru (K4): bu sohbette — yeni sohbette herhangi bir sohbette — yarım kalan görev varsa tek satır not.
+        "devam et" yazılınca `cekirdek/gorev/sohbet.py` kaldığı yerden sürdürür."""
+        from ..cekirdek.gorev import durum
+
+        try:
+            if not durum.varsayilan_yol().exists():
+                return
+            depo = durum.depo()
+            if self.conv.messages:
+                gorev = next((g for g in depo.sohbetin(self.conv.id) if g.get("durum") in durum.YARIM), None)
+            else:
+                gorev = next((g for g in depo.sohbet_yarim() if g.get("durum") != "bekliyor_kullanici"), None)
+        except Exception:
+            return  # not gösterilemese de sohbet açılır
+        if gorev is None:
+            return
+        if gorev["durum"] == "bekliyor_kullanici":
+            ne = "sorusuna cevap bekliyor; cevabını yaz"
+        elif gorev["durum"] == "bekliyor_onay":
+            ne = "bir adımı onay bekliyor; sürdürmek için «devam et» yaz"
+        else:
+            ne = "yarım kaldı; kaldığı yerden sürdürmek için «devam et» yaz"
+        self.chat.add_notice(f"⏸ Görev «{gorev.get('istek', '')[:80]}» {ne}"
+                             + (" (bırakmak için «vazgeç»)." if self.conv.messages else "."), C["muted"])
 
     def _retry_message(self, text: str):
         """Kullanıcının önceki mesajını aynen yeniden gönderir."""
@@ -402,6 +429,7 @@ class ChatsMixin:
         if conv.provider != self.provider and not self._set_provider_model(conv.provider):
             self._reload_models()
         self.chat.render_history(conv.messages, self.model_box.currentText())
+        self._yarim_gorev_notu()
         if conv.provider != self.provider:
             self.chat.add_notice(
                 "⚠ Bu sohbetin API bağlantısı silinmiş. Devam etmek için API'ler sekmesinden yeniden ekle.",

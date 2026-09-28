@@ -27,6 +27,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 
 ROOT = DATA_DIR / "ajan-programlari"
@@ -44,13 +45,19 @@ class CliAgent:
     tool: str = ""  # sohbetteki adım kartının adı (gui/chat.py TOOL_LABELS)
 
 
-CLAUDE = CliAgent("cli:claude", "claude-code", "Claude Code", "Claude aboneliğin", "Claude aboneliğinle",
-                  [("claude-code", "varsayılan"), ("opus", "en yetenekli"), ("fable", "en güçlü"),
-                   ("sonnet", "dengeli, hızlı"), ("haiku", "en hızlı, en az kullanım")], "claude_code")
-CODEX = CliAgent("cli:codex", "codex", "Codex", "ChatGPT hesabın", "ChatGPT hesabınla",
-                 [("codex", "varsayılan (ChatGPT planına göre)")], "codex")
-GEMINI = CliAgent("cli:gemini", "gemini-cli", "Gemini CLI", "Google hesabın", "Google hesabınla",
-                  [("gemini-cli", "varsayılan (otomatik)"), ("pro", "en güçlü"), ("flash", "hızlı")], "gemini_cli")
+def _takma_adlar(provider: str) -> list:
+    """[(model takma adı, not)] — ayar/modeller.json → cli; ilk sıradaki programın varsayılanı."""
+    return [tuple(m) for m in modeller.deger(f"cli.{provider}", [])]
+
+
+def _cli(provider: str, title: str, account: str, via: str, tool: str) -> CliAgent:
+    models = _takma_adlar(provider)
+    return CliAgent(provider, models[0][0], title, account, via, models, tool)
+
+
+CLAUDE = _cli("cli:claude", "Claude Code", "Claude aboneliğin", "Claude aboneliğinle", "claude_code")
+CODEX = _cli("cli:codex", "Codex", "ChatGPT hesabın", "ChatGPT hesabınla", "codex")
+GEMINI = _cli("cli:gemini", "Gemini CLI", "Google hesabın", "Google hesabınla", "gemini_cli")
 AGENTS = {a.provider: a for a in (CLAUDE, CODEX, GEMINI)}
 
 
@@ -112,6 +119,15 @@ def installed(provider: str) -> bool:
     if provider == GEMINI.provider:
         return bool(gemini_command())
     return False
+
+
+def ajan_ortami() -> dict:
+    """K12-B3: CLI ajanına (Codex/Gemini) beyaz listeli ortam + Node/npm ve ajanın kendi ayar değişkenleri; ANTHROPIC_API_KEY
+    ve CAFER_* geçmez (kullanıcının hesabıyla çalışır, programın anahtarlarıyla değil)."""
+    from .cekirdek.araclar import komut
+
+    ek = {k: v for k, v in os.environ.items() if k.startswith(("NODE", "NPM_", "CODEX", "GEMINI", "GOOGLE_"))}
+    return komut.guvenli_ortam(os.environ, ek=ek)
 
 
 def _run(cmd: list[str], timeout: float = 20, env: dict | None = None) -> subprocess.CompletedProcess | None:
@@ -323,7 +339,7 @@ def login(provider: str, cancelled=lambda: False, timeout: float = 600) -> None:
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     proc = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                             text=True, encoding="utf-8", errors="replace", creationflags=flags,
-                            cwd=tempfile.gettempdir())
+                            cwd=tempfile.gettempdir(), env=ajan_ortami())
     if feed:
         proc.stdin.write(feed)
         proc.stdin.flush()
@@ -411,7 +427,7 @@ def run(provider: str, prompt: str, cwd: str, system: str = "", edits: bool = Fa
             cmd += ["-m", model]
     flags = subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0
     proc = subprocess.Popen(cmd, cwd=cwd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                            text=True, encoding="utf-8", errors="replace", creationflags=flags)
+                            text=True, encoding="utf-8", errors="replace", creationflags=flags, env=ajan_ortami())
     lines: "list[str]" = []
     errors: "list[str]" = []
     err_reader = threading.Thread(target=lambda: errors.extend(proc.stderr), daemon=True)

@@ -10,6 +10,8 @@ import os
 import platform
 import subprocess
 import time
+
+from .cekirdek.baglam import _tahmin_hatalari  # noqa: F401  (testler temizler)
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -127,12 +129,29 @@ def saving(settings) -> bool:
     return state().on_battery
 
 
+def model_ctx(settings) -> int:
+    """K12-C3: bu ajanın modeline özgü bağlam sınırı (`cekirdek.baglam.model_ctx`; ölçüm varsa o, yoksa tahmin)."""
+    from . import ctxprobe
+    from .cekirdek import baglam
+
+    return baglam.model_ctx(settings, tahmin_fn=ctxprobe.tahmin, vram_fn=ctxprobe.gpu_total_mib)
+
+
 def num_ctx(settings) -> int:
-    """Ollama'ya gönderilecek bağlam: hafif modda en çok 8K (uzun geçmiş pilde her adımı dakikalarca bekletir),
-    hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
+    """Ollama'ya gönderilecek bağlam: modele özgü sınır (`model_ctx`), hafif modda en çok 8K (uzun geçmiş pilde her
+    adımı dakikalarca bekletir), hiçbir zaman talimatın sığmayacağı kadar küçük değil (ctxprobe.FLOOR_CTX)."""
+    from .cekirdek import profil
     from .ctxprobe import FLOOR_CTX
 
-    ctx = min(settings.ollama_num_ctx, BATTERY_CTX) if saving(settings) else settings.ollama_num_ctx
+    ctx = model_ctx(settings)
+    ctx = min(ctx, BATTERY_CTX) if saving(settings) else ctx
+    if not profil.acik_mi("uzun_baglam"):  # dusuk kademe: uzun bağlam kapalı
+        ctx = min(ctx, profil.KISA_BAGLAM)
+    from .cekirdek import donanim
+
+    karar_ctx = (donanim.karar() or {}).get("num_ctx")  # K13: pilde yarıya, kısmi GPU'da KV payı
+    if karar_ctx:
+        ctx = min(ctx, int(karar_ctx))
     return max(ctx, FLOOR_CTX)
 
 

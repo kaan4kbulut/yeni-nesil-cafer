@@ -13,6 +13,7 @@ import hashlib
 import json
 import re
 import shutil
+import sys
 import tempfile
 import time
 import zipfile
@@ -26,7 +27,7 @@ from .config import DATA_DIR
 PROGRAM_DIR = Path(__file__).resolve().parent.parent
 STATE_FILE = DATA_DIR / "guncelleme-durum.json"  # kurulan sürüm onaylanana kadar (geri dönüş için)
 BACKUP_DIR = DATA_DIR / "guncelleme-yedek"
-ASSET = "yeni-nesil-cafer-guncelleme-{version}.zip"
+ASSET = "guncelleyici-icin-yeni-nesil-cafer-guncelleme-{version}.zip"  # sürüm sayfasında insan için değil (öneki)
 CHECK_EVERY = 24 * 3600  # otomatik denetim sıklığı
 
 
@@ -42,6 +43,8 @@ def enabled() -> tuple[bool, str]:
     """(açık mı, neden değil). Geliştirme klasöründe ve yazılamayan kurulumda kapalı."""
     if not GITHUB_REPO:
         return False, "Güncelleme deposu tanımlı değil."
+    if getattr(sys, "frozen", False):  # K12-E3: PyInstaller tek dosya — geçici klasöre "güncelleme" sahte döngü yaratıyordu
+        return False, "Tek dosya (PyInstaller) kurulum: uygulama içi güncelleme yok; yeni sürümü indirme sayfasından al."
     if (PROGRAM_DIR / ".git").exists():
         return False, "Geliştirme klasöründen çalışıyor (git deposu): güncellemeler git ile alınır."
     try:
@@ -72,8 +75,17 @@ def latest(timeout: float = 15) -> dict | None:
             "sha_url": sha["browser_download_url"] if sha else "", "page": data.get("html_url", "")}
 
 
+def atlanan_surum() -> str:
+    """K12-E4: geri alınan (açılamayan) sürüm; bir daha önerilmez (`main.rollback_if_needed` yazar)."""
+    try:
+        return str(json.loads(STATE_FILE.with_name("guncelleme-atla.json").read_text(encoding="utf-8")).get("version") or "")
+    except (OSError, ValueError, AttributeError):
+        return ""
+
+
 def newer(info: dict | None) -> bool:
-    return bool(info) and version_tuple(info["version"]) > version_tuple(__version__)
+    return (bool(info) and version_tuple(info["version"]) > version_tuple(__version__)
+            and str(info["version"]) != atlanan_surum())
 
 
 def _expected_sha(info: dict) -> str:
@@ -125,6 +137,12 @@ def _members(z: zipfile.ZipFile) -> list[zipfile.ZipInfo]:
     return ok
 
 
+def _gecici_temizle(package: Path) -> None:
+    """`download`'ın açtığı geçici klasörü siler (yalnızca kendi önekimizle; başka yola dokunulmaz)."""
+    if package.parent.name.startswith("yeni-nesil-cafer-guncelleme-"):
+        shutil.rmtree(package.parent, ignore_errors=True)
+
+
 def apply(package: Path, version: str) -> Path:
     """Paketi kurar: eski sürüm yedeklenir, yeni kod yerine konur; yedeğin yolu döner."""
     stage = Path(tempfile.mkdtemp(prefix="yeni-nesil-cafer-kur-"))
@@ -152,9 +170,11 @@ def apply(package: Path, version: str) -> Path:
         raise
     shutil.rmtree(old, ignore_errors=True)
     shutil.rmtree(stage, ignore_errors=True)
-    STATE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    STATE_FILE.write_text(json.dumps({"from": __version__, "to": version, "backup": str(backup), "tries": 0,
-                                      "time": time.time()}), encoding="utf-8")
+    _gecici_temizle(package)  # K12-F2: indirilen paket ve geçici klasörü
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(STATE_FILE, json.dumps({"from": __version__, "to": version, "backup": str(backup), "tries": 0,
+                                       "time": time.time()}))  # K12-C1: yarım durum dosyası = geri alma kararı bozulur
     return backup
 
 
@@ -169,7 +189,7 @@ def confirm() -> str:
 
 
 def build_package(source_dir: Path, out_dir: Path) -> tuple[Path, str]:
-    """Yayın için kod paketi (paketleme/yayinla.sh): (zip yolu, sha256)."""
+    """Yayın için kod paketi (dagitim/paketle.py --guncelleme, CI): (zip yolu, sha256)."""
     got = re.search(r'__version__ = "([^"]+)"', (source_dir / "asistan/__init__.py").read_text(encoding="utf-8"))
     version = got.group(1)
     out_dir.mkdir(parents=True, exist_ok=True)

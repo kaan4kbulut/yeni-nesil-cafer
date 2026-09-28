@@ -513,21 +513,42 @@ class ModelsPanel(QWidget):
         self.gpu_share: float | None = None
         self.gpu_report = None  # gpu.Report: model en güçlü ekran kartında mı?
 
-    def refresh(self) -> float | None:
-        """Durumu yeniler; bellekteki modelin GPU payını (0-1) ya da None döndürür."""
-        url = self.settings.ollama_url
-        self.list.clear()
-        try:
+    refreshed = Signal(object)  # K12-D1: yenileme bitti (GPU payı 0-1 ya da None)
+
+    def refresh(self) -> None:
+        """Durumu ARKA PLANDA yeniler (Ollama HTTP ×2 + nvidia-smi ×2 her 20 sn ana iş parçacığında donduruyordu);
+        bitince `gpu_share`/`gpu_report` güncellenir ve `refreshed(gpu_share)` yayılır."""
+        if getattr(self, "_yenileniyor", False):
+            return
+        self._yenileniyor = True
+        url, settings = self.settings.ollama_url, self.settings
+        from .sidebar import run_in_background
+
+        def topla():
+            from .. import gpu, sysinfo
+
             models = ollama_models(url)
             running = ollama_running(url)
-        except Exception:
+            return models, running, gpu.check(running, settings, sysinfo.program_owned())
+
+        run_in_background(topla, self._uygula, self)
+
+    def _uygula(self, sonuc, hata) -> None:
+        from .. import gpu
+
+        self._yenileniyor = False
+        self.list.clear()
+        if hata is not None or sonuc is None:
+            url = self.settings.ollama_url
             self.ollama_state.setText("● Ollama bağlı değil")
             self.ollama_state.setStyleSheet(f"color: {C['error']};")
             self.running_label.setText("`ollama serve` çalışıyor mu? Adres: " + url)
             self.warn.setVisible(False)
             self.gpu_share = None
             self.gpu_report = None
-            return None
+            self.refreshed.emit(None)
+            return
+        models, running, report = sonuc
         self.ollama_state.setText(f"● Ollama bağlı  ·  {len(models)} model")
         self.ollama_state.setStyleSheet(f"color: {C['success']};")
         for m in models:
@@ -539,9 +560,6 @@ class ModelsPanel(QWidget):
             if m["name"] == self.settings.ollama_model:
                 item.setText("★ " + item.text())
             self.list.addItem(item)
-
-        from .. import gpu, sysinfo
-
         self.gpu_share = None
         if running:
             lines = []
@@ -555,7 +573,7 @@ class ModelsPanel(QWidget):
             self.running_label.setText("\n".join(lines))
         else:
             self.running_label.setText("Şu an bellekte model yok (ilk mesajda yüklenir).")
-        report = self.gpu_report = gpu.check(running, self.settings, sysinfo.program_owned())
+        self.gpu_report = report
         self.warn.setVisible(not report.ok)
         if not report.ok:
             self.fix_text = report.fix
@@ -568,7 +586,7 @@ class ModelsPanel(QWidget):
         key = get_secret(ANTHROPIC_KEY) or os.environ.get("ANTHROPIC_API_KEY")
         self.claude_label.setText(
             "API anahtarı ayarlı ✓" if key else "API anahtarı yok — sol paneldeki API'ler sekmesinden ekleyebilirsin.")
-        return self.gpu_share
+        self.refreshed.emit(self.gpu_share)
 
 
 # ---------------------------------------------------------------- Önizleme (belge görünümü)

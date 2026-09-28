@@ -1,148 +1,88 @@
-# YENİ NESİL CAFER — mimari ve kurallar
+# YENİ NESİL CAFER — kurallar ve harita
 
-Python 3.12 + PySide6 masaüstü asistanı. Yerel modeller Ollama ile, bulut modelleri Claude / OpenAI uyumlu API'lerle
-ve kullanıcının kendi hesabıyla giren resmi CLI programlarıyla (`cli:claude|cli:codex|cli:gemini`) çalışır. Kullanıcıyla her
-zaman Türkçe konuşulur; kod yorumları Türkçedir. Python paketi `asistan`, iç ad `yeni-nesil-cafer` (`config.APP_ID`);
-2.2'ye kadarki adı Yerel Asistan (eski klasörler ilk açılışta `config.migrate_dir` ile taşınır, anahtarlar
-`keystore.OLD_SERVICE`'ten kopyalanır, kurulum betikleri eski kurulumu ve kısayolları siler).
+Python 3.12 + PySide6 masaüstü asistanı; aynı paket sunucuda web + telefon (PWA). Yerel modeller Ollama ile, bulut
+modelleri Claude / OpenAI uyumlu API'lerle ve kullanıcının hesabıyla giren resmi CLI'larla (`cli:claude|codex|gemini`).
+Kullanıcıyla her zaman Türkçe konuşulur; kod yorumları Türkçedir. Paket `asistan`, iç ad `yeni-nesil-cafer`
+(`config.APP_ID`); 2.2'ye kadarki adı Yerel Asistan (eski klasörler `ayar.klasorleri_tasi` ile taşınır).
 
-Kurulu kopya `~/.local/share/yeni-nesil-cafer-app/` (kendi Python'u `python/bin/python3`). Kaynaktaki değişiklik kullanıcıya
-ancak `paketleme/aktar.sh` (yedek alır, kopyalar, derler, yeniden başlatır; `--baslatma`: yalnızca kopyalar) ile ulaşır.
-Her aşama git'e kaydedilir. Kurulum kendi kendine yeter: tam paket Python, paketler ve Ollama'yı içinde taşır; internet
-paketi bunları sabit SHA ile kendisi indirir. Kullanıcıya hiçbir zaman komut yazdırılmaz, elle bir şey indirtilmez.
-
-**Bu dosya kısa kalır.** Buraya yalnızca kalıcı kural, karar ve harita yazılır. Tarihli deneyler, ölçümler, tek seferlik hata
-hikâyeleri `NOTLAR/<tarih>.md`'ye; durum tablosu ve yol haritasının ayrıntısı `NOTLAR/mimari-ayrintilar.md`'de. Bir NOTLAR
-dosyasını yalnızca o konuda çalışırken oku. **Şu anki iş sırası `YAPILACAKLAR.md`'de; oturuma oradan başla.**
-Yeni özellik istemeden önce oradaki aşama bitmiş olmalı.
+**Bu dosya ≤ 100 satır: yalnızca kalıcı kural, karar ve harita.** Aşamaya özel talimatlar beceri dosyalarında, gerekince
+yüklenir: `.claude/skills/k-serisi` (aşama akışı, otomatik sürücü, not düzeni), `.claude/skills/kurulum` (kurulu kopya,
+paketleme, dağıtım, sürüm), `.claude/skills/denetci` (denetim adımları, bilinen tuzaklar). Hedef mimari `docs/MIMARI.md`,
+şemalar `docs/SEMALAR.md`, aşama planı `YAPILACAKLAR.md`, geçici kararlar `NOTLAR/SORULAR.md`, tarihli deneyler
+`NOTLAR/<tarih>-K<n>.md`. Bunları ihtiyaç olunca oku; oturum başında hepsini yükleme.
 
 ## Hedef: şirket gibi çalışan tek bir sistem
 
-Kullanıcı model seçmek istemiyor. İsteği anlayan bir yönetici, işi parçalara ayırıp her parçayı uygun modele ve araca verir,
-sonucu doğrular. Model yalnızca "yapıyorum" diye yazıp araç çağırmıyorsa bu sistemin hatasıdır: program araç kullanabilen
-modeli bulup işi ona yönlendirmelidir.
+Kullanıcı model seçmek istemiyor. İsteği anlayan bir yönetici işi parçalara ayırır, her parçayı uygun modele ve
+yeteneğe verir, sonucu doğrular. Model "yapıyorum" deyip araç çağırmıyorsa bu sistemin hatasıdır.
 
-1. **Yönetici ajan** (`manager.py`): plan → alt görevler → her birine model/araç ata → sonucu kontrol et → düzelt. Adımlar
-   arayüzde görünür. Yöneticide eldeki en güçlü model (CLI/bulut ya da büyük yerel), işçilerde hızlı yerel modeller.
-2. **Model yönlendirici** (`cards.py`, `roster.py`, `categories.py`): her modelin kimlik kartı — neye iyi (araç, kod,
-   görme, özet, Türkçe, yaratıcı yazı), hız (token/sn, bu donanımda ölçülmüş), maliyet, sansürsüz mü — programın kendi
-   sınavına dayanır, üreticinin beyanına değil (Ollama'nın `capabilities: tools` bilgisi araç çağırdığını göstermez).
-   Model yoksa `ollama pull` önerir; indirme ve kurma yalnızca kullanıcının düğmesiyle.
-3. **Araç kaydı** (`registry.py`, en kritik parça): her araç tek yerde — ad, açıklama, JSON şeması, çalıştırıcı, risk sınıfı
-   (okur / yazar / siler / calistirir / kurar / internete gönderir). MCP uyumlu; hazır MCP sunucuları eklenti gibi takılır,
-   asistanın yazdığı araçlar da aynı biçimdedir.
-4. **Araç fabrikası** (`factory.py`): önce hazır çözüm (pip paketi, MCP sunucusu, Ollama modeli) → yoksa Python araç + test
-   → internetsiz sandbox → "şu aracı ekliyorum / şu paketi kuruyorum" diye kullanıcıya sor → onaylanırsa kayıt, git.
-5. **Beceri kütüphanesi** (`learning.py`, `definitions.py`): biten çok adımlı işler tarif olarak saklanır ve yeniden kullanılır.
-6. **Hafıza** (`memory_db.py`): tercihler, projeler, hangi aracın neden başarısız olduğu; SQLite + `nomic-embed-text`.
+1. **Görev motoru** (`cekirdek/gorev/`): anla → planla (şema kısıtlı, yalnızca kayıtlı yetenekler) → uygula → doğrula;
+   `DATA_DIR/gorevler.db` ile devam; başarısız adım hata analizine (`cekirdek/analiz/hata.py`) gider. Masaüstü sohbeti
+   Manager (`manager.py`) ile; motor bayrakla (`extra["gorev_motoru"]`).
+2. **Model yönlendirici** (`cekirdek/yonlendirici.py`): rol hızlı/yönetici/kod, kademe, gizlilik, sağlık önbelleği,
+   yedekleme zinciri, bulut tavanı, sınav geri beslemesi. Kartlar (`cards.py`) programın kendi sınavıdır. Model adları
+   yalnızca `asistan/ayar/modeller.json` (+ kullanıcı katmanı `DATA_DIR/modeller.json`).
+3. **Yetenek kayıt defteri** (`cekirdek/yetenek/`): `asistan/yetenekler/<ad>/manifest.json + calistir.py + test`;
+   üretilenler `DATA_DIR/yetenekler/`. Sandbox yetenekleri izin hattına `y_<ad>` adıyla girer.
+4. **Araç kaydı** (`registry.py`, `tools.py`), **hafıza/beceriler** (`memory_db.py`, `learning.py`), **fabrika** (`factory.py`).
 
-**Tek gövde, iki beyin.** Araç kaydı, beceriler, hafıza ve güvenlik kuralları ortak kod; yerel ile bulut asistan arasında
-değişen yalnızca yönetici modeli ve erişilebilen araçlar. Beceri ve hafıza bilgisayar açıkken sunucuyla eşitlenir. Bulut
-asistana başlangıçta bilgisayara komut gönderme yetkisi yok; yerel dosya gerektiren işler kuyruğa alınır ve bilgisayarda ASLA
-kendiliğinden çalışmaz (☁ → "yap" → yeni sohbet). Hassas dosyalar hep yerelde, internet araştırması ve karmaşık planlama
-bulutta. Haftalık liste 5 yerel + 5 bulut, her biri kendi sınav setinde.
+**Tek gövde, iki beyin.** Araç kaydı, beceriler, hafıza ve güvenlik kuralları ortak; yerel ile sunucu arasında değişen
+yalnızca model ve araçlar. Sunucudaki kopya bilgisayara erişemez; yerel iş kuyruğa düşer, kendiliğinden ASLA çalışmaz.
 
 ## Güvenlik — pazarlık dışı kurallar
 
-- Asistanın yazdığı yeni kod önce sandbox'ta test edilir, doğrudan kullanıcının sisteminde çalıştırılmaz.
-- Paket kurma, dosya silme ve internete veri gönderme kullanıcının onayıyla yapılır. Kullanıcı güvendiği işlemleri "otomatik
-  onay" listesine alabilir. Güvenlik ajanı (`security.py`) açıkken onayları risk sınıfına göre o verir; sansürsüz modda
-  güvenlik ajanı çalışamaz (aynı ekran kartına iki model sığmaz), o zaman riskli adımlar tek tek kullanıcıya sorulur.
-- Asistanın kendi koduna yaptığı her değişiklik git ile sürümlenir; bozulursa geri alınır.
-- Çekirdek (yönetici döngüsü, güvenlik kuralları, onay mantığı, `hooks.json`) asistanın kendisi tarafından değiştirilemez;
-  asistan yalnızca araç ve beceri ekleyebilir. Program kendi kodunu DEĞİŞTİRMEZ: sorunu algılar, geliştiriciye rapor hazırlar
-  (`problem_report.py`). Bir sorun raporu gelirse rapordaki kanıtlardan başla, düzelt, test et, aktar, paketleri güncelle.
-- Onay kuralları yalnızca `permissions.py`'de (tek izin hattı: yasak → ✓ bekletme → güvenlik ajanı → kullanıcı).
-  Tarayıcıda satın alma/ödeme, mesaj/paylaşım, hesap/silme, giriş/indirme her zaman kullanıcıya sorulur (`browser.gate`).
-- Reşit olmayanları çağrıştıran içerik, hangi model ve modda olursa olsun engellenir (`imagegen.check_prompt`).
-  Deepfake yalnızca tespit, ses klonlama yok.
-- Her indirme sabit sürüm + SHA-256 (Ollama, python-build-standalone, TripoSR, Node, Codex, Gemini CLI, güncelleme paketi).
+- Onay kuralları yalnızca `permissions.py`'de (tek hat: yasak → ✓ bekletme → güvenlik ajanı → kullanıcı).
+  `cekirdek/guvenlik.py` (politika `asistan/ayar/guvenlik.toml`) ikinci bir onay yolu açmaz. İzin bağlamı olmayan
+  yollarda (komut satırı, Görevler penceresi, web) yazan/çalıştıran her adım onay bekler.
+- Asistanın yazdığı yeni kod önce sandbox'ta test edilir. Paket kurma, dosya silme, internete gönderme kullanıcı onayıyla;
+  otomatik onay listesi ve güvenlik ajanı bunları geçebilir, bulut tavanını geçemez. Sansürsüz modda güvenlik ajanı
+  çalışamaz; riskli adımlar tek tek sorulur.
+- Alt süreçlere yalnızca beyaz listeli ortam geçer (`araclar/komut.guvenli_ortam`); `CAFER_*` ve `ANTHROPIC_API_KEY`
+  hiçbir zaman. `ayarlar.json`, `anahtarlar.json` ve ayar klasörü okunamaz. `web_fetch` yerel/özel ağı okumaz.
+- Program kendi kodunu DEĞİŞTİRMEZ, sorun raporu hazırlar (`problem_report.py`). Asistanın eklediği her şey git'te.
+- Tarayıcıda satın alma/ödeme, paylaşım, hesap/silme, giriş/indirme her zaman sorulur (`browser.gate`). Reşit olmayanları
+  çağrıştıran içerik her modda engellenir (`imagegen.check_prompt`). Deepfake yalnızca tespit.
+- CLI ajanları yalnızca kullanıcının sohbette gönderdiği istekte; görev motorunda yalnızca `kod` rolünde, iş
+  klasöründe, salt okunur. Claude/Gemini API'sine hesapla giriş yok. Ağır motorların kurulumu yalnızca düğmeyle.
 
 ## Kalıcı kararlar (kullanıcının istekleri — değiştirme)
 
-- **Model çıktısına güvenme, kodla denetle.** Doğrulama önce programın kanıtıyla (araç sonuçları, değişen dosyaların içeriği,
-  STL kapalı mı, ölçü), sonra modelin kararıyla. Görme modelinin "evet, doğru" demesi kanıt değildir.
-- Adımda yalnızca kullanıcının isteğinde geçen dosyalar istenir; planlayıcı yardımcı dosya uydurmaz; iki adım başarısızsa
-  kalan adımlar atlanır; sonuç yoksa dürüstçe "yapılamadı". Yeni alan = denenmiş kod iskeleti içeren hazır beceri.
-- Her sohbet kendi iş klasöründe (`<çalışma klasörü>/<kategori>/<başlık>-<id>`), diğer işler salt okunur; "… devam et"
-  aynı projede sürer. Sonuçlar `<masaüstü>/YENİ NESİL CAFER/Sonuçlar/`e KOPYA (`results.py`); masaüstünde başka klasör yok.
-- Eski mesajlar silinmez, özetlenir (`_ozetlendi`/`_ozet`); özeti hep yerel model yazar; kullanıcının kendi mesajları en son
-  kırpılır. `ASISTAN.md` dosyaları talimata genelden özele eklenir (en çok 3 düzey, 4000 karakter).
-- Program her zaman en güçlü ekran kartında çalışır ve bunu kendisi denetler (`gpu.py`); resim üretimi ile Ollama aynı anda
-  karta sığmaz, biri boşaltılır. `gpu.fault()` varsa hafif mod ve "bilgisayarı yeniden başlat".
-- CLI ajanları (`claude -p`, `codex exec`, Gemini CLI) yalnızca kullanıcının sohbette gönderdiği istekte çalışır; bulut kuyruğuna
-  ya da zamanlanmış işe bağlanmaz. Onay beklenen tur salt okunur. Claude/Gemini API'sine hesapla giriş yok.
-- Ağır motorların kurulumu (TripoSR, resim, dikte modeli, CLI ajanları) YALNIZCA kullanıcının düğmesiyle.
-- Arayüz: sağ panelde üç sekme (adımlar · kayıt · klasörler); canlı önizleme yalnızca görsel iş sürerken açılır, sürekli
-  bölüme ya da sekmeye çevirme. İş sürerken Enter işi durdurmaz, mesaj sıraya girer; durdurmak ■ ya da Esc.
-  Yeni metot konusunun dosyasına (`gui/window_*.py`); Qt sinyalleri yalnızca `MainWindow` gövdesinde. 3D önizleme ekransız
-  kipte çizilmez: 3D'yi gerçek ekranda doğrula.
-- Herkese açık GitHub deposu; sürümler kod paketiyle (`updates.py`, 15 sn açık kalamazsa geri alma); büyük paket yalnızca ilk
-  kurulum. Yayın `paketleme/yayinla.sh`: testler geçmeden, atlanan test varken ya da sınav (`testler/sinav`) eşiğin
-  altındayken yayın yok (`--deneme` yalnızca kapıyı dener).
+- **Model çıktısına güvenme, kodla denetle.** Denetleyici model yoksa adım ŞARTLI; görme modelinin "evet"i kanıt değil.
+- Adımda yalnızca isteğin dosyaları; planlayıcı yardımcı dosya uydurmaz; sonuç yoksa dürüstçe "yapılamadı".
+- Her sohbet kendi iş klasöründe (`<çalışma klasörü>/<kategori>/<başlık>-<id>`); sonuçlar `<masaüstü>/YENİ NESİL
+  CAFER/Sonuçlar/`e KOPYA. Eski mesajlar silinmez, yerel modelle özetlenir. `ASISTAN.md` en çok 3 düzey, 4000 karakter.
+- Program en güçlü ekran kartında çalışır (`gpu.py`); resim üretimi ile Ollama aynı anda karta sığmaz.
+- Kademe (`dusuk/orta/yuksek/sunucu`) açılışta ölçülür, kilitlenebilir; `dusuk`'te ağır özellikler kapalı, arayüz sade.
+- Arayüz: sağ panelde üç sekme; yeni pencereler `Yardım` altında (sekme eklenmez). Yeni metot konusunun dosyasına
+  (`gui/window_*.py`); Qt sinyalleri yalnızca `MainWindow` gövdesinde. Etiketler `#araç #görme` biçiminde.
+- Kurulum kendi kendine yeter: kullanıcıya komut yazdırılmaz, elle indirtilmez; her indirme sabit sürüm + SHA-256.
+- Sürümler kod paketiyle (`updates.py`); yayın kuralları ve dağıtım `kurulum` becerisinde.
 
 ## Dosya haritası (`asistan/`)
 
-- Çekirdek döngü: `agent.py` (tek araç yolu `_execute_tool`, `_clean`, `fit_context`, `_compact`, `lean`), `manager.py`
-  (plan/doğrulama/`_escalate`), `work.py` (iş klasörleri `chat_folder`, grup görevi), `storage.py` (sohbetler JSON),
-  `choices.py` (sorudaki seçenekler → baloncuk), `suggest.py` (karşılama önerileri).
-- Modeller: `cards.py` (sınav), `roster.py` (`worker_for`, `manager_for`, `stronger`, `default`), `categories.py`,
-  `connections.py`, `catalog.py` (bulut model kataloğu), `model_updates.py` (günlük model listesi), `specialists.py`
-  (uzman modele danışma), `profiles.py` (yardımcı ajanlar), `cli_agents.py`, `accounts.py` (OpenRouter OAuth, HF cihaz
-  kodu), `ctxprobe.py`.
-- Araçlar: `registry.py`, `tools.py` (`Toolbox._tool_*`), `factory.py`, `mcp.py`, `browser.py`, `apps.py` (`install_app`),
-  `api_catalog.py` (hazır HTTP API'leri), `libraries.py` (Python kütüphaneleri), `hooks.py`, `definitions.py` (dosyayla
-  ajan/beceri), `beceriler/` (hazır beceriler; ör. `3d-baski`).
-- Hafıza/öğrenme: `memory_db.py`, `learning.py`.
-- Güvenlik: `permissions.py`, `security.py`, `askpass.py`, `keystore.py`.
-- Görsel/3D/ses: `imagegen.py`, `inspect_output.py`, `decor3d.py`, `figure3d.py` + `figure3d_worker.py`, `dictation.py` +
-  `dictation_server.py`, `gpu.py`.
-- Bulut: `cloud_server.py` (API, web, Telegram, kuyruk), `cloud_sync.py`; `sunucu/kur.sh`, `sunucu/BENIOKU.md`.
-- Sistem/dağıtım: `sysinfo.py` (sistem taraması), `power.py` (pilde hafif mod), `results.py`, `problem_report.py`,
-  `updates.py`, `bootstrap.py` (yalnızca standart kütüphane), `config.py`; `paketleme/` (`aktar.sh`, `paketle.py`,
-  `yayinla.sh`, `bulut_paketi.sh`), `main.py` (`rollback_if_needed`).
-- Arayüz (`gui/`): `window.py` (çekirdek) + `window_help/models/bar/modes/chats/run/group/accounts.py`, `worker.py`
-  (ajanı ayrı iş parçacığında çalıştırır), `panels.py` (sağ panel), `sidebar.py` (sol panel), `chat.py`, `media_panel.py`,
-  `work.py` (grup alanı), `dialogs.py`, `setup_wizard.py` (ilk kurulum), `tour.py` (sürüm tanıtımı), `model_advisor.py`,
-  `cards_dialog`/`categories_dialog`/`factory_dialog`/`learning_dialog.py` (pencereler), `share.py` (paylaş),
-  `sysmon.py` (durum çubuğu), `theme.py` + `icons.py` + `widgets.py` (görünüm), `assets/model3d.qml`.
-- Testler: `testler/` (unittest), `testler/arayuz_denetimi.py` (her sürümden önce, 0 hata), `testler/sinav/` (gerçek
-  görevli sınav: `calistir.py --hizli`, RAPOR.md, eşik `esik.json`). Komut, HEP kurulu programın Python'uyla (`.venv`
-  3.14: ajan kütüphaneleri yüklenmez, 3D testleri atlanır):
-  `~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v`.
+- **Çekirdek `cekirdek/`** (Qt/fastapi yasak; eski gövdeye içe aktarmalar `test_cekirdek_ayrimi` listesiyle sınırlı):
+  `ayar.py` (tek ayar kaynağı), `modeller.py`, `profil.py`, `yonlendirici.py`, `yapisal.py`, `semalar/`, `saglayici/`,
+  `araclar/`, `istek.py`, `gorev/`, `yetenek/`, `analiz/`, `guvenlik.py`, `bildirim.py`, `uzak.py`.
+- **Yüzler `arayuz/`:** `masaustu` (= `gui/`), `web/` (FastAPI + PWA), `komut/` (`python -m asistan …`).
+- **Eski gövde:** `agent.py`, `manager.py`, `tools.py` + `registry.py`, `permissions.py` + `security.py`, `roster.py`/
+  `cards.py`, `memory_db.py`/`learning.py`, `factory.py`/`mcp.py`/`browser.py`/`apps.py`, `cloud_server.py`/`cloud_sync.py`,
+  `updates.py`/`bootstrap.py`/`problem_report.py`/`gpu.py`, görsel/3D/ses modülleri.
+- **Arayüz `gui/`:** `window.py` + `window_*.py`, `worker.py`, `panels.py`, `sidebar.py`, `dialogs.py`, `setup_wizard.py`.
+- **Veri:** `asistan/ayar/` (modeller.json, guvenlik.toml), `asistan/yetenekler/`. **Dağıtım:** `dagitim/` (aktar.sh, paketle.py, CI), `sunucu/`.
+- **Testler:** `testler/` (unittest; `pytest.ini` yalnızca burayı toplar), `testler/arayuz_denetimi.py` (0 hata olmalı),
+  `testler/sinav/` (gerçek görevli sınav: `calistir.py --hizli|--motor`, RAPOR.md).
 
-## Aşamalar (ayrıntı: `NOTLAR/mimari-ayrintilar.md`)
+## Araç ve yetenek ekleme
 
-0. Git + aktarma ✓ · 1. Araç kaydı + MCP ✓ · 2. Yönetici döngüsü ✓ · 3. Model yönlendirici: kartlar ve `roster` ✓, **yöneticiye
-en güçlü / işçiye hızlı model politikası ve adımların farklı modellere dağıtımı EKSİK** · 4. Hafıza + beceriler ✓ ·
-5. Araç fabrikası ✓ (MCP sunucusunu kendisi kurma ve çalışan aracı güncelleme eksik) · 6. Bulut beyin: kod ✓, **gerçek
-sunucu kurulmadı**. Ek: BrowserAgent, hook'lar, dosyayla ajanlar, dikte, 3D süs/figür, sonuç toplama, internet kurulumu,
-otomatik güncelleme ✓ (NOTLAR/2026-09-26 ve 27).
+Yeni yerleşik araç: `tools.py`'de `REGISTRY.add(spec, risk, …)`, çalıştırıcı `Toolbox._tool_<ad>`; onay kuralı yalnızca
+`permissions.py`. Yeni yetenek: `asistan/yetenekler/<ad>/` (`/yetenek-ekle`); manifest `izinler` → risk eşlemesi
+`docs/SEMALAR.md` §1. Model adı kodda sabitlenmez. Testler gerçek veri klasörüne yazmaz (XDG geçici klasöre).
 
-## Araç ekleme kuralı
+## Test komutu
 
-Yeni yerleşik araç: tanımı `tools.py`'de `REGISTRY.add(spec, risk, (etiket, bitince))` ile yaz, çalıştırıcıyı
-`Toolbox._tool_<ad>` olarak ekle; ajanın durumuna (geri çağrılar, hafıza, alt ajan) ihtiyaç duyuyorsa `Agent._tool_<ad>`,
-araca özgü ek onay kapısı gerekiyorsa `Agent._gate_<ad>`. Onay kuralları yalnızca `permissions.py`'de. Onay listesi,
-etiket ya da doğrulama için başka bir yere dokunma. Fabrika araçları `f_` önekli, hep `calistirir` risk sınıfında.
+```
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest testler -q      # tam takım (~650 test)
+.venv/bin/python testler/arayuz_denetimi.py                          # 0 hata beklenir
+```
 
-## Hâlâ geçerli tuzaklar (tam metin ve tarihçe: `NOTLAR/mimari-ayrintilar.md`)
-
-- NVIDIA sürücüsü bellek baskısında bozulabilir (Xid 62/154, "Reset required"; Ollama sessizce CPU'ya düşer). Yalnızca
-  yeniden başlatma düzeltir. `gpu.fault()` algılar; testler onu taklit etmeli.
-- Testler gerçek veri klasörüne yazmamalı: her test dosyası `asistan`'ı içe aktarmadan ÖNCE XDG_CONFIG_HOME/XDG_DATA_HOME'u
-  geçici klasöre alır. Kütüphane yolu her zaman gerçek kurulumdan; sessizce atlanan test kabul edilmez.
-- Anahtarsız ya da 401 alan bağlantı yönlendiricide, menülerde ve varsayılanda atlanır (`Connection.usable`).
-- Gemma 4 sistem talimatı olmadan araç çağırmaz, komutu metin yazar; bozuk çağrıda dakikalarca tamponlayabilir
-  (`STALL_SECONDS`, `NUM_PREDICT`, `_CLAIMS_WORK`). Kartlar: gemma3/dolphin3 araç 0/3, sansürsüz gemma4 1/3.
-- Sistem talimatı + araç tanımları ~5.600 token; 8K bağlamda geçmişe ~1.100 token kalır → `LEAN_CTX` altında `agent.lean`.
-- 4B modeller işçi ve denetçi olarak zayıf; yönetici hâlâ sohbet modeliyle planlıyor. Kalıcı çözüm: YAPILACAKLAR aşama 2–3.
-- Küçük modeller dosya adını kısaltır, aracı `run_python` içinde işlev gibi çağırır, planı ara sıra Çince yazar.
-
-## Açık işler (sıra ve talimatlar: `YAPILACAKLAR.md`)
-
-1. Yöneticiye en güçlü model politikası; işçi/denetçi ayrımı.
-2. Araç çağıramayan modeller için şema-kısıtlı karar.
-3. BrowserAgent: ürün listelerini (ad + fiyat) güvenilir okumak.
-4. Bulut sunucuyu gerçek sunucuda kurmak.
-5. 3D baskı: dilimleme ve yazıcıya gönderme (OctoPrint/Klipper MCP sunucuları).
+Commit atma; mesaj öner ("commitle" denince at). Tahmin etme: dosyayı aç, komutu çalıştır, sonucu göster.

@@ -1,0 +1,70 @@
+{
+  "ad": "dosya_ara",
+  "surum": "1.0.0",
+  "aciklama": "Dosyaların içinde metin arar (grep gibi); eşleşen satırları dosya adı ve satır numarasıyla verir.",
+  "etiketler": [
+    "dosya",
+    "okuma",
+    "arama"
+  ],
+  "girdi": {
+    "desen": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Aranan metin ya da düzenli ifade (büyük/küçük harf fark etmez)"
+    },
+    "yol": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aranacak dosya ya da klasör",
+      "varsayilan": "."
+    },
+    "en_cok": {
+      "tip": "int",
+      "zorunlu": false,
+      "aciklama": "En çok kaç sonuç",
+      "varsayilan": 200
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_oku"
+  ],
+  "zaman_asimi_sn": 60,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "desen": "merhaba"
+      },
+      "beklenen": "'merhaba' geçen satırlar"
+    },
+    {
+      "girdi": {
+        "desen": "TODO",
+        "yol": "alt",
+        "en_cok": 5
+      },
+      "beklenen": "en çok 5 sonuç"
+    }
+  ]
+}

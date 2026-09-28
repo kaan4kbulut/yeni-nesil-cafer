@@ -22,7 +22,9 @@ _EK = [Path.home() / ".local/share/yeni-nesil-cafer-app/ajan-kutuphaneleri",
        Path.home() / ".local/share/yerel-asistan-app/ajan-kutuphaneleri",  # eski adlı kurulum
        Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "yerel-asistan/python-kutuphaneleri",
        Path(os.environ.get("XDG_DATA_HOME") or Path.home() / ".local/share") / "yeni-nesil-cafer/python-kutuphaneleri"]
-os.environ["PYTHONPATH"] = os.pathsep.join([str(p) for p in _EK if p.is_dir()] + [os.environ.get("PYTHONPATH", "")])
+import kutuphane_yolu  # noqa: E402  (yalnızca bu Python'la uyumlu kütüphane klasörleri)
+
+kutuphane_yolu.pythonpath_ekle(*_EK)
 
 from PySide6.QtGui import QColor, QImage  # noqa: E402
 from PySide6.QtWidgets import QApplication  # noqa: E402

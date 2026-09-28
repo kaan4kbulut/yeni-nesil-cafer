@@ -5,27 +5,9 @@ kısaca yüklenir ve /api/ps'deki `size_vram == size` (tamamen GPU'da) koşulu i
 Sonuç model + ekran kartı belleği için saklanır; ikisi değişmedikçe ölçüm tekrarlanmaz.
 """
 
-import subprocess
-
 import httpx
 
-STEP = 1024  # bağlam ölçüm hassasiyeti (token)
-MIN_CTX = 2048
-# Hiçbir zaman bunun altına inilmez: sistem talimatı + araç tanımları ~4.1–5.6K token (agent.lean). 2026-09-26:
-# ekran kartı bozukken ölçülen 2048 kalıcı ayar olmuştu; model talimatın yarısını göremiyordu. Karta tam sığmayan
-# model bir kısmıyla işlemciye taşar: yavaşlar ama doğru çalışır.
-FLOOR_CTX = 8192
-
-
-def gpu_total_mib() -> int | None:
-    try:
-        out = subprocess.run(
-            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
-        ).stdout.split()
-        return int(out[0]) if out else None
-    except (OSError, ValueError, subprocess.SubprocessError):
-        return None
+from .cekirdek.baglam import FLOOR_CTX, MIN_CTX, STEP, gpu_total_mib, probe_key, tahmin  # noqa: F401  (tek yer)
 
 
 def model_max_context(base_url: str, model: str) -> int:
@@ -33,10 +15,6 @@ def model_max_context(base_url: str, model: str) -> int:
     resp.raise_for_status()
     info = resp.json().get("model_info", {})
     return next((int(v) for k, v in info.items() if k.endswith(".context_length")), 8192)
-
-
-def probe_key(model: str, vram: int | None) -> str:
-    return f"{model}|{vram or 0}"
 
 
 def _fits(base_url: str, model: str, ctx: int, keep_alive: str = "2m") -> bool:
@@ -57,7 +35,7 @@ def probe(base_url: str, model: str, progress=None) -> dict:
     """{"ctx": önerilen bağlam, "max": modelin sınırı, "gpu": tamamen GPU'ya sığıyor mu, "vram": MiB}."""
     from .gpu import fault
 
-    broken = fault()
+    broken = fault(bekle=True)  # ölçüm kararı: eski değer değil, şimdiki durum
     if broken:  # bozuk kartta ölçüm yanıltır ve kalıcı ayar olurdu
         raise RuntimeError(f"ekran kartı {broken}; bağlam ölçümü bilgisayar yeniden başlayınca yapılır")
     vram = gpu_total_mib()

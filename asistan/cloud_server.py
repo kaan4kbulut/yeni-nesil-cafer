@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, urlparse
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 from .registry import REGISTRY
 
@@ -78,20 +79,39 @@ _local = threading.local()  # bu isteğin kanalı (queue_for_computer işi nerey
 def load_config() -> dict:
     try:
         conf = json.loads(CONFIG_FILE.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+    except OSError:
+        conf = {}
+    except ValueError:  # K12-E5: bozuk dosyada yeni anahtar üretilirse eski anahtar sessizce geçersiz olurdu
+        raise RuntimeError(f"{CONFIG_FILE} bozuk (JSON okunamadı); düzeltilmeden ya da silinmeden sunucu anahtarı "
+                           "yenilenmez") from None
+    if not isinstance(conf, dict):
         conf = {}
     changed = False
-    for key, make in (("token", lambda: secrets.token_urlsafe(24)), ("pair_code", lambda: f"{secrets.randbelow(10**6):06d}")):
-        if not conf.get(key):
-            conf[key], changed = make(), True
+    if not conf.get("token"):
+        conf["token"], changed = secrets.token_urlsafe(24), True
+    if not conf.get("pair_code") and not conf.get("telegram_chat"):  # K12-A12: 12 karakter, eşleşince silinir
+        conf["pair_code"], changed = _yeni_eslesme_kodu(), True
     conf.setdefault("port", 8765)
     conf.setdefault("host", "127.0.0.1")  # dışarı açmak için 0.0.0.0 — önerilen: Tailscale ile yalnızca kendi cihazların
-    conf.setdefault("model", "qwen3.5:4b")
+    conf.setdefault("model", modeller.deger("varsayilan.bulut_sunucu"))
     conf.setdefault("telegram_token", "")
     conf.setdefault("telegram_chat", 0)
     if changed:
         save_config(conf)
     return conf
+
+
+PAIR_DENEME, PAIR_KILIT_SN = 5, 600  # K12-A12: 5 yanlış kodda kod yenilenir ve 10 dk kilit
+
+
+def _yeni_eslesme_kodu() -> str:
+    return secrets.token_urlsafe(9)  # 12 karakter (6 haneli sayı sınırsız denemeyle kırılıyordu)
+
+
+def maskele(anahtar: str) -> str:
+    """K12-B10: anahtar günlüğe tam yazılmaz."""
+    a = str(anahtar or "")
+    return (a[:4] if len(a) >= 12 else "") + f"…({len(a)} karakter)"
 
 
 def save_config(conf: dict) -> None:
@@ -218,8 +238,10 @@ def settings_for_cloud(conf: dict):
     from .config import Settings
 
     s = Settings.load()
+    # kuyruktan gelen istek: yönlendirici CLI ajanlarını (Claude Code…) seçmez (CLAUDE.md)
     return replace(s, provider="ollama", ollama_model=conf["model"], approval_mode="kullanici",
-                   workspace=str(DATA_DIR / "bulut-calisma"), auto_model=False, model_policy="yerel")
+                   workspace=str(DATA_DIR / "bulut-calisma"), auto_model=False, model_policy="yerel",
+                   extra={**s.extra, "istek_kaynagi": "kuyruk"})
 
 
 _agent_lock = threading.Lock()  # küçük sunucuda aynı anda tek model çağrısı
@@ -228,7 +250,7 @@ _agent_lock = threading.Lock()  # küçük sunucuda aynı anda tek model çağr�
 def answer(channel: str, text: str, conf: dict | None = None) -> str:
     """Kanalın geçmişiyle bir tur çalıştırır, cevabı döndürür."""
     from .agent import Agent
-    from .manager import Manager
+    from .cekirdek import istek
 
     conf = conf or load_config()
     settings = settings_for_cloud(conf)
@@ -242,7 +264,7 @@ def answer(channel: str, text: str, conf: dict | None = None) -> str:
     with _agent_lock:
         _local.channel = channel
         try:
-            Manager(agent).run("ollama", messages, text)
+            istek.calistir(agent, "ollama", messages, text)  # masaüstüyle aynı yol (hatalar yukarı çıkar)
         finally:
             _local.channel = ""
     _save_history(channel, messages)
@@ -266,10 +288,10 @@ def notify(channel: str, text: str) -> None:
                 _tg(conf, "sendMessage", chat_id=int(channel.split(":", 1)[1]), text=text[i:i + 4000])
         except Exception:
             pass
-    elif channel == "web":
-        messages = history("web")
+    elif channel.startswith("web"):  # K12-E2: PWA kanalı "web:<sohbet>" — sonuç o sohbetin geçmişine düşer
+        messages = history(channel)
         messages.append({"role": "assistant", "content": text})
-        _save_history("web", messages)
+        _save_history(channel, messages)
 
 
 def handle_telegram(conf: dict, update: dict) -> str | None:
@@ -280,11 +302,22 @@ def handle_telegram(conf: dict, update: dict) -> str | None:
     if not chat or not text:
         return None
     if not conf.get("telegram_chat"):
-        if text.split()[:2] == ["/baglan", conf["pair_code"]]:
+        parcalar = text.split()
+        if parcalar[:1] != ["/baglan"] or conf.get("pair_lock_until", 0) > time.time():
+            return None  # eşleşmemiş biri ya da kilit: cevap verilmez (bot varlığını bile belli etmez)
+        kod = str(conf.get("pair_code") or "")
+        if len(parcalar) == 2 and kod and hmac.compare_digest(parcalar[1], kod):
             conf["telegram_chat"] = chat
+            conf.pop("pair_code", None)  # tek kullanımlık
+            conf.pop("pair_fail", None)
             save_config(conf)
             return "✅ Eşleşti. Artık bu sohbetten asistanına yazabilirsin."
-        return None  # eşleşmemiş biri: cevap verilmez (bot varlığını bile belli etmez)
+        conf["pair_fail"] = int(conf.get("pair_fail") or 0) + 1  # K12-A12: deneme sınırı
+        if conf["pair_fail"] >= PAIR_DENEME:
+            conf["pair_code"], conf["pair_fail"] = _yeni_eslesme_kodu(), 0
+            conf["pair_lock_until"] = time.time() + PAIR_KILIT_SN
+        save_config(conf)
+        return None
     if chat != conf["telegram_chat"]:
         return None
     if text == "/isler":
@@ -426,7 +459,8 @@ def make_server(conf: dict | None = None) -> ThreadingHTTPServer:
 def main() -> None:
     conf = load_config()
     print(f"YENİ NESİL CAFER · bulut — http://{conf['host']}:{conf['port']}  (model: {conf['model']})")
-    print(f"Erişim anahtarı (programın Ayarlar → Bulut asistan kısmına ve web sayfasına): {conf['token']}")
+    print(f"Erişim anahtarı (programın Ayarlar → Bulut asistan kısmına ve web sayfasına): {maskele(conf['token'])} — "
+          f"tamamı {CONFIG_FILE} içinde 'token'")
     if conf.get("telegram_token") and not conf.get("telegram_chat"):
         print(f"Telegram: bota şunu yaz → /baglan {conf['pair_code']}")
     elif not conf.get("telegram_token"):

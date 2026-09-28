@@ -10,6 +10,7 @@ from PySide6.QtWidgets import (
 )
 
 from .. import __version__, catalog, cli_agents, factory, mcp, power, roster
+from ..cekirdek import ayar as cekirdek_ayar
 from ..config import CONFIG_DIR, DATA_DIR, Settings
 from ..connections import ANTHROPIC_KEY, load_connections
 from ..keystore import set_secret
@@ -54,9 +55,9 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
     def __init__(self):
         super().__init__()
         self.settings = Settings.load()
-        if self.settings.anthropic_api_key:  # eski sürümden: anahtarı anahtar zincirine taşı
-            set_secret(ANTHROPIC_KEY, self.settings.anthropic_api_key)
-            self.settings.anthropic_api_key = ""
+        eski = cekirdek_ayar.eski_anahtar()  # 2.x ayarlar.json'daki anahtar: zincire taşınır, dosyadan silinir
+        if eski:
+            set_secret(ANTHROPIC_KEY, eski)
             self.settings.save()
         self.connections = load_connections()
         self.profiles = load_profiles()
@@ -94,6 +95,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.new_conversation()
         self.right.set_root(self.settings.workspace)
         QTimer.singleShot(200, self._refresh_models_status)
+        QTimer.singleShot(2500, self._system_info)  # K12-D3: Offline menüsü açılmadan sistem taraması arka planda
         QTimer.singleShot(1500, self._check_context)
         # en iyi modellerin listesi: açılışta ve 6 saatte bir kontrol; 20 saatten eskiyse internetten yenilenir
         QTimer.singleShot(3000, self._daily_model_update)
@@ -383,6 +385,13 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.stop_btn.clicked.connect(self._send_or_stop)
         self.stop_btn.hide()
         tools_row.addWidget(self.attach_btn)
+        self.report_btn = QToolButton(objectName="attachButton",
+                                      toolTip="Sorunu raporla: rapor masaüstüne (YENİ NESİL CAFER klasörü) yazılır, "
+                                              "Claude Code'a verilecek cümle panoya kopyalanır; anahtarlar gizlenir")
+        self.report_btn.setText("🐞 sorun")
+        self.report_btn.setCursor(Qt.PointingHandCursor)
+        self.report_btn.clicked.connect(self._quick_report)
+        tools_row.addWidget(self.report_btn)
         tools_row.addWidget(sep0)
         tools_row.addWidget(self.model_pill)
         tools_row.addWidget(sep)
@@ -407,6 +416,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
 
         # sağ panel
         self.right = RightPanel(self.settings)
+        self.right.models.refreshed.connect(self._models_refreshed)  # K12-D1: panel arka planda yenilenir
         self.right.setMinimumWidth(372)
         self.right.setMaximumWidth(760)  # canlı görüntü büyütülebilsin
         self.right.models.model_chosen.connect(self._choose_ollama_model)
@@ -455,6 +465,11 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.cloud_btn.clicked.connect(self.open_cloud_jobs)
         self.cloud_btn.hide()
         bar.addPermanentWidget(self.cloud_btn)
+        # donanım kademesi (cekirdek/profil.py): tıklayınca profil özeti ve kilit
+        self.tier_btn = QPushButton(objectName="smallButton")
+        self.tier_btn.setCursor(Qt.PointingHandCursor)
+        self.tier_btn.clicked.connect(self._open_profile)
+        bar.addPermanentWidget(self.tier_btn)
         self.cloud_jobs: list[dict] = []
         self.cloud_job: dict | None = None  # şu an yapılan bulut işi (bitince sonucu gönderilir)
         self.sysmon = SystemMonitorLabel()
@@ -488,6 +503,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self.power_timer.timeout.connect(self._check_power)
         self.power_timer.start(15000)
         self._update_power_label()
+        self._measure_profile()
 
     def _build_menu(self):
         bar = self.menuBar()
@@ -576,6 +592,7 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         self._update_light_btn()
         bar.installEventFilter(self)
         self._center_model_tabs()
+        self.model_tabs.setVisible(bool(self.settings.extra.get("model_cubugu")))  # varsayılan gizli (Gelişmiş menüsü)
         v = bar.addMenu("Görünüm")
         side = QAction("Kenar çubuğu", self, shortcut=QKeySequence("Ctrl+B"))
         side.triggered.connect(lambda: self.sidebar.setVisible(not self.sidebar.isVisible()))
@@ -591,28 +608,62 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
             a = QAction(name, self)
             a.triggered.connect(lambda _=False, tab=tab: self._show_tab(tab))
             v.addAction(a)
+        gel_arayuz = QAction("Gelişmiş arayüz (bütün bölümler)", self, checkable=True)  # K10: düşük kademede sade
+        gel_arayuz.setChecked(bool(self.settings.extra.get("gelismis_arayuz")))
+        gel_arayuz.toggled.connect(self._toggle_gelismis_arayuz)
+        v.addSeparator()
+        v.addAction(gel_arayuz)
+        model_bar = QAction("Model çubuğu (üstte Online/Offline/kipler)", self, checkable=True)  # eski Aşama 6
+        model_bar.setChecked(bool(self.settings.extra.get("model_cubugu")))
+        model_bar.toggled.connect(self._toggle_model_cubugu)
+        v.addAction(model_bar)
         h = bar.addMenu("Yardım")
-        advisor = QAction("Model önerileri…", self)
-        advisor.triggered.connect(self.open_advisor)
-        h.addAction(advisor)
         setup = QAction("Kurulum sihirbazı…", self)
         setup.triggered.connect(self.run_setup)
         h.addAction(setup)
-        self.image_action = QAction("Resim üretimi…", self)
-        self.image_action.triggered.connect(self._image_setup)
-        h.addAction(self.image_action)
-        figure_action = QAction("3D figür motoru…", self)
-        figure_action.triggered.connect(self._figure_setup)
-        h.addAction(figure_action)
-        factory_action = QAction("Araç fabrikası…", self)
-        factory_action.triggered.connect(self.open_factory)
-        h.addAction(factory_action)
+        tasks_action = QAction("Görevler…", self)  # görev motoru (K4): plan, adım durumu, devam, onay
+        tasks_action.triggered.connect(self.open_tasks)
+        h.addAction(tasks_action)
+        caps_action = QAction("Yetenekler…", self)  # K5: görev motorunun manifestli yetenekleri
+        caps_action.triggered.connect(self.open_capabilities)
+        h.addAction(caps_action)
+        # Gelişmiş (eski Aşama 6 / K10): model seçimiyle ilgili her şey burada; ana menüde model seçimi yok
+        g = self.advanced_menu = h.addMenu("Gelişmiş")
+        for kind, title in [("online", "Online modeller"), ("offline", "Offline modeller")]:
+            sub = g.addMenu(title)
+            sub.aboutToShow.connect(lambda m=sub, k=kind: self._fill_model_menu(m, k))
+        g.addSeparator()
+        self.adv_guard = QAction("Güvenlik ajanı (onayları o verir)", self, checkable=True)
+        self.adv_guard.toggled.connect(lambda on: self.guard_btn.setChecked(on))
+        self.adv_free = QAction("Sansürsüz kip (filtresiz yerel model)", self, checkable=True)
+        self.adv_free.toggled.connect(lambda on: self.free_btn.setChecked(on))
+        self.adv_light = QAction("Hafif kip (küçük model, 8K bağlam)", self, checkable=True)
+        self.adv_light.toggled.connect(lambda on: self.light_btn.setChecked(on))
+        for a in (self.adv_guard, self.adv_free, self.adv_light):
+            g.addAction(a)
+        g.aboutToShow.connect(self._sync_advanced_menu)
+        g.addSeparator()
+        advisor = QAction("Model önerileri…", self)
+        advisor.triggered.connect(self.open_advisor)
+        g.addAction(advisor)
         cats_action = QAction("Ajan kategorileri…", self)
         cats_action.triggered.connect(self.open_categories)
-        h.addAction(cats_action)
+        g.addAction(cats_action)
         cards_action = QAction("Model kartları…", self)
         cards_action.triggered.connect(self.open_cards)
-        h.addAction(cards_action)
+        g.addAction(cards_action)
+        models_action = QAction("Modeller…", self)  # K7: kademe listeleri, ölçümler, varsayılanı değiştir, listeyi yenile
+        models_action.triggered.connect(self.open_models)
+        g.addAction(models_action)
+        factory_action = QAction("Araç fabrikası…", self)
+        factory_action.triggered.connect(self.open_factory)
+        g.addAction(factory_action)
+        self.image_action = QAction("Resim üretimi…", self)
+        self.image_action.triggered.connect(self._image_setup)
+        g.addAction(self.image_action)
+        figure_action = QAction("3D figür motoru…", self)
+        figure_action.triggered.connect(self._figure_setup)
+        g.addAction(figure_action)
         learn = QAction("Hafıza ve öğrenme…", self)
         learn.triggered.connect(self.open_learning)
         h.addAction(learn)
@@ -756,6 +807,8 @@ class MainWindow(HelpMixin, ModelsMixin, AccountsMixin, BarMixin, ModesMixin, Ch
         if self.task_worker:
             self.task_worker.cancel()
             self.task_worker.wait(3000)
+        if getattr(self, "guc_izleyici", None):
+            self.guc_izleyici.dur()
         if self.worker:
             self.worker.cancel()
             self.worker.wait(3000)

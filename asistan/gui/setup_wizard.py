@@ -13,6 +13,7 @@ from PySide6.QtWidgets import (
     QScrollArea, QStackedWidget, QVBoxLayout, QWidget,
 )
 
+from .sidebar import run_in_background
 from .. import sysinfo
 from ..config import Settings
 from .theme import C
@@ -62,6 +63,7 @@ class SetupWizard(QDialog):
 
         self.pages.addWidget(self._page_welcome())
         self.pages.addWidget(self._page_system())
+        self.pages.addWidget(self._page_kaynak())  # K10: kademe → yerel / bulut / ikisi → gizlilik
         self.pages.addWidget(self._page_models())
         self.pages.addWidget(self._page_done())
         self._go(0)
@@ -84,14 +86,16 @@ class SetupWizard(QDialog):
     def _go(self, index: int):
         index = max(0, min(index, self.pages.count() - 1))
         self.pages.setCurrentIndex(index)
-        names = ["hoş geldin", "sistem", "yerel modeller", "hazır"]
+        names = ["hoş geldin", "sistem", "modeller nereden", "yerel modeller", "hazır"]
         self.step_label.setText(f"ADIM {index + 1} / {len(names)}  ·  {names[index].upper()}")
-        self.back_btn.setVisible(0 < index < 3)
-        self.skip_btn.setVisible(index < 3)
-        self.next_btn.setText("Başla" if index == 3 else "İleri")
+        self.back_btn.setVisible(0 < index < 4)
+        self.skip_btn.setVisible(index < 4)
+        self.next_btn.setText("Başla" if index == 4 else "İleri")
         if index == 1 and self.info is None:
             self._scan()
         if index == 2:
+            self._kaynak_doldur()
+        if index == 3:
             self._fill_models()
 
     def _next(self):
@@ -100,9 +104,13 @@ class SetupWizard(QDialog):
             path = self.workspace.text().strip()
             if path:
                 self.settings.workspace = str(Path(path).expanduser())
-        if index == 2 and self.pulling:
+        if index == 2:  # model kaynağı + gizlilik kaydedilir; yalnızca bulut seçildiyse yerel model sayfası atlanır
+            self._kaynak_kaydet()
+            self._go(4 if self.src_bulut.isChecked() else 3)
             return
-        if index == 3:
+        if index == 3 and self.pulling:
+            return
+        if index == 4:
             self._finish()
             return
         self._go(index + 1)
@@ -135,6 +143,71 @@ class SetupWizard(QDialog):
         if path:
             self.workspace.setText(path)
 
+    # ---- 3: kademe → modeller nereden (yerel / bulut / ikisi) → gizlilik (K10)
+    def _page_kaynak(self) -> QWidget:
+        from PySide6.QtWidgets import QComboBox, QRadioButton
+
+        page = QWidget()
+        col = QVBoxLayout(page)
+        col.addWidget(self._title("Modeller nereden çalışsın?"))
+        self.kademe_text = self._text("")
+        col.addWidget(self.kademe_text)
+        col.addSpacing(10)
+        self.src_yerel = QRadioButton("Yerel modeller — ücretsiz, çevrimdışı, bilgisayarında (Ollama)")
+        self.src_bulut = QRadioButton("Bulut anahtarı — Claude API (ücretli, hızlı; zayıf bilgisayarda önerilir)")
+        self.src_ikisi = QRadioButton("İkisi — basit işler yerelde, karmaşık işler bulutta")
+        for r in (self.src_yerel, self.src_bulut, self.src_ikisi):
+            col.addWidget(r)
+        col.addSpacing(8)
+        col.addWidget(QLabel("CLAUDE API ANAHTARI (isteğe bağlı; anahtar zincirinde saklanır)", objectName="label"))
+        self.api_key = QLineEdit(placeholderText="sk-ant-… (boş bırakılabilir; sonra Ayarlar → API'ler)")
+        self.api_key.setEchoMode(QLineEdit.Password)
+        col.addWidget(self.api_key)
+        col.addSpacing(8)
+        col.addWidget(QLabel("GİZLİLİK", objectName="label"))
+        self.gizlilik = QComboBox()
+        self.gizlilik.addItem("Karma: basit işler yerelde, gerekirse bulut", "karma")
+        self.gizlilik.addItem("Yalnızca yerel: hiçbir şey buluta gitmez", "yerel")
+        self.gizlilik.addItem("Bulut öncelikli: bağlı bulut modelleri önce", "bulut")
+        col.addWidget(self.gizlilik)
+        col.addWidget(self._text("Bunların hepsi sonradan Ayarlar'dan değiştirilebilir. Model seçmek zorunda "
+                                 "değilsin; program işe ve bilgisayarına göre seçer."))
+        col.addStretch()
+        return page
+
+    def _kaynak_doldur(self):
+        """Ölçülen kademeye göre varsayılan seçim: yüksek → yerel, orta → ikisi, düşük → bulut (MIMARI §3)."""
+        from ..cekirdek import profil
+
+        kademe = profil.kademe()
+        neden = ((profil.yukle() or {}).get("kademe") or {}).get("neden", "")
+        self.kademe_text.setText(f"Bilgisayarının kademesi: <b>{profil.ADLAR.get(kademe, kademe)}</b>"
+                                 + (f" — {neden}" if neden else "") + "<br>"
+                                 + {"dusuk": "Bu kademede yerel modeller yavaş kalır; bulut anahtarı önerilir.",
+                                    "orta": "Küçük ve orta modeller yerelde rahat çalışır; ağır işler için bulut iyi olur.",
+                                    "yuksek": "Yerel modeller rahat çalışır; bulut isteğe bağlı."}.get(kademe, ""))
+        if not any(r.isChecked() for r in (self.src_yerel, self.src_bulut, self.src_ikisi)):
+            {"dusuk": self.src_bulut, "orta": self.src_ikisi}.get(kademe, self.src_yerel).setChecked(True)
+        if kademe == "dusuk":
+            self.gizlilik.setCurrentIndex(max(0, self.gizlilik.findData("bulut")))
+
+    def _kaynak_kaydet(self):
+        s = self.settings
+        s.extra["gizlilik"] = self.gizlilik.currentData()  # cekirdek/yonlendirici EXTRA_GIZLILIK
+        s.extra["model_kaynagi"] = "bulut" if self.src_bulut.isChecked() else "yerel" if self.src_yerel.isChecked() else "ikisi"
+        if self.src_bulut.isChecked():
+            s.model_policy = "guclu"
+        anahtar = self.api_key.text().strip()
+        if anahtar:
+            try:
+                from ..connections import ANTHROPIC_KEY
+                from ..keystore import set_secret
+
+                set_secret(ANTHROPIC_KEY, anahtar)
+            except Exception as e:  # anahtar zinciri yok: kullanıcı Ayarlar → API'ler'den girer
+                self.kademe_text.setText(self.kademe_text.text() + f"<br>Anahtar saklanamadı: {e}")
+        s.save()
+
     # ---- 2: sistem taraması + Ollama
     def _page_system(self) -> QWidget:
         page = QWidget()
@@ -166,6 +239,28 @@ class SetupWizard(QDialog):
         return page
 
     def _scan(self):
+        self._scan_sistem()
+        try:  # K11: sistem analizi + yetenek önerisi (kayıtlı yetenekler, pasif olanların nedeni, kapalı özellikler)
+            self.scan_text.setText(self.scan_text.text() + self._yetenek_ozeti())
+        except Exception as e:  # sihirbaz yetenek özeti yüzünden durmaz
+            self.scan_text.setText(self.scan_text.text() + f"<br><small>yetenek özeti alınamadı: {e}</small>")
+
+    def _yetenek_ozeti(self) -> str:
+        from ..cekirdek import profil
+        from ..cekirdek.yetenek.kayit import Kayit
+
+        k = Kayit()
+        aktif, pasif = k.aktifler(), k.pasifler()
+        kapali = [profil.AGIR_OZELLIKLER[o] for o in profil.AGIR_OZELLIKLER if not profil.acik_mi(o)]
+        satir = f"<br><b>Yetenekler:</b> {len(aktif)} hazır"
+        if pasif:
+            satir += ", " + str(len(pasif)) + " kurulunca açılır: " + "; ".join(
+                f"{y.ad} ({y.neden[:60]})" for y in pasif[:3]) + (" …" if len(pasif) > 3 else "")
+        if kapali:
+            satir += f"<br><small>Bu kademede kapalı: {', '.join(kapali)} (Görünüm → Gelişmiş arayüz ile bakabilirsin)</small>"
+        return satir
+
+    def _scan_sistem(self):
         self.scan_text.setText("taranıyor…")
         QApplication.processEvents()
         info = self.info = sysinfo.scan(self.settings.ollama_url)
@@ -176,7 +271,10 @@ class SetupWizard(QDialog):
             f"<tr><td style='color:{C['muted']}'>işlemci</td><td>{info.cpu} · {info.cores} çekirdek</td></tr>"
             f"<tr><td style='color:{C['muted']}'>bellek</td><td>{info.ram_gb:.0f} GB</td></tr>"
             f"<tr><td style='color:{C['muted']}'>ekran kartı</td><td>{gpu}</td></tr>"
-            f"<tr><td style='color:{C['muted']}'>boş disk</td><td>{info.disk_free_gb:.0f} GB</td></tr>"
+            + (f"<tr><td style='color:{C['muted']}'>hibrit grafik</td><td>dahili + ayrı kart: pilde ve boştayken ayrı "
+               f"kart yavaşlayabilir; program ölçüp kendini uyarlar (Ollama dahili kartı kullanamaz)</td></tr>"
+               if info.hibrit else "")
+            + f"<tr><td style='color:{C['muted']}'>boş disk</td><td>{info.disk_free_gb:.0f} GB</td></tr>"
             f"<tr><td style='color:{C['muted']}'>ollama</td><td>"
             + ("çalışıyor ✓" if info.ollama_running else ("kurulu, çalışmıyor" if info.ollama_installed else "kurulu değil"))
             + "</td></tr></table>")
@@ -285,9 +383,19 @@ class SetupWizard(QDialog):
             return
         from .. import model_updates
 
+        if getattr(self, "_models_yukleniyor", False):
+            return
+        self._models_yukleniyor = True
         self.reco_text.setText("güncel model listesi alınıyor…")
-        QApplication.processEvents()
-        live = model_updates.refresh()  # internet varsa günlük liste; yoksa eldeki / programla gelen liste
+        # K12-D5: 5+ HTTPS kaynağı (20 sn zaman aşımları) ana iş parçacığında sihirbazı dondurmasın
+        run_in_background(model_updates.refresh, self._fill_models_devam, self)
+
+    def _fill_models_devam(self, live, error=None):
+        from .. import model_updates
+
+        self._models_yukleniyor = False
+        if error is not None or live is None:
+            live = model_updates.load()  # eldeki / programla gelen liste
         text, suggestions = sysinfo.recommend(self.info, live)
         self.bundled = sysinfo.bundled_modelfile() is not None
         extra = "" if self.info.ollama_running else " <b>Ollama çalışmadığı için şimdi indirilemez</b>; " \

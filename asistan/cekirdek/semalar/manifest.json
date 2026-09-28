@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "manifest.json",
+  "title": "Yetenek manifesti (docs/SEMALAR.md §1)",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["ad", "surum", "aciklama", "girdi", "cikti", "gereksinimler", "izinler", "zaman_asimi_sn", "sandbox",
+               "kaynak", "guvenilir"],
+  "properties": {
+    "ad": {"type": "string", "pattern": "^[a-z0-9_]+$"},
+    "surum": {"type": "string", "pattern": "^\\d+\\.\\d+\\.\\d+$"},
+    "aciklama": {"type": "string", "minLength": 1},
+    "etiketler": {"type": "array", "items": {"type": "string", "minLength": 1}},
+    "girdi": {"type": "object", "additionalProperties": {"$ref": "#/$defs/alan"}},
+    "cikti": {"type": "object", "additionalProperties": {"$ref": "#/$defs/alan"}},
+    "gereksinimler": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "pip": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._\\-\\[\\]]*\\s*((==|>=|<=|!=|~=|>|<)\\s*[0-9][0-9A-Za-z.]*\\s*,?\\s*)*$"}},
+        "ikili": {"type": "array", "items": {"type": "string", "pattern": "^[A-Za-z0-9._\\-]+$"}},
+        "min_kademe": {"type": "string", "enum": ["dusuk", "orta", "yuksek", "sunucu"]},
+        "isletim": {"type": "array", "minItems": 1, "items": {"type": "string", "enum": ["windows", "linux", "macos"]}},
+        "python": {"type": "string", "pattern": "^(==|>=|<=|>|<)\\s*\\d+(\\.\\d+)*$"}
+      }
+    },
+    "izinler": {
+      "type": "array",
+      "items": {"type": "string", "pattern": "^(ag|dosya_oku|dosya_yaz|dosya_sil|komut|anahtar:[A-Z0-9_]+)$"}
+    },
+    "zaman_asimi_sn": {"type": "integer", "minimum": 1, "maximum": 600},
+    "sandbox": {"type": "boolean"},
+    "kaynak": {"type": "string", "enum": ["yerlesik", "katalog", "uretildi"]},
+    "guvenilir": {"type": "boolean"},
+    "ornekler": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["girdi", "beklenen"],
+        "properties": {"girdi": {"type": "object"}, "beklenen": {"type": "string", "minLength": 1}}
+      }
+    }
+  },
+  "$defs": {
+    "alan": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tip"],
+      "properties": {
+        "tip": {"type": "string", "enum": ["string", "int", "float", "bool", "list", "dict"]},
+        "zorunlu": {"type": "boolean"},
+        "aciklama": {"type": "string"},
+        "varsayilan": {},
+        "secenekler": {"type": "array", "minItems": 1},
+        "eleman": {"type": ["string", "object"]}
+      }
+    }
+  }
+}

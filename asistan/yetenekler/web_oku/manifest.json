@@ -1,0 +1,58 @@
+{
+  "ad": "web_oku",
+  "surum": "1.0.0",
+  "aciklama": "Bir web sayfasını indirir, okunur metnini döndürür.",
+  "etiketler": [
+    "ag",
+    "arastirma"
+  ],
+  "girdi": {
+    "url": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "http(s) adresi"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [
+      "httpx",
+      "beautifulsoup4"
+    ],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "ag"
+  ],
+  "zaman_asimi_sn": 45,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "url": "https://example.com"
+      },
+      "beklenen": "sayfa metninde 'Example Domain'"
+    },
+    {
+      "girdi": {
+        "url": "https://www.python.org"
+      },
+      "beklenen": "sayfa metni boş değil"
+    }
+  ]
+}

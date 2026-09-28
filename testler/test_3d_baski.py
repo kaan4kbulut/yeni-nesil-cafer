@@ -20,8 +20,9 @@ sys.path.insert(0, str(KOK))
 _VERI = Path.home() / ".local/share"  # gerçek kurulum: başka test dosyası XDG_DATA_HOME'u geçiciye almış olabilir
 _KUTUPHANE = next((d for d in (_VERI / "yeni-nesil-cafer/python-kutuphaneleri", _VERI / "yerel-asistan/python-kutuphaneleri")
                    if d.is_dir()), _VERI / "yeni-nesil-cafer/python-kutuphaneleri")  # eski adlı klasör henüz taşınmadıysa
-if _KUTUPHANE.is_dir():
-    os.environ["PYTHONPATH"] = os.pathsep.join(filter(None, [str(_KUTUPHANE), os.environ.get("PYTHONPATH", "")]))
+import kutuphane_yolu  # noqa: E402  (yalnızca bu Python'la uyumlu kütüphane klasörleri)
+
+kutuphane_yolu.pythonpath_ekle()
 _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")

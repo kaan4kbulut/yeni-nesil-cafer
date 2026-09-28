@@ -7,6 +7,7 @@ from PySide6.QtWidgets import QFileDialog, QPushButton
 
 from .. import cli_agents, power, roster, specialists
 from ..agent import list_ollama_models
+from ..cekirdek import modeller
 from ..config import CLAUDE_MODELS
 
 from .icons import icon
@@ -66,7 +67,7 @@ class BarMixin:
 
     # ---- dikte: konuşarak yaz (asistan/dictation.py)
     def _toggle_dictation(self):
-        from ..dictation import Dictation
+        from .dikte_kaydi import Dictation
 
         if self.dictation is None:
             self.dictation = Dictation(lambda: self.settings, self._installed_models, self)
@@ -313,7 +314,7 @@ class BarMixin:
                 self.settings.ollama_model = name
                 if changed and self._chat_only():
                     self._notify(f"{name} araç kullanamıyor: sohbet eder, ama web'de arama, dosya ve komut "
-                                 "işlerini yapamaz. Bunlar için qwen2.5:14b seç.", 12000)
+                                 f"işlerini yapamaz. Bunlar için {modeller.deger('arac_ustasi')} seç.", 12000)
             else:
                 self.settings.api_models[self.provider[4:]] = name
             self.settings.save()

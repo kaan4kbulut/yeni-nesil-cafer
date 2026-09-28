@@ -4,8 +4,8 @@ import threading
 
 from PySide6.QtCore import QThread, Signal
 
-from ..agent import Agent, Cancelled, describe_error
-from ..manager import Manager
+from ..agent import Agent
+from ..cekirdek import istek
 
 from .chat import tool_label, TOOL_LABELS
 
@@ -23,6 +23,8 @@ class AgentWorker(QThread):
     plan = Signal(object)  # yöneticinin planı: None (çıkarılıyor), [] (gerek yok) ya da adım listesi
     plan_step = Signal(int, str, str)  # (adım sırası, durum, not)
     route_note = Signal(str)  # yöneticinin model notu ("işi X yapıyor")
+    status = Signal(str)  # dürtü/denetim durumu: baloncuğa değil sağ paneldeki durum satırına (BÖLÜM 2-d)
+    retracted = Signal()  # konuşup bırakan cevap geri alındı: açık metin akışı boşaltılır
     media = Signal(str, int, str)  # canlı görüntü bölümü: (dosya, yüzde; <0 bitti, not)
     failed = Signal(str)
     stopped = Signal()
@@ -54,6 +56,11 @@ class AgentWorker(QThread):
     def on_plan(self, steps): self.plan.emit(None if steps is None else [dict(s) for s in steps])
     def on_step(self, i, status, note): self.plan_step.emit(i, status, note)
     def on_route(self, text): self.route_note.emit(text)
+    def on_status(self, text): self.status.emit(text)
+
+    def on_retract(self):
+        self.turn_text = ""
+        self.retracted.emit()
     def on_media(self, path, pct, text): self.media.emit(path, pct, text)
 
     def on_model_end(self, stats):
@@ -88,9 +95,9 @@ class AgentWorker(QThread):
         self.answer_approval(False)
 
     def run(self):
-        try:
-            Manager(self.agent).run(self.provider, self.messages, self.user_text)
-        except Cancelled:
+        # çalıştırma (yönetici döngüsü, durdurma ve hata metni) çekirdekte; burada yalnızca sinyale çevrilir
+        sonuc = istek.istegi_calistir(self.agent, self.provider, self.messages, self.user_text)
+        if sonuc.durum == "durduruldu":
             self.stopped.emit()
-        except Exception as e:
-            self.failed.emit(describe_error(e))
+        elif sonuc.durum == "hata":
+            self.failed.emit(sonuc.hata)

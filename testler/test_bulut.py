@@ -1,6 +1,7 @@
 """Bulut beyin (Aşama 6) testleri: gerçek HTTP sunucusu (süreç içinde), iki ayrı hafıza arasında eşitleme,
 iş kuyruğu, Telegram eşleşmesi ve yetki. Model çağrılmaz (answer sahte)."""
 
+import contextlib
 import json
 import os
 import sys
@@ -67,26 +68,41 @@ class Esitleme(_Sunucu):
         local_item = memory_db.put("tercih", "Raporlar Excel olsun")
         # eşitleme: istemci yerel DB ile, sunucu (HTTP içinde) kendi DB'siyle çalışır — süreç içinde tek DB
         # bağlantısı olduğu için sunucu tarafını istek sırasında değiştiriyoruz
-        with mock.patch.object(cloud_server.Handler, "do_POST", _swap_db(self, cloud_server.Handler.do_POST)):
+        with _sunucu_db(self):
             sent, got = cloud_sync.sync(self.settings)
         self.assertEqual((sent, got), (1, 1))
         self.assertEqual({i["text"] for i in memory_db.items()}, {"Telefonda kısa cevap isterim", "Raporlar Excel olsun"})
         # bilgisayarda silinen kayıt sunucuda da silinir
         memory_db.delete(server_item["id"])
-        with mock.patch.object(cloud_server.Handler, "do_POST", _swap_db(self, cloud_server.Handler.do_POST)):
+        with _sunucu_db(self):
             cloud_sync.sync(self.settings)
         self._as_server()
         self.assertEqual([i["id"] for i in memory_db.items()], [local_item["id"]])
 
 
-def _swap_db(test, original):
-    def handler(self_):
+@contextlib.contextmanager
+def _sunucu_db(test):
+    """Sunucu iş parçacığı isteği kendi veritabanıyla işler, cevabı GÖNDERMEDEN önce yerel veritabanına geri döner.
+
+    Eski sarmalayıcı geri dönüşü `do_POST` bittikten sonra yapıyordu; istemci cevabı alır almaz `apply_changes`'ı
+    çağırdığı için tam takımda bazen sunucu veritabanına yazıyor ya da kapatılan bağlantıya denk geliyordu (kararsız
+    test). Şimdi `_send` içinde geri dönülür: istemci cevabı okuduğunda küresel bağlantı hep yerel veritabanıdır."""
+    orijinal_post, orijinal_send = cloud_server.Handler.do_POST, cloud_server.Handler._send
+
+    def do_post(self_):
         test._as_server()
         try:
-            return original(self_)
+            return orijinal_post(self_)
         finally:
-            test._as_local()
-    return handler
+            test._as_local()  # cevap gönderilemeden hata çıktıysa da yerel DB geri gelsin
+
+    def send(self_, *args, **kwargs):
+        test._as_local()
+        return orijinal_send(self_, *args, **kwargs)
+
+    with mock.patch.object(cloud_server.Handler, "do_POST", do_post), \
+            mock.patch.object(cloud_server.Handler, "_send", send):
+        yield
 
 
 class Kuyruk(_Sunucu):
@@ -134,6 +150,22 @@ class WebSohbet(_Sunucu):
                            timeout=10)
         self.assertEqual(r.json(), {"reply": "Merhaba!"})
         self.assertEqual(ans.call_args.args[:2], ("web", "selam"))
+
+    def test_answer_masaustuyle_ayni_yoldan(self):
+        # answer → istek.calistir → Manager.run (model çağrılmaz); bulut notu, araç süzgeci ve geçmiş korunur
+        from asistan import manager
+
+        def sahte(yonetici, saglayici, mesajlar, metin):
+            self.assertEqual(saglayici, "ollama")
+            self.assertIs(yonetici.agent.extra_system, cloud_server.CLOUD_NOTE)
+            self.assertLessEqual({s["name"] for s in yonetici.agent.tool_specs}, cloud_server.CLOUD_TOOLS)
+            mesajlar += [{"role": "user", "content": metin}, {"role": "assistant", "content": "bulut cevap"}]
+            yonetici.agent.cb.on_text("bulut cevap")
+
+        with mock.patch.object(manager.Manager, "run", autospec=True, side_effect=sahte) as run:
+            self.assertEqual(cloud_server.answer("web", "selam"), "bulut cevap")
+        run.assert_called_once()
+        self.assertEqual(cloud_server.history("web")[-1]["content"], "bulut cevap")
 
 
 if __name__ == "__main__":

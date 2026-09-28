@@ -67,8 +67,20 @@ class Yonlendirici(unittest.TestCase):
         self.assertEqual(roster.worker_for(self.s, ("claude", "x")), ("claude", "x"))
 
     def test_plan_yapamayan_model_yerine_yonetici(self):
-        self.assertEqual(roster.manager_for(self.s, ("ollama", "gemma3:12b")), ("ollama", "gemma4:12b"))
-        self.assertEqual(roster.manager_for(self.s, ("ollama", "qwen3.5:4b")), ("ollama", "qwen3.5:4b"))
+        # K3: yönetici politikası (otomatik) — Claude Code ve bulut yoksa araç sınavını tam geçen en güçlü yerel model
+        with mock.patch.object(roster.cli_agents, "available", return_value=False):
+            self.assertEqual(roster.manager_for(self.s, ("ollama", "gemma3:12b")), ("ollama", "gemma4:12b"))
+            self.assertEqual(roster.manager_for(self.s, ("ollama", "qwen3.5:4b")), ("ollama", "gemma4:12b"))
+            # sansürsüz sohbette yönetici de sansürsüz (sansürsüz ↔ normal geçişi yok)
+            self.assertEqual(roster.manager_for(self.s, ("ollama", "huihui_ai/gemma-4-abliterated:12b")),
+                             ("ollama", "huihui_ai/qwen3.5-abliterated:4b"))
+
+    def test_claude_code_girisliyse_yonetici(self):
+        with mock.patch.object(roster.cli_agents, "available", return_value=True):
+            self.assertEqual(roster.manager_for(self.s, ("ollama", "gemma3:12b"))[0], "cli:claude")
+            # araç fabrikası yerel yönetici ister
+            self.assertEqual(roster.manager_for(self.s, ("ollama", "gemma3:12b"), policy="yerel"),
+                             ("ollama", "gemma4:12b"))
 
 
 if __name__ == "__main__":

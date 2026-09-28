@@ -15,16 +15,14 @@ from dataclasses import dataclass, field
 import httpx
 
 from . import cards, cli_agents, model_updates, catalog, power, specialists
+from .cekirdek import modeller
 from .config import CLAUDE_MODELS, Settings
 from .profiles import AgentProfile
 
 CACHE_SECONDS = 30
 
 # yerel model ailelerine göre kuşak puanı (aynı boyutta yeni kuşak daha yetenekli)
-_FAMILY_BONUS = {
-    "qwen3.6": 9, "qwen3.5": 8, "gemma4": 8, "qwen3": 6, "gpt-oss": 6, "gemma3": 3, "qwen2.5": 3, "llama3.3": 3, "mistral-small": 3,
-    "deepseek-r1": 2, "phi4": 2, "llama3.1": 0, "llama3.2": -2, "qwen2": 0,
-}
+_FAMILY_BONUS = modeller.deger("aileler.kusak_puani")  # ayar/modeller.json
 
 PREF_LABELS = {"tools": "araç", "vision": "görme", "code": "kod", "thinking": "düşünme"}
 
@@ -110,12 +108,15 @@ def _cloud(settings: Settings) -> list[Candidate]:
 
 def candidates(settings: Settings, refresh: bool = False) -> list[Candidate]:
     """Kullanılabilir tüm modeller (kısa süre önbellekte tutulur)."""
+    from .cekirdek import yonlendirici
+
     global _cache
     now = time.time()
-    key = (settings.ollama_url, power.saving(settings))  # fişe takılınca/çıkınca puanlar değişir
+    local_only = yonlendirici.gizlilik(settings) == "yerel"  # K3: gizlilik "yalnızca yerel" → bulut otomatik seçilmez
+    key = (settings.ollama_url, power.saving(settings), local_only)  # fişe takılınca/çıkınca puanlar değişir
     if not refresh and _cache and now - _cache[0] < CACHE_SECONDS and _cache[1] == key:
         return _cache[2]
-    found = _ollama(settings) + _cloud(settings)
+    found = _ollama(settings) + ([] if local_only else _cloud(settings))
     _cache = (now, key, found)
     return found
 
@@ -256,6 +257,20 @@ def _tools_ok(settings: Settings, model: str) -> int:
     return 2 if "tools" in specialists._capabilities(settings.ollama_url, model) else 0
 
 
+def arac_kipi(settings: Settings, model: str) -> str:
+    """Yerel modelin araç kullanma yolu (K4, eski Aşama 3; kullanıcıya görünmez):
+    "yerlesik" — araç sınavını tam geçti (3/3): modelin kendi araç çağrısı · "secici" — geçemedi ya da hiç araç
+    desteklemiyor: program turu karar (şema-kısıtlı JSON) + araç çalıştırma olarak böler (`Agent._run_selector`).
+    Kart da Ollama beyanı da okunamadıysa "yerlesik" (bilinmiyor: eski yol)."""
+    level = cards.tools_level(model)
+    if level is not None:
+        return "yerlesik" if level == 2 else "secici"
+    caps = specialists._capabilities(settings.ollama_url, model)
+    if not caps:
+        return "yerlesik"
+    return "yerlesik" if "tools" in caps else "secici"
+
+
 def worker_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str] | None:
     """İşi yapacak (araç çağıracak) model. Sohbet modeli araç sınavını geçtiyse kendisi (ekran kartında modeller
     arasında gidip gelinmesin); geçemediyse sınavı geçen en uygun yerel model. Hiçbiri yoksa None.
@@ -275,42 +290,26 @@ def worker_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str] | N
     return best.key
 
 
-def manager_for(settings: Settings, chat: tuple[str, str]) -> tuple[str, str]:
-    """Plan çıkarıp denetleyecek model. "En güçlü" politikasında bağlı en güçlü bulut modeli; aksi halde sohbet
-    modeli plan sınavını geçtiyse kendisi, geçemediyse plan sınavını geçen en güçlü yerel model."""
-    provider, model = chat
-    if settings.model_policy == "guclu":
-        cloud = [c for c in candidates(settings) if not c.local]
-        if cloud:
-            return max(cloud, key=lambda c: c.score).key
-    if provider != "ollama":
-        return chat
-    card = cards.card(model)
-    if card is None or card.get("plan"):
-        return chat
-    free = model_updates.is_uncensored(model)
-    pool = [c for c in candidates(settings) if c.local and (cards.card(c.model) or {}).get("plan")]
-    if not pool:
-        return chat
-    return max(pool, key=lambda c: (model_updates.is_uncensored(c.model) == free, round(c.score))).key
+def sansursuz_secilebilir(kurulu: list[str]) -> list[str]:
+    """Sansürsüz kipte seçilebilecek modeller: kurulu, sansürsüz ve araç sınavını (`cards.py`) TAM geçenler.
+
+    Ollama'nın "tools" beyanı ya da henüz sınanmamış kart yeterli değildir: sansürsüz kipte güvenlik ajanı kapalıdır,
+    işi yapacak modelin araç çağırdığı programın kendi sınavıyla kanıtlanmış olmalı. Sıra kurulu listesiyle aynı."""
+    return [m for m in kurulu if model_updates.is_uncensored(m) and cards.tools_level(m) == 2]
+
+
+def manager_for(settings: Settings, chat: tuple[str, str], policy: str | None = None) -> tuple[str, str]:
+    """Plan çıkarıp denetleyecek model. Karar yönlendiricinin "yönetici" rolünde (`cekirdek/yonlendirici.py`,
+    politika otomatik | yerel | bulut); model bulunamazsa sohbet modeli."""
+    from .cekirdek import yonlendirici
+
+    secim = yonlendirici.yonetici_sec(settings, chat, politika_=policy)
+    return secim.anahtar or tuple(chat)
 
 
 def stronger(settings: Settings, current: tuple[str, str]) -> Candidate | None:
-    """Başarısız bir adımı devralacak daha güçlü model (yönetici): puanı yüksek, araç kullandığı doğrulanmış.
+    """Başarısız bir adımı devralacak daha güçlü model: yönlendiricinin yedekleme zincirinde bir üst basamak
+    (`yonlendirici.daha_guclu`; kurallar orada)."""
+    from .cekirdek import yonlendirici
 
-    Yerelde yalnızca araç sınavını tam geçenler (kart 6/6), sansürsüz ↔ normal geçişi yok. Bulut modelleri yalnızca
-    "güçlü" politikasında: kullanıcı "yerel" seçtiyse ücretli olabilecek bir servise kendiliğinden gidilmez."""
-    pool = candidates(settings)
-    key = tuple(current)
-    base = next((c.score for c in pool if c.key == key), 0.0)
-    free = model_updates.is_uncensored(current[1])
-    usable = []
-    for c in pool:
-        if c.key == key or "tools" not in c.caps or c.score <= base:
-            continue
-        if c.local and (cards.tools_level(c.model) != 2 or model_updates.is_uncensored(c.model) != free):
-            continue
-        if not c.local and settings.model_policy != "guclu":
-            continue
-        usable.append(c)
-    return max(usable, key=lambda c: c.score, default=None)
+    return yonlendirici.daha_guclu(settings, current)

@@ -16,8 +16,9 @@ from contextlib import contextmanager
 from dataclasses import replace
 from pathlib import Path
 
-from . import cli_agents, learning, roster, specialists
-from .agent import Agent, is_action, is_task_request, _TASK
+from . import cli_agents, learning, permissions, roster, specialists
+from .cekirdek import modeller, yonlendirici
+from .agent import PROGRAM, Agent, Cancelled, is_action, is_task_request, _TASK
 
 MAX_PLAN_STEPS = 5
 MAX_FIXES = 1  # bir adım en fazla kaç kez düzelttirilir
@@ -82,6 +83,72 @@ def is_browser_task(text: str) -> bool:
     return bool(_BROWSER.search(learning.original_request(text or "")))
 
 
+# ürün / fiyat LİSTESİ isteği ("adını ve fiyatını yaz", "en ucuz 5 fritöz", "kaç TL"): kelime sınırlı; bir işlem
+# isteği (sepete ekle, satın al, ilan ver…) liste isteği sayılmaz — denetim onu tekrar koşturmasın (K5 denetimi)
+_FIYAT_ISTEGI = re.compile(r"\bfiyat\w*|\ben (ucuz|pahalı|pahali)\b|\bkaç (tl|lira)\b|\bprices?\b", re.I)
+_ISLEM_ISTEGI = re.compile(r"\bsepet\w*|\bsatın al\w*|\bsatin al\w*|\bsipariş\w*|\bsiparis\w*|\bödeme\w*|\bilan (ver|ekle|"
+                           r"yayınla)\w*|\byorum (yap|yaz)\w*|\bgönder\w*|\bbuy\b|\bcheckout\b|\badd to cart\b", re.I)
+# istenen satır sayısı: "ilk 5", "en ucuz 3", "5 tane", "5 ürün" — sayının önünde bir kelime varsa (iPhone 15) sayılmaz
+_ISTENEN = re.compile(r"\b(?:ilk|en ucuz|en pahalı|en iyi)\s+(\d{1,2})\b|(?<![^\W\d_]\s)(?<![^\W\d_])\b(\d{1,2})\s*"
+                      r"(?:tane|adet|ürün|urun|ilan|sonuç|seçenek|model)", re.I)
+
+
+def fiyat_listesi_mi(istek: str) -> bool:
+    return bool(_FIYAT_ISTEGI.search(istek or "")) and not _ISLEM_ISTEGI.search(istek or "")
+
+
+def fiyat_eksigi(task: str, body: str) -> str:
+    """Ürün/fiyat isteğinde programın denetimi (eski Aşama 4): cevapta en az istenen sayıda, her biri sayısal fiyatlı
+    satır var mı? Sorun yoksa boş. Model "buldum" dese de sayısal fiyat yoksa kabul edilmez; dürüst "bulunamadı"
+    cevabı da geçmez ve tekrar denenir — sonunda "tamamlanamadı" diye bildirilir, uydurma satır yazılmaz."""
+    from .cekirdek.araclar import urunler
+
+    istek = learning.original_request(task or "")
+    if not fiyat_listesi_mi(istek):
+        return ""
+    satir = sum(1 for ln in (body or "").splitlines() if urunler.fiyatlar(ln))
+    m = _ISTENEN.search(istek)
+    istenen = int(m.group(1) or m.group(2)) if m else 1
+    if satir >= istenen:
+        return ""
+    if not satir:
+        return "the answer has no line with a real numeric price (use browser_extract_items on the product list page)"
+    return f"{istenen} items were asked, the answer has only {satir} line(s) with a numeric price"
+
+
+def urun_cevabi(task: str, events: list[dict]) -> str:
+    """Ajanın cevabı fiyat denetiminden geçmediyse: bu turda `browser_extract_items`'ın sayfadan okuduğu satırlardan
+    programın kendi cevabı. Satırlar sayfanın kendisinden (uydurma yok); yeterli satır yoksa boş. Canlı sınav
+    (2026-09-28): araç 30 ürünü doğru okudu, yerel model cevaba yer tutucu yazdı."""
+    from .cekirdek.araclar import urunler
+
+    istek = learning.original_request(task or "")
+    if not fiyat_listesi_mi(istek):
+        return ""
+    m = _ISTENEN.search(istek)
+    for e in reversed(events):
+        if e.get("name") != "browser_extract_items" or e.get("error"):
+            continue
+        satirlar = str(e.get("result") or "").splitlines()
+        kayitlar = []
+        for s in satirlar[1:]:
+            try:
+                o = json.loads(s)
+            except ValueError:
+                continue
+            if isinstance(o, dict) and o.get("ad") and isinstance(o.get("fiyat"), (int, float)):
+                kayitlar.append(o)
+        istenen = int(m.group(1) or m.group(2)) if m else min(len(kayitlar), 10)
+        if not kayitlar or len(kayitlar) < istenen:
+            continue
+        kaynak = satirlar[0].rsplit(" — ", 1)[-1] if satirlar else ""
+        return (f"Sayfadan okunan ilk {istenen} ürün ({kaynak}):\n\n" + "\n".join(
+            f"{i}. {o['ad']} — {urunler.tl(o['fiyat'])} "
+            f"{'TL' if o.get('para_birimi') in ('TRY', '', None) else o['para_birimi']}"
+            + (f" — {o['url']}" if o.get("url") else "") for i, o in enumerate(kayitlar[:istenen], 1)))
+    return ""
+
+
 _LIST_ITEM = re.compile(r"(?m)^\s*(?:\d+[.)]|[-*•])\s+\S")
 # iş sayılmayan ama bir iş adımı olabilen fiiller ("oku ve grafiğini çiz" iki adımdır)
 _STEP_VERBS = re.compile(r"\b(oku|bul|ara|araştır|incele|karşılaştır|özetle|hesapla|çıkar|listele|kontrol et|"
@@ -99,6 +166,16 @@ def needs_plan(text: str) -> bool:
     verbs = sum(1 for rx in (_TASK, _STEP_VERBS) for _ in rx.finditer(request))  # "yaz …, sonra … yaz" iki iş
     return (len(_LIST_ITEM.findall(request)) >= 2 or verbs >= 2 or bool(_THEN.search(request))
             or len(request) > LONG_REQUEST)
+
+
+def _unreachable(exc: Exception) -> bool:
+    """Sağlayıcıya ulaşılamadı ya da anahtar reddedildi: yönlendiricinin sağlık önbelleğine yazılır."""
+    import httpx
+
+    if isinstance(exc, (httpx.ConnectError, httpx.TimeoutException, ConnectionError, TimeoutError)):
+        return True
+    return type(exc).__name__ in ("AuthenticationError", "APIConnectionError", "APITimeoutError",
+                                  "PermissionDeniedError") or "(401)" in str(exc)
 
 
 def parse_json(text: str) -> dict | None:
@@ -163,14 +240,24 @@ class _Recorder:
 class Manager:
     """Sohbet turunu yöneten döngü. `agent.run` yerine `Manager(agent).run(...)` çağrılır."""
 
+    sartli = False  # K12-E8: bir adım denetleyici olmadan geçtiyse (özet ve öğrenme bunu bilir)
+
     def __init__(self, agent: Agent):
         self.agent = agent
         self.cb = agent.cb
         self.plan: list[dict] = []
-        self.chat = self.worker = self.boss = None
-        self.lessons = ""  # planlamaya giren dersler (Aşama 4)  # (sağlayıcı, model): sohbet · işi yapan · planlayan/denetleyen
+        self.chat = self.worker = self.boss = None  # (sağlayıcı, model): sohbet · işi yapan · planlayan/denetleyen
+        self.boss_choice: yonlendirici.Secim | None = None  # yöneticinin kararı (neden, yedekleri)
+        self.boss_chain: yonlendirici.Zincir | None = None  # yönetici çağrısı hata verirse sıradaki aday
+        self.boss_label = ""  # yönetici değiştiyse "X → Y" (plan kartı)
+        self.lessons = ""  # planlamaya giren dersler (Aşama 4)
         self.started = time.time()  # bu turda değişen dosyaların içeriği denetçiye gösterilir
         self._hinted = False  # "daha güçlü model bağla" önerisi bu turda bir kez
+        # K4 görev motoru (bayrakla, `cekirdek/istek.py`): plan çıkarılacak işi motora verir; None: eski yol.
+        # `motor_karari`: motorun "çok adımlı iş" ölçütü (salt okuyan analiz de); motor ✓ beklemez, her değişikliği
+        # kendi adımında sorar
+        self.motor = None
+        self.motor_karari = None
 
     # ---- arayüz bildirimleri (callback yoksa sessiz)
     def _emit(self, name: str, *args):
@@ -187,15 +274,16 @@ class Manager:
     # ---- karar
     def should_plan(self, provider: str, text: str) -> bool:
         a = self.agent
-        if a.profile is not None or a.gate_actions or a.no_tools or not a.tool_specs:
+        gated = a.gate_actions and self.motor is None
+        if a.profile is not None or gated or a.no_tools or not a.tool_specs:
             return False  # uzman ajan sohbeti · onay bekleyen plan turu (✓) · araçsız model: planın anlamı yok
         if cli_agents.is_cli(provider):
             return False  # Claude Code / Codex / Gemini CLI kendi planını yapar
         if provider == "ollama" and self.worker is None:
             return False  # hiçbir kurulu model araç kullanamıyor
-        return needs_plan(text)
+        return (self.motor_karari or needs_plan)(text)
 
-    # ---- modeller (Aşama 3: kartlarla)
+    # ---- modeller (Aşama 3: kartlarla; K3: yönlendirici)
     def _pick_models(self, provider: str) -> None:
         a = self.agent
         a._provider = provider
@@ -204,9 +292,40 @@ class Manager:
             return
         try:
             self.worker = roster.worker_for(a.settings, self.chat)
-            self.boss = roster.manager_for(a.settings, self.chat)
         except Exception:
             pass  # seçim yapılamazsa her şey sohbet modeliyle, eskisi gibi
+        try:  # yönetici: yönlendiricinin "yonetici" rolü (politika otomatik | yerel | bulut)
+            self.boss_choice = yonlendirici.yonetici_sec(a.settings, self.chat)
+            self.boss = self.boss_choice.anahtar or self.chat
+            self.boss_chain = yonlendirici.Zincir([self.boss] + list(self.boss_choice.zincir) + [self.chat], esik=1)
+        except Exception:
+            self.boss_choice, self.boss_chain = None, None
+
+    def _route_chat(self, provider: str) -> yonlendirici.Secim | None:
+        """Bu turun sohbet modeli: görünür karar ("ollama/x — neden: …"); sağlayıcı çalışmıyorsa yedeği."""
+        a = self.agent
+        try:
+            return yonlendirici.sohbet_secimi(a.settings, provider, a._model(), bool(getattr(a.settings, "auto_model",
+                                                                                          False)))
+        except Exception:
+            return None  # yönlendirici karar veremezse tur eskisi gibi sürer
+
+    def _budget_ok(self, target: tuple[str, str] | None) -> bool:
+        """Ücretli bulut modeline gitmeden önce maliyet tavanı (onay kuralı permissions.bulut_tavani'de)."""
+        if not target or target[0] == "ollama" or cli_agents.is_cli(target[0]):
+            return True
+        decision = permissions.bulut_tavani(yonlendirici.tavan_durumu(), yonlendirici.tavan_onaylandi())
+        if decision.kind == permissions.ALLOW:
+            return True
+        ask = getattr(self.cb, "ask_approval", None)
+        ok = bool(ask and ask(permissions.BULUT_TAVANI, {
+            "purpose": f"Bulut maliyet tavanı aşıldı: {decision.reason}. {target[1]} ile devam edilsin mi? "
+                       "(Hayır dersen bu iş yerel modelle sürer.)", "model": f"{target[0]}/{target[1]}"}))
+        if ok:
+            yonlendirici.tavan_onayla()
+        else:
+            self._emit("on_route", f"💰 Bulut tavanı aşıldı ({decision.reason}); {target[1]} kullanılmıyor.")
+        return ok
 
     @contextmanager
     def _hands(self):
@@ -229,26 +348,60 @@ class Manager:
         request = learning.original_request(text)
         if self.worker is None and is_task_request(request):
             self._emit("on_route", f"⚠ Kurulu modellerin hiçbiri araç sınavını geçemedi: {self.chat[1]} dosya yazamaz, "
-                                   "komut çalıştıramaz. Araç kullanabilen küçük bir model kur: `ollama pull qwen3.5:4b`")
+                                   "komut çalıştıramaz. Modeller menüsünden araç kullanabilen küçük bir model indir "
+                                   f"(önerilen: {modeller.deger('temel.model')}).")
         elif self.worker and self.worker != self.chat and is_task_request(request):
             self._emit("on_route", f"🔧 İşi **{self.worker[1]}** yapıyor: {self.chat[1]} araç kullanamıyor (model "
                                    f"kartı). Uzun metinleri yine {self.chat[1]} yazar.")
 
     # ---- model çağrıları (tek seferlik, JSON)
+    def _next_boss(self, reason: str) -> bool:
+        """Yönetici çağrısı olmadı (401, zaman aşımı, bağlam, tavan): zincirde sıradaki aday; "Yönetici: X → Y"."""
+        chain, old = self.boss_chain, self.boss
+        if chain is None or old is None:
+            return False
+        new = chain.basarisiz(reason, zaman_asimi=True)
+        while new is not None and tuple(new) == tuple(old):
+            new = chain.basarisiz(reason, zaman_asimi=True)
+        if new is None:
+            return False
+        self.boss = tuple(new)
+        self.boss_label = f"{(self.boss_label or old[1]).split(' → ')[0]} → {new[1]}"
+        self._emit("on_route", f"🧭 Yönetici: {old[1]} → {new[1]} ({reason[:120]})")
+        if self.plan:  # plan kartında da görünsün
+            for step in self.plan:
+                step["yonetici"] = self.boss_label
+            self._emit("on_plan", self.plan)
+        return True
+
     def _ask_json(self, provider: str, system: str, prompt: str, schema: dict) -> dict | None:
         a = self.agent
-        provider, model = self.boss or (provider, a._model())  # yönetici modeli
-        for attempt in range(2):
-            a._check_cancel()
-            try:
-                answer = specialists.ask(a.settings, a.connections, provider, model,
-                                         prompt if attempt == 0 else prompt + "\n\nReturn ONLY valid JSON.",
-                                         system=system, schema=schema)
-            except Exception:
+        for _ in range(6):  # yönetici adayları: hata verirse zincirde sıradaki
+            provider_, model = self.boss or (provider, a._model())  # yönetici modeli
+            if not self._budget_ok((provider_, model)):
+                if self._next_boss("bulut tavanı aşıldı"):
+                    continue
+                return None
+            for attempt in range(2):
+                a._check_cancel()
+                ask = prompt if attempt == 0 else prompt + "\n\nReturn ONLY valid JSON."
+                try:
+                    answer = specialists.ask(a.settings, a.connections, provider_, model, ask, system=system,
+                                             schema=schema, cancelled=getattr(a.cb, "is_cancelled", None))
+                except InterruptedError:  # K12-D8: ■ plan/denetim çağrısını da keser
+                    raise Cancelled() from None
+                except Exception as e:
+                    if _unreachable(e):
+                        yonlendirici.SAGLIK.bildir(provider_, False, str(e)[:200])
+                    break  # bu yönetici olmadı: sıradakine geç
+                yonlendirici.harcama_ekle(provider_, (len(system) + len(ask) + len(answer or "")) // 4)
+                data = parse_json(answer)
+                if data is not None:
+                    return data
+            else:
+                return None  # yönetici cevap verdi ama JSON değil: iş yine yapılır, yalnızca adımlara bölünmez
+            if not self._next_boss(f"{model} yanıt vermedi"):
                 return None  # plan/denetim çıkmazsa iş yine yapılır, yalnızca adımlara bölünmez
-            data = parse_json(answer)
-            if data is not None:
-                return data
         return None
 
     def make_plan(self, provider: str, messages: list, text: str) -> list[dict]:
@@ -330,14 +483,25 @@ class Manager:
             "Was the step really done? If not, say briefly in the user's language (usually Turkish) exactly what is "
             'missing or wrong. Respond as JSON: {"done": true/false, "missing": "..."}')
         data = self._ask_json(provider, CHECKER_SYSTEM, prompt, CHECK_SCHEMA)
-        if data is None:
-            return True, ""  # denetçi cevap veremediyse adımı durdurma
+        if data is None:  # K12-E8: denetleyici yoksa adım geçmiş sayılmaz, ŞARTLI (CLAUDE.md: model çıktısına güvenme)
+            self.sartli = True
+            return True, "ŞARTLI: denetleyici model cevap vermedi — adım denetlenmeden geçildi"
         return bool(data.get("done", True)), str(data.get("missing") or "").strip()
 
     # ---- ana döngü
     def run(self, provider: str, messages: list, text: str) -> None:
         a = self.agent
         self.started = time.time()
+        yonlendirici.gorev_basla()  # görev başına bulut token sayacı ve tavan onayı
+        route = self._route_chat(provider)
+        if route is not None and route.anahtar != (provider, a._model()):
+            self._run_elsewhere(route, messages, text)  # sohbet sağlayıcısı çalışmıyor: yedeği ya da "çevrimdışı"
+            return
+        if route is not None and not self._budget_ok(route.anahtar):
+            self._run_elsewhere(yonlendirici.yerel_sec(a.settings), messages, text)
+            return
+        if route is not None:
+            self._emit("on_route", "🧭 " + route.etiket())
         self._pick_models(provider)
         if is_browser_task(text) and self._browser_agent():  # tarayıcı işi bölünmeden tarayıcı ajanına (tek döngü)
             self._via_browser(messages, text, learning.original_request(text))
@@ -346,16 +510,28 @@ class Manager:
         if not self.should_plan(provider, text):
             self._direct(provider, messages, text)
             return
+        if self.motor is not None:  # görev motoru: planı kaydeder, adım adım koşar, kapanınca kaldığı yerden sürer
+            self.motor(messages, text)
+            return
         self._emit("on_plan", None)  # "plan çıkarılıyor…"
         self.plan = self.make_plan(provider, messages, text)
         if len(self.plan) < 2:  # tek adımlık iş: plansız, bugünkü gibi
             self._emit("on_plan", [])
             self._direct(provider, messages, text)
             return
+        worker = self.worker or self.chat
+        for step in self.plan:  # docs/SEMALAR.md §2: adımın model kararı planda görünür; kartta yönetici · işçi
+            step["secim"] = {"saglayici": worker[0], "model": worker[1],
+                             "neden": "işçi: sohbet modeli" if worker == self.chat else "işçi: araç sınavını geçen model"}
+            step["yonetici"] = self.boss_label or self.boss[1]
         user = {"role": "user", "content": text, "_plan": self.plan}
         messages.append(user)
         a.user_text = text
         self._emit("on_plan", self.plan)
+        self._emit("on_route", f"🧭 Yönetici: {self.boss[1]} · İşçi: {worker[1]}"
+                   + (f" — neden: {self.boss_choice.neden}" if self.boss_choice else ""))
+        if self.boss_choice and self.boss_choice.uyari:
+            self._emit("on_route", "⚠ " + self.boss_choice.uyari)
         parent = a.cb
         try:
             failed = 0
@@ -371,6 +547,10 @@ class Manager:
                 with self._hands():
                     self._run_step(provider, messages, text, i, step, parent)
                 failed += step.get("status") == "failed"
+                if getattr(a, "bekleyen_soru", ""):  # kullaniciya_sor: kalan adımlar cevaptan sonra
+                    for j in range(i + 1, len(self.plan)):
+                        self._set(j, "pending", "kullanıcının cevabı bekleniyor")
+                    return
             self._summary(provider, messages, text, parent)
         finally:
             a.cb = parent
@@ -388,6 +568,9 @@ class Manager:
         last = next((m.get("content") for m in reversed(messages) if m.get("role") == "assistant"
                      and isinstance(m.get("content"), str) and m["content"].strip()), "")
         brief = task + (f"\n\nContext (previous answer in this chat):\n{last[:1500]}" if last else "")
+        if fiyat_listesi_mi(task):  # eski Aşama 4: fiyatlar numaralı öğelerden değil, yapısal okumayla
+            brief += ("\n\nOn the product list page call browser_extract_items and write one line per item with its "
+                      "name, numeric price and link.")
         self._emit("on_route", "🌐 Bu iş gerçek tarayıcı gerektiriyor: **Tarayıcı ajanı** yapıyor (pencerede izleyebilirsin; "
                                "satın alma, gönderme, giriş ve indirme öncesi sana sorar).")
         if add_user:
@@ -403,8 +586,15 @@ class Manager:
                 result = a._delegate({"agent": "tarayici", "task": brief})
                 body = result.split("\n", 1)[1] if result.startswith("[") and "\n" in result else result
                 rec.text = body
+                eksik_fiyat = fiyat_eksigi(task, body)  # ürün/fiyat isteği: programın sayımı modelden önce
+                hazir = urun_cevabi(task, rec.events) if eksik_fiyat or _PLACEHOLDER.search(body) else ""
+                if hazir:  # model cevabı yazamadı ama araç sayfadan gerçek satırları okudu: cevap programdan
+                    self._emit("on_route", "🧾 Cevap, tarayıcının sayfadan okuduğu ürün listesinden yazıldı.")
+                    body = hazir
+                    break
                 ok, missing = (False, "the answer contains placeholders instead of real data") \
-                    if _PLACEHOLDER.search(body) else self.check(self.chat[0] if self.chat else "ollama", step, rec)
+                    if _PLACEHOLDER.search(body) else (False, eksik_fiyat) if eksik_fiyat \
+                    else self.check(self.chat[0] if self.chat else "ollama", step, rec)
                 if ok:
                     break
                 if attempt < MAX_FIXES:
@@ -433,6 +623,93 @@ class Manager:
                 self.agent.run(provider, messages, text)
         else:
             self.agent.run(provider, messages, text)
+        if self.agent.yapmadi or self.agent.dil_hatasi:
+            self._devral(provider, messages, text)
+
+    def _devral(self, provider: str, messages: list, text: str) -> None:
+        """Model dürtüye rağmen yalnızca yazdı ya da cevabı iki kez Türkçe yazamadı (BÖLÜM 2-a/c): görev motoru →
+        yedekleme zincirinde bir üst model → dürüst tek satır. Konuşup bırakan tur geçmişten ve baloncuktan çıkar;
+        kullanıcı "yapıyorum" vaadini görmez, ne olduğunu durum notundan anlar."""
+        from .agent import settings_for
+
+        a = self.agent
+        yapmadi, a.yapmadi, a.dil_hatasi = a.yapmadi, False, False
+        neden = "yalnızca anlattı, hiçbir aracı çalıştırmadı" if yapmadi else "cevabı Türkçe yazamadı"
+        istek = learning.original_request(text)
+        son = next((i for i in range(len(messages) - 1, -1, -1)
+                    if messages[i].get("role") == "user" and not messages[i].get(PROGRAM)), None)
+        if yapmadi:
+            if son is not None:
+                del messages[son + 1:]  # boş vaat ve dürtü mesajları geçmişte kalmaz
+            fn = getattr(a.cb, "on_retract", None)
+            if fn:
+                fn()
+        current = (provider, a._model())
+        if yapmadi and self.motor is not None:
+            if son is not None:
+                del messages[son:]  # motor kullanıcı mesajını kendi ekler (plan kartıyla)
+            self._emit("on_route", f"🧭 {current[1]} {neden}; görev motoru devralıyor")
+            self.motor(messages, istek)
+            return
+        try:
+            alt = roster.stronger(a.settings, current)  # yedekleme zincirinde bir üst basamak
+        except Exception:
+            alt = None
+        if alt is not None and not self._budget_ok(alt.key):
+            alt = None
+        if alt is None:
+            note = (f"⚠ Bu isteği yapamadım: model {neden}; devralacak daha güçlü bir model de bağlı değil "
+                    "(Online menüsünden ekleyebilirsin).")
+            a.cb.on_text(note)
+            messages.append({"role": "assistant", "content": note})
+            return
+        self._emit("on_route", f"🧭 {current[1]} {neden}; {alt.model} devralıyor")
+        rec = _Recorder(a.cb)
+        sub = Agent(settings_for(a.settings, alt.provider, alt.model), rec, a.profile, a.connections)
+        sub.always_allowed, sub.auto_approve = a.always_allowed, a.auto_approve
+        sub.gate_actions, sub.must_act = a.gate_actions, a.must_act or yapmadi
+        sub.extra_system = a.extra_system
+        sub.toolbox.read_roots = list(getattr(a.toolbox, "read_roots", []))
+        try:
+            sub.run(alt.provider, [], istek)
+        finally:
+            a.pending_actions += sub.pending_actions
+        messages.append({"role": "assistant", "content": rec.text.strip()})
+
+    def _run_elsewhere(self, route: yonlendirici.Secim, messages: list, text: str) -> None:
+        """Sohbetin sağlayıcısı kullanılamıyor (kapalı, anahtar reddedildi, tavan onaylanmadı): tur yönlendiricinin
+        seçtiği yedek modelle temiz bir alt ajanda yapılır; yedek yoksa dürüstçe "çevrimdışı" denir.
+
+        Sohbet geçmişi aktarılmaz (Ollama ve bulutun mesaj biçimleri karışmasın); son birkaç düz mesaj bağlam olur."""
+        from .agent import settings_for
+
+        a = self.agent
+        messages.append({"role": "user", "content": text})
+        a.user_text = text
+        if not route.saglayici:
+            note = ("⚠ **Şu an cevap verecek model yok.** " + route.neden[:1].upper() + route.neden[1:] + ".\n\n"
+                    + ("Ollama çalışınca ya da internet gelince isteği tekrar gönder."
+                       if route.bekleyen else "Modeller menüsünden bir model seç ya da bir bulut bağlantısı ekle."))
+            self._emit("on_route", "🧭 " + route.etiket())
+            a.cb.on_text(note)
+            messages.append({"role": "assistant", "content": note})
+            return
+        self._emit("on_route", "🧭 " + route.etiket())
+        history = [m for m in messages[:-1] if m.get("role") in ("user", "assistant")
+                   and isinstance(m.get("content"), str) and m["content"].strip() and not m.get("_program")]
+        context = "\n".join(f"{m['role']}: {m['content'][:500]}" for m in history[-6:])
+        rec = _Recorder(a.cb)
+        sub = Agent(settings_for(a.settings, route.saglayici, route.model), rec, a.profile, a.connections)
+        sub.always_allowed, sub.auto_approve = a.always_allowed, a.auto_approve
+        sub.gate_actions, sub.must_act = a.gate_actions, a.must_act
+        sub.extra_system = a.extra_system
+        sub.toolbox.read_roots = list(getattr(a.toolbox, "read_roots", []))
+        try:
+            sub.run(route.saglayici, [], (f"Earlier in this chat:\n{context}\n\n" if context else "")
+                    + learning.original_request(text))
+        finally:
+            a.pending_actions += sub.pending_actions
+        messages.append({"role": "assistant", "content": rec.text.strip()})
 
     def _run_step(self, provider: str, messages: list, text: str, i: int, step: dict, parent) -> None:
         a = self.agent
@@ -479,12 +756,15 @@ class Manager:
         from .agent import _SubRelay, settings_for
 
         a = self.agent
-        current = (a._provider, a._model())
+        current = (a._provider, a._model())  # _hands içinde: işçi model
         try:
-            alt = roster.stronger(a.settings, current)
+            alt = roster.stronger(a.settings, current)  # yedekleme zincirinde bir üst basamak
         except Exception:
             alt = None
+        if alt is not None and not self._budget_ok(alt.key):
+            alt = None
         if alt is None:
+            self._chain_end(i, step, missing, [current])
             if a.settings.model_policy != "guclu" and not self._hinted:
                 self._hinted = True
                 parent.on_text("\n\n*(Bu adım bu bilgisayardaki modellerle olmadı. Daha güçlü bir model bağlarsan "
@@ -514,7 +794,18 @@ class Manager:
         self._set(i, "done" if ok else "failed", missing if not ok else f"{alt.model} bitirdi")
         if not ok:
             self._learn_failure(text, step, missing, rec)
+            self._chain_end(i, step, missing, [current, alt.key])
         return True
+
+    def _chain_end(self, i: int, step: dict, missing: str, tried: list) -> None:
+        """Yedekleme zincirinin sonu: kayıt hata analizine devredilir (docs/SEMALAR.md §3, `model_yetersiz`)."""
+        chain = yonlendirici.Zincir(tried, esik=1)
+        for model in tried:
+            chain.basarisiz(missing or "adım doğrulanamadı")
+        try:
+            yonlendirici.devret(chain.hata_kaydi(i + 1, f"{step.get('do', '')[:200]} — {missing or 'doğrulanamadı'}"))
+        except Exception:
+            pass  # kayıt yazılamasa da iş sürer
 
     def _learn_failure(self, text: str, step: dict, reason: str, rec: "_Recorder") -> None:
         """Başarısız adım hafızaya ders olarak girer: benzer iş planlanırken yönetici bu yolu bilir."""

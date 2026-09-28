@@ -1,0 +1,66 @@
+{
+  "ad": "python_calistir",
+  "surum": "1.0.0",
+  "aciklama": "Çalışma klasöründe Python 3 kodu çalıştırır; sonucu print() ile yazdır. Hazır kütüphaneler: pandas, numpy, matplotlib (grafiği dosyaya kaydet), openpyxl, python-docx, python-pptx, pypdf, reportlab, Pillow, requests, httpx, beautifulsoup4, PyYAML. Her çalıştırma onaylanır.",
+  "etiketler": [
+    "kod",
+    "hesap"
+  ],
+  "girdi": {
+    "kod": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Python kodu"
+    },
+    "amac": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Onay penceresi için: ne yaptığı ve neden, bir iki cümle Türkçe"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "komut",
+    "dosya_oku",
+    "dosya_yaz",
+    "dosya_sil",
+    "ag"
+  ],
+  "zaman_asimi_sn": 120,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "kod": "print(6 * 7)",
+        "amac": "deneme"
+      },
+      "beklenen": "stdout'ta 42"
+    },
+    {
+      "girdi": {
+        "kod": "import sys; print(sys.version_info[0])",
+        "amac": "Python sürümü"
+      },
+      "beklenen": "stdout'ta 3"
+    }
+  ]
+}

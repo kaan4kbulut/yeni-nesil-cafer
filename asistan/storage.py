@@ -19,6 +19,7 @@ class Conversation:
     agent_id: str = ""  # yardımcı ajanla açılan sohbetlerde ajan profili
     work_dir: str = ""  # sohbetin iş klasörü (boşsa eski sohbet: çalışma klasörünün kendisi)
     messages: list = field(default_factory=list)  # sağlayıcının kendi mesaj biçiminde
+    bekleyen_soru: str = ""  # asistan kullaniciya_sor ile sordu: sonraki mesaj cevaptır
 
     @property
     def path(self):

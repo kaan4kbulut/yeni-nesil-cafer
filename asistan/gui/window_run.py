@@ -2,13 +2,13 @@
 
 import re
 import threading
-from dataclasses import replace
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
 
 from .. import choices, ctxprobe, learning, power, roster, suggest
-from ..agent import Agent, describe_error, describe_pending, is_advice_request, is_install_request, is_task_request
+from ..agent import describe_error, describe_pending, is_advice_request, is_install_request, is_task_request
+from ..cekirdek import istek
 from ..work import chat_folder, guess_category
 
 from .chat import format_stats, summarize_args, tool_label
@@ -19,19 +19,7 @@ from .worker import AgentWorker
 
 
 CTX_CAP = 32768  # otomatik bağlamın üst sınırı (token)
-
-# sansürsüz mod: kullanıcı filtresiz yerel modeli kendisi seçti; bilgisayardaki işlemlerin kuralları değişmez
-WORK_DIR_NOTE = (
-    "\n\n## This conversation's folder\nThe workspace `{work}` belongs only to this conversation; everything you "
-    "create goes there. Other tasks live in sibling folders under `{root}`: never list, read or change them unless "
-    "the user explicitly asks about them. Words like \"files\", \"steps\" or \"models\" in a request refer to "
-    "the user's request itself (for example the app's own UI), not to whatever files happen to exist.")
-
-UNCENSORED_NOTE = (
-    "\n\n## Unfiltered mode\nThe user switched on unfiltered mode and chose an uncensored local model. Answer "
-    "directly, frankly and completely: no moralizing, lectures, unnecessary disclaimers or refusals of ordinary "
-    "requests. The app's rules for actions on the computer (approval of commands, file changes, installs) stay "
-    "exactly the same.")
+# iş klasörü ve sansürsüz mod notları K1'de çekirdeğe taşındı: cekirdek/istek.py (IS_KLASORU_NOTU, SANSURSUZ_NOTU)
 
 
 
@@ -151,48 +139,20 @@ class RunMixin:
         self.chat.start_turn(f"🔓 {model}" if free else model)
         self.chat.show_waiting()
 
-        work = self._work_dir()
-        if work != self.settings.workspace:
-            agent_settings = replace(agent_settings, workspace=work)
-        agent = Agent(agent_settings, None, self.profile, self.connections, team_tool=self.profile is None,
-                      team=self.profiles)
-        if work != self.settings.workspace:
-            # diğer işler salt okunur kalır: kullanıcı açıkça isterse eski bir işe bakılabilir
-            root = Path(self.settings.workspace).expanduser().resolve()
-            agent.toolbox.read_roots.append(root)
-            agent.extra_system = (agent.extra_system or "") + WORK_DIR_NOTE.format(
-                work=agent.toolbox.root, root=root)
-            if self.continued_project:
-                agent.extra_system += learning.project_note(self.continued_project)
-        if free:
-            agent.extra_system = (agent.extra_system or "") + UNCENSORED_NOTE
-        agent.always_allowed = self.always_allowed
-        if self.settings.approval_mode == "guvenlik":
-            # güvenlik ajanı kipi: onay sorulmaz; asistan işe hemen başlar, her adımı güvenlik ajanı denetler
-            agent.gate_actions = False
-        elif free:
-            # sansürsüz modda güvenlik ajanı çalışamıyor, ama "önce plan, sonra ▶" de yok: model plan yazıp
-            # duruyordu. İşe hemen başlar; komut ve kurulum gibi riskli adımlar yine tek tek kullanıcıya sorulur.
-            agent.gate_actions = False
-            agent.must_act = text.startswith("▶ ")
-        else:
-            # varsayılan: hiçbir işlem kendiliğinden yapılmaz; değişiklikler bekler, yanıtın kenarına ✓ gelir
-            agent.gate_actions = not text.startswith("▶ ")
-            agent.must_act = text.startswith("▶ ")  # "uygula" düğmesi: yazıp geçmesin, gerçekten yapsın
-        if self.settings.approval_mode == "guvenlik" and is_advice_request(text):  # yalnızca öneri istendi: hiçbir şey yapılmasın (kullanıcı isterse söyler)
-            agent.extra_system = (agent.extra_system or "") + (
-                "\n\n## The user only asked for suggestions\nGive the suggestions; do NOT run commands, code or change "
-                "anything now. Read-only checks (reading files, searching, read-only commands) are fine. If they want "
-                "one applied, they will ask.")
-        agent.cli_model = self.route[1] if self.route else ""  # Claude Code: opus, sonnet…
-        # beceri kütüphanesi: benzer bir iş daha önce başarıyla yapıldıysa yöntemini asistana ver
-        self.used_skills = learning.find_skills(learning.original_request(text)) if not text.startswith("📈") else []
+        # ajanın kurulumu (iş klasörü, onay kipi, sansürsüz not, beceriler) çekirdekte: web ve CLI de aynısını kullanır
+        agent, self.used_skills = istek.ajan_hazirla(istek.IstekBaglami(
+            metin=text, ayarlar=self.settings, ajan_ayarlari=agent_settings, is_klasoru=self._work_dir(),
+            profil=self.profile, baglantilar=self.connections, ekip=self.profiles, sansursuz=bool(free),
+            her_zaman_izinli=self.always_allowed, devam_projesi=self.continued_project,
+            cli_modeli=self.route[1] if self.route else "",  # Claude Code: opus, sonnet…
+            sohbet_id=self.conv.id))  # görev motoru: yarım görev bu sohbete bağlı
         if self.used_skills:
-            agent.extra_system = (agent.extra_system or "") + learning.skills_prompt(self.used_skills)
             self.chat.add_notice("🧩 Daha önce işe yarayan yöntem kullanılıyor: "
                                  + " · ".join(f"«{x['title'][:60]}»" for x in self.used_skills), C["muted"])
         self.last_run_model = model if model != "otomatik" else self.model_box.currentText()
         self.run_failed = False
+        agent.cevaplanan_soru = getattr(self.conv, "bekleyen_soru", "") or ""  # önceki tur soru sorduysa bu cevap
+        self.conv.bekleyen_soru = ""
         self.worker = w = AgentWorker(agent, run_provider, self.conv.messages, text)
         w.text.connect(self.chat.append_text)
         w.text.connect(self.right.activity.text_started)
@@ -210,6 +170,9 @@ class RunMixin:
                                                                   self.model_box.currentText(), show=False))
         w.plan.connect(self.chat.show_plan)
         w.route_note.connect(lambda text: self.chat.add_notice(text, C["muted"]))
+        w.status.connect(self.right.activity.state.setText)
+        w.status.connect(lambda text: self.right.log.add("· " + text))
+        w.retracted.connect(self.chat.retract_text)
         w.plan_step.connect(self.chat.update_step)
         w.plan_step.connect(lambda i, status, note: self.right.activity.state.setText(
             f"Adım {i + 1}: " + {"running": "yapılıyor", "checking": "doğrulanıyor", "fixing": "düzeltiliyor",
@@ -321,6 +284,9 @@ class RunMixin:
                     is_advice_request(request) or (is_task_request(request) and planned and w.agent.gate_actions))):
                 self.chat.offer_apply()  # ✓ ile başlatılır, sonra her adım için onay sorulur
         state = "Durduruldu" if w.is_cancelled() else "Tamamlandı"
+        if w.agent.bekleyen_soru and not w.is_cancelled():  # kullaniciya_sor: sohbet cevap bekliyor
+            self.conv.bekleyen_soru = w.agent.bekleyen_soru
+            state = "Cevap bekliyor"
         self.right.activity.end_run(state, summary)
         self.conv.save()
         # "finished" sinyali iş parçacığı tamamen kapanmadan gelebilir; son referans o an bırakılırsa Qt
@@ -329,7 +295,7 @@ class RunMixin:
         w.deleteLater()
         self.worker = None
         self._set_running(False)
-        self.run_label.setText(f"{'durduruldu' if w.is_cancelled() else 'son yanıt'} {secs:.0f} sn")
+        self.run_label.setText(f"{'durduruldu' if w.is_cancelled() else 'cevap bekliyor' if self.conv.bekleyen_soru else 'son yanıt'} {secs:.0f} sn")
         self.conversations.sort(key=lambda c: c.updated, reverse=True)
         self._refresh_sidebar()
         self._refresh_models_status()

@@ -126,15 +126,39 @@ FAULT_SECONDS = 30
 _FAULT_SIGNS = ("requires reset", "err!", "unable to determine", "fallen off", "unknown error", "no devices were found")
 
 
-def fault() -> str:
+_fault_kilit = threading.Lock()
+_fault_is: threading.Thread | None = None
+
+
+def fault(bekle: bool = False) -> str:
     """NVIDIA kartının sürücüsü hata durumunda mı? Sebep metni; sorun yoksa (ya da NVIDIA yoksa) boş.
 
     Görülen durum (2026-09-26): Xid 62 → "GPU requires reset"; CUDA kartı görmez, Ollama sessizce işlemciye düşer.
-    Ollama'yı yeniden başlatmak yetmez, bilgisayar yeniden başlatılmalı. 30 sn önbellek."""
-    global _fault
+    Ollama'yı yeniden başlatmak yetmez, bilgisayar yeniden başlatılmalı. 30 sn önbellek. K12-D2: süre dolunca ölçüm
+    ARKA PLANDA yenilenir, çağıran son bilinen değeri alır (`nvidia-smi` 5 sn takılınca güç zamanlayıcısı ve etiketler
+    arayüzü donduruyordu); `bekle=True` şimdiki durumu eşzamanlı ister (bağlam ölçümü gibi kararlar)."""
+    global _fault, _fault_is
     now = time.time()
     if now - _fault[0] < FAULT_SECONDS:
         return _fault[1]
+    if bekle:
+        reason = _fault_olc()
+        _fault = (time.time(), reason)
+        return reason
+    with _fault_kilit:
+        if _fault_is is None or not _fault_is.is_alive():
+            def kos():
+                global _fault
+                sonuc = _fault_olc()
+                _fault = (time.time(), sonuc)
+
+            _fault_is = threading.Thread(target=kos, daemon=True, name="gpu-fault")
+            _fault_is.start()
+    return _fault[1]
+
+
+def _fault_olc() -> str:
+    """Eşzamanlı ölçüm (nvidia-smi, en çok 5 sn)."""
     reason = ""
     if any(c.vendor == "nvidia" for c in cards()):
         try:
@@ -149,7 +173,6 @@ def fault() -> str:
             reason = "sürücü yanıt vermiyor"
         except OSError:
             pass
-    _fault = (now, reason)
     return reason
 
 

@@ -5,7 +5,7 @@ Ajanlar: `~/.config/yeni-nesil-cafer/ajanlar/<ad>.md`
     name: Çevirmen
     description: Metinleri Türkçe ile İngilizce arasında çevirir
     tools: read_file, write_file          (Claude Code adları da olur: Read, Write, Edit, Bash, Grep, Glob…)
-    model: qwen3.5:9b                     (isteğe bağlı; "sonnet", "inherit" gibi adlar yok sayılır → otomatik)
+    model: <ollama-adı>:<boyut>           (isteğe bağlı; "sonnet", "inherit" gibi adlar yok sayılır → otomatik)
     category: dil                         (isteğe bağlı: categories.py)
     ---
     Talimat (modele verilen rol tarifi)…
@@ -68,7 +68,7 @@ def load_agents() -> list[AgentProfile]:
         if not body:
             continue
         model = meta.get("model", "")
-        local = ":" in model  # "qwen3.5:9b" gibi Ollama adı; "sonnet" / "inherit": program seçer
+        local = ":" in model  # "<ad>:<boyut>" biçimi Ollama adı; "sonnet" / "inherit": program seçer
         found.append(AgentProfile(
             id="dosya-" + re.sub(r"[^\w-]+", "-", path.stem.lower()).strip("-"), name=name,
             icon=meta.get("icon") or "bot", description=meta.get("description", ""), prompt=body,

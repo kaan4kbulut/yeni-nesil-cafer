@@ -25,7 +25,7 @@ from asistan.profiles import AgentProfile  # noqa: E402
 from asistan.registry import REGISTRY, RISKS  # noqa: E402
 
 ESKI_ONAY = {"run_command", "run_python", "install_python_package"}  # kayıttan önceki elle yazılmış liste
-ONAY = ESKI_ONAY | {"install_app"}  # sonradan eklenen, bilerek onaya tabi araçlar (internetten program kurar)
+ONAY = ESKI_ONAY | {"install_app", "send_notification", "mcp_kur"}  # sonradan eklenen, bilerek onaya tabi araçlar (internetten kurar / gönderir / MCP ekler)
 ESKI_EYLEM = {"write_file", "edit_file", "run_command", "run_python", "start_team_task", "install_python_package"}
 
 
@@ -107,13 +107,13 @@ class Mcp(unittest.TestCase):
     def test_araclar_kayitta(self):
         topla = REGISTRY.get("ornek__topla")
         self.assertIsNotNone(topla)
-        self.assertEqual(topla.risk, "okur")  # readOnlyHint
+        self.assertEqual(topla.risk, "calistirir")  # K12-A7: readOnlyHint yalnızca "trusted" sunucuda/araçta okur sayılır
         self.assertEqual(REGISTRY.get("ornek__not_yaz").risk, "calistirir")
-        self.assertFalse(tools.needs_approval("ornek__topla", {}))
+        self.assertTrue(tools.needs_approval("ornek__topla", {}))  # K12-A7: sunucu güvenilenlerde değil → sorulur
         self.assertFalse(tools.needs_approval("ornek__not_yaz", {}))  # trusted listesinde
         self.assertTrue(tools.needs_approval("ornek__hata_ver", {}))
         self.assertTrue(is_action("ornek__not_yaz", {}))
-        self.assertFalse(is_action("ornek__topla", {}))
+        self.assertTrue(is_action("ornek__topla", {}))
         self.assertIn("ornek__topla", {s["name"] for s in build_tool_specs(None, [])})
         kisitli = AgentProfile(id="t", name="t", tools=["web_search"])
         self.assertNotIn("ornek__topla", {s["name"] for s in build_tool_specs(kisitli, [])})

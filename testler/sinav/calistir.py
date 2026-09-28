@@ -54,12 +54,17 @@ DURDURMA_SN = 120  # zaman aşımında ■ durdurduktan sonra işin kapanması i
 def secenekler(argv=None):
     p = argparse.ArgumentParser(description="YENİ NESİL CAFER sınav seti")
     p.add_argument("--model", default="", help="Ollama modeli ya da sağlayıcı:model (boş: programın kendi seçimi)")
-    p.add_argument("--yonetici", default="", help="yönetici politikası (Aşama 2'de etkili; şimdilik kaydedilir)")
+    p.add_argument("--yonetici", default="", choices=("", "otomatik", "yerel", "bulut"),
+                   help="yönetici politikası (K3; boş: ayardaki, varsayılan otomatik)")
     p.add_argument("--etiket", default="", help="yalnızca bu etiketli görevler")
     p.add_argument("--hizli", action="store_true", help="internet/gpu/motor/uzun hariç (varsayılan)")
     p.add_argument("--hepsi", action="store_true", help="bütün görevler")
     p.add_argument("--tekrar", type=int, default=1, help="her görev kaç kez")
     p.add_argument("--gorev", default="", help="yalnızca bu görevler (virgülle)")
+    p.add_argument("--motor", action="store_true", help="görev motoru bayrağı AÇIK (extra.gorev_motoru; Manager ile karşılaştırma)")
+    p.add_argument("--motorsuz", action="store_true", help="görev motoru bayrağı KAPALI (Manager yolu)")
+    p.add_argument("--kademe", default="", choices=("", "dusuk", "orta", "yuksek"),
+                   help="K7: program bu kademeye kilitli koşar, yalnızca o kademede beklenen görevler; sonuç yönlendirmeye geri beslenir")
     p.add_argument("--cocuk", type=int, default=0, help=argparse.SUPPRESS)  # bir tekrarı yürüten alt süreç
     p.add_argument("--kosu", default="", help=argparse.SUPPRESS)
     p.add_argument("--cikti", default="", help=argparse.SUPPRESS)
@@ -71,11 +76,15 @@ def kapsam(a) -> str:
         return "gorev:" + a.gorev
     if a.etiket:
         return "etiket:" + a.etiket
-    return "hepsi" if a.hepsi else "hizli"
+    on = f"kademe:{a.kademe}+" if getattr(a, "kademe", "") else ""
+    motor = "+motor" if getattr(a, "motor", False) else "+manager" if getattr(a, "motorsuz", False) else ""
+    return on + ("hepsi" if a.hepsi else "hizli") + motor
 
 
 def secilenler(a) -> list[dict]:
     gorevler = denetim.yukle()
+    if getattr(a, "kademe", ""):
+        gorevler = [g for g in gorevler if denetim.kademede(g, a.kademe)]
     if a.gorev:
         adlar = [x.strip() for x in a.gorev.split(",") if x.strip()]
         bilinmeyen = set(adlar) - {g["ad"] for g in gorevler}
@@ -117,6 +126,7 @@ def ana(a) -> int:
     if not satirlar:
         print("sonuç yok")
         return 2
+    geri_besle(satirlar, a)
     gecen, toplam = sum(s["gecti"] for s in satirlar), len(satirlar)
     oran = gecen / toplam
     dakika = sum(s["sure"] for s in satirlar) / 60
@@ -129,6 +139,24 @@ def ana(a) -> int:
         print(f"EŞİĞİN ALTINDA: %{100 * oran:.0f} < %{100 * esik:.0f} ({ESIK.name})", flush=True)
         return 1
     return 0
+
+
+def geri_besle(satirlar: list[dict], a) -> dict:
+    """K7: kademe × görev türü başarısı yönlendirme tablosuna (gerçek DATA_DIR/olcum.json; `--kademe` verilmediyse
+    programın etkin kademesi). Yönlendirici (`yonlendirici.sec`) %50 altındaki türlerde hızlı rol yerine yönetici seçer."""
+    try:
+        from asistan.cekirdek import profil
+        from asistan.cekirdek.analiz import olcum
+
+        kademe_ = getattr(a, "kademe", "") or profil.kademe()
+        tablo = olcum.sinav_geri_besle(satirlar, kademe_)
+        if tablo:
+            print("Yönlendirmeye geri beslendi (" + kademe_ + "): " + ", ".join(
+                f"{t} {v['gecen']}/{v['toplam']}" for t, v in sorted(tablo.items())), flush=True)
+        return tablo
+    except Exception as e:  # geri besleme sınavı düşürmez
+        print(f"geri besleme yapılamadı: {e}", flush=True)
+        return {}
 
 
 def oku(dosya: Path) -> list[dict]:
@@ -176,9 +204,17 @@ def rapor_yaz() -> None:
             hucreler.append(f"{gecen}/{len(gs)} · {ort:.0f} sn" if len(gs) > 1 else
                             f"{'✓' if gecen else '✗'} {ort:.0f} sn")
         etiket = f" [{', '.join(sorted(denetim.etiketler(g)))}]" if denetim.etiketler(g) else ""
-        y.append(f"| {g['sira']}. {g['ad']}{etiket} | " + " | ".join(hucreler) + " |")
-    if sutunlar:
+        y.append(f"| {g['sira']}. {g['ad']}{etiket} · {denetim.kademe(g)}/{denetim.tur(g)} | " + " | ".join(hucreler) + " |")
+    if sutunlar:  # K7: son koşunun kademe × görev türü tablosu (yönlendirmeye geri beslenen özet)
         kid, ss = max(sutunlar, key=lambda x: x[0])
+        gorev_bilgi = {g["ad"]: (denetim.kademe(g), denetim.tur(g)) for g in denetim.yukle()}
+        kt: dict[tuple, list[int]] = {}
+        for s in ss:
+            k, t = gorev_bilgi.get(s["gorev"], ("orta", "cok_adimli"))
+            kt.setdefault((k, t), []).append(int(s["gecti"]))
+        y += ["", f"## Son koşu ({kid}) — kademe × görev türü", "", "| Görev kademesi | Tür | Geçen | % |", "|---|---|---|---|"]
+        for (k, t), v in sorted(kt.items()):
+            y.append(f"| {k} | {t} | {sum(v)}/{len(v)} | {100 * sum(v) / len(v):.0f} |")
         gecen = sum(s["gecti"] for s in ss)
         y += ["", f"## Son koşu ({kid}) — düşen denetimler", ""]
         for s in ss:
@@ -286,6 +322,8 @@ def ortam_hazirla(g: Path, a) -> dict:
     for p in (ayar, veri / "yeni-nesil-cafer", masa, calisma):
         p.mkdir(parents=True)
     os.environ.update(XDG_CONFIG_HOME=str(ayar), XDG_DATA_HOME=str(veri), QT_QPA_PLATFORM="offscreen")
+    if getattr(a, "kademe", ""):  # K7: program bu kademeye kilitli koşar (cekirdek/profil.kilit → ayar.toml/ortam)
+        os.environ["CAFER_GENEL_KADEME_KILIDI"] = a.kademe
     (ayar / "user-dirs.dirs").write_text(f'XDG_DESKTOP_DIR="{masa}"\n', encoding="utf-8")  # results.desktop()
     bulut = bool(a.model) and ":" in a.model and not a.model.startswith("cli:")
     shutil.copytree(GERCEK_AYAR, ayar / "yeni-nesil-cafer",
@@ -298,9 +336,9 @@ def ortam_hazirla(g: Path, a) -> dict:
     s.setdefault("extra", {})["tanitim_surumu"] = asistan.__version__  # tanıtım penceresi açılmasın
     s["extra"]["kurulum"] = True
     if a.yonetici:
-        s["yonetici_politikasi"] = a.yonetici  # Aşama 2'de ayar olacak; o zamana kadar program yok sayar
-    if not bulut:
-        s["anthropic_api_key"] = ""
+        s["extra"]["yonetici_politikasi"] = a.yonetici  # K3: otomatik | yerel | bulut (cekirdek/yonlendirici.py)
+    if getattr(a, "motor", False) or getattr(a, "motorsuz", False):  # K4/BÖLÜM 7: motor ↔ Manager karşılaştırması
+        s["extra"]["gorev_motoru"] = bool(a.motor)
     if a.model and ":" not in a.model:
         s.update(auto_model=False, provider="ollama", ollama_model=a.model)
     elif not a.model:
@@ -425,6 +463,14 @@ def cocuk(a) -> int:
 
     w._tool_started, w._failed, w._ask_approval = arac_basladi, hata, onay
     w.chat.show_plan, w.chat.update_step, w.chat.add_notice, w.chat.add_security_block = plan_geldi, adim, not_, engel
+    orj_gunluk = w.right.log.add
+
+    def gunluk(header, body=""):  # dürtü/denetim durumları (BÖLÜM 2-d: baloncukta değil günlükte) da kayda girsin
+        if str(header).startswith("· "):
+            K.notlar.append(f"durum: {str(header)[2:]}"[:300])
+        return orj_gunluk(header, body)
+
+    w.right.log.add = gunluk
 
     if not ollama_hazir(w.settings.ollama_url):
         print(f"Ollama yanıt vermiyor ({w.settings.ollama_url}); sınav yapılamaz.", flush=True)
@@ -577,6 +623,7 @@ def gorevi_yap(w, app, gorev: dict, sunucu: str, g: Path, results) -> dict:
     elif K.hatalar:
         dusen.append("program hatası: " + K.hatalar[0][:150])
     return {"gorev": gorev["ad"], "sira": gorev["sira"], "etiketler": sorted(K.etiketler), "gecti": not dusen,
+            "kademe": denetim.kademe(gorev), "tur": denetim.tur(gorev),
             "dusen": dusen, "sure": round(sure, 1), "zaman_asimi": hata == "zaman aşımı", "hata": hata,
             "cevap": cevap[:300], "araclar": K.araclar[:80],
             "plan": [a.get("title", "") for a in (K.planlar[-1] if K.planlar else [])], "adimlar": K.adimlar,

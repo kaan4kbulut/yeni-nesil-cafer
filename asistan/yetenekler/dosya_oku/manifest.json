@@ -1,0 +1,67 @@
+{
+  "ad": "dosya_oku",
+  "surum": "1.0.0",
+  "aciklama": "UTF-8 metin dosyasını satır numaralarıyla okur.",
+  "etiketler": [
+    "dosya",
+    "okuma"
+  ],
+  "girdi": {
+    "yol": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Dosya yolu"
+    },
+    "baslangic_satiri": {
+      "tip": "int",
+      "zorunlu": false,
+      "aciklama": "Okumaya başlanacak satır (1'den)"
+    },
+    "en_cok_satir": {
+      "tip": "int",
+      "zorunlu": false,
+      "aciklama": "En çok kaç satır"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_oku"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "yol": "not.txt"
+      },
+      "beklenen": "dosyanın numaralı satırları"
+    },
+    {
+      "girdi": {
+        "yol": "not.txt",
+        "baslangic_satiri": 2,
+        "en_cok_satir": 1
+      },
+      "beklenen": "yalnızca 2. satır"
+    }
+  ]
+}

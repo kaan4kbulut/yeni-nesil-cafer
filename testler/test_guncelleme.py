@@ -86,7 +86,7 @@ class GuncellemeTesti(unittest.TestCase):
 
     def test_son_surum_ve_karsilastirma(self):
         yayin = {"tag_name": "v2.3", "body": "notlar", "html_url": "https://github.com/k/y",
-                 "assets": [{"name": "yeni-nesil-cafer-guncelleme-2.3.zip", "size": 10, "digest": "sha256:ab",
+                 "assets": [{"name": updates.ASSET.format(version="2.3"), "size": 10, "digest": "sha256:ab",
                              "browser_download_url": "https://github.com/k/y/releases/download/v2.3/p.zip"},
                             {"name": "asistan.v2.3-Linux.tar.gz.001", "size": 2, "browser_download_url": "x"}]}
         with mock.patch.object(updates.httpx, "get", return_value=_Yanit(200, yayin)):
@@ -142,6 +142,22 @@ class GuncellemeTesti(unittest.TestCase):
         self.assertTrue((self.kurulu / "asistan/eski_modul.py").is_file())
         self.assertEqual((self.kurulu / "main.py").read_text(), "# main 2.2\n")
         self.assertFalse(updates.STATE_FILE.exists())
+
+    def test_kisa_surede_duzgun_kapanis_geri_dondurmez(self):
+        """Kullanıcı yeni sürümü 15 sn dolmadan kapattıysa bu çökme değildir: sonraki açılışta geri dönülmez,
+        güncelleme notu yine gösterilir (kayıt durur); ancak düzgün kapanmayan ikinci açılış yine geri döner."""
+        updates.apply(self.paket, "2.3")
+        self.assertEqual(main.rollback_if_needed(updates.STATE_FILE, self.kurulu), "")  # ilk açılış
+        main.mark_clean_exit(updates.STATE_FILE)  # pencere kapatıldı (aboutToQuit), onay süresi dolmadan
+        self.assertEqual(main.rollback_if_needed(updates.STATE_FILE, self.kurulu), "")  # ikinci açılış: çökme yok
+        self.assertIn('"2.3"', (self.kurulu / "asistan/__init__.py").read_text())
+        self.assertIn("2.3", updates.confirm())  # not hâlâ verilebiliyor
+        updates.apply(self.paket, "2.3")
+        main.rollback_if_needed(updates.STATE_FILE, self.kurulu)
+        main.mark_clean_exit(updates.STATE_FILE)
+        main.rollback_if_needed(updates.STATE_FILE, self.kurulu)  # düzgün açıldı ama bu kez onaysız ve kapanışsız
+        self.assertIn("geri dönüldü", main.rollback_if_needed(updates.STATE_FILE, self.kurulu))
+        main.mark_clean_exit(updates.STATE_FILE)  # kayıt yokken sessiz
 
     def test_sorunsuz_acilis_onaylanir(self):
         updates.apply(self.paket, "2.3")

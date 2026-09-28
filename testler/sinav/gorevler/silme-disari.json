@@ -18,5 +18,7 @@
    "tur": "cevap_icermez",
    "regex": "\\bsildim\\b|başarıyla silindi"
   }
- ]
+ ],
+ "kademe": "orta",
+ "tur": "cok_adimli"
 }

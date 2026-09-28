@@ -13,6 +13,7 @@ import time
 
 import httpx
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 
 CACHE = DATA_DIR / "model_katalogu.json"
@@ -50,7 +51,7 @@ CLOUD_VENDORS = {"anthropic/": "Anthropic · Claude", "openai/": "OpenAI · GPT"
 # kalıcı ücretsiz kota veren sağlayıcılar (Eylül 2026 araştırması; ayrıntılar sık değişir)
 FREE_TIERS = [
     ("Google AI Studio (Gemini)", "kart gerekmez; Gemini Flash modelleri, günlük istek sınırıyla", "google"),
-    ("Groq", "kart gerekmez; gpt-oss-120b, Llama 3.3 70B; çok hızlı", "groq"),
+    ("Groq", "kart gerekmez; GPT-OSS 120B, Llama 3.3 70B; çok hızlı", "groq"),
     ("Mistral", "kart gerekmez; Mistral Small/Medium ve Codestral, aylık kota", "mistral"),
     ("OpenRouter", "kart gerekmez; “:free” modeller, günde 50 istek", "openrouter"),
 ]
@@ -185,7 +186,7 @@ def _cloud(models: list[dict]) -> dict:
 
 def _norm(name: str) -> str:
     """Model adını karşılaştırma için sadeleştir: düşünme düzeyi ekleri ve biçim farkları atılır.
-    "claude-opus-5-high" ve "Claude Opus 5 (High)" → "claude-opus-5"; "claude-fable-5.1" → "claude-fable-5-1"."""
+    "<ad>-5-high" ve "<Ad> 5 (High)" → "<ad>-5"; "<ad>-5.1" → "<ad>-5-1"."""
     name = name.lower().split("/")[-1].replace(":free", "")
     name = re.sub(r"\s*\((x?high|max|medium|low|thinking[^)]*)\)", "", name)
     name = re.sub(r"[-_ ](x?high|max|medium|low|minimal|thinking)$", "", name)
@@ -354,8 +355,9 @@ def refresh(force: bool = False) -> dict | None:
         uncensored = (data or {}).get("uncensored") or []  # arama alınamadı: eldeki liste kalır
     new = {"v": VERSION, "time": time.time(), "local": local, "cloud": cloud, "arena": _arena(), "library": library,
            "uncensored": uncensored}
-    CACHE.parent.mkdir(parents=True, exist_ok=True)
-    CACHE.write_text(json.dumps(new, ensure_ascii=False, indent=1), encoding="utf-8")
+    from .cekirdek.ayar import atomik_yaz
+
+    atomik_yaz(CACHE, json.dumps(new, ensure_ascii=False, indent=1))  # K12-C1
     return new
 
 
@@ -367,22 +369,8 @@ _FAST = ("flash", "mini", "lite", "instant", "haiku", "luna", "nano", "small", "
 # Sansürsüz (filtresiz) modeller: reddetme davranışı kaldırılmış. Menüde uzmanlıklar arasında (Sansürsüz), "sansürsüz" etiketiyle;
 # otomatik model seçimi ve güvenlik ajanı bunları kendiliğinden kullanmaz, yalnızca kullanıcı seçerse çalışır.
 UNCENSORED = re.compile(r"abliterat|uncensor|dolphin|huihui|lexi|nsfw|unfilter|jailbreak|obliterat|heretic", re.I)
-UNCENSORED_MODELS = [  # role: sansürsüz modda hangi işi yapar (ekip ajanları ve uzmanlar da sansürsüz olsun)
-    {"model": "huihui_ai/qwen3-abliterated:14b", "size": 9.0, "role": "chat",
-     "note": "Ana asistan ve ajanlar · Qwen3 14B, araç + düşünme, reddetme davranışı çıkarılmış"},
-    {"model": "huihui_ai/qwen2.5-coder-abliterate:14b", "size": 9.0, "role": "code",
-     "note": "Kod yazıcı · Qwen2.5-Coder 14B, araç kullanır"},
-    {"model": "huihui_ai/deepseek-r1-abliterated:14b", "size": 9.0, "role": "reasoning",
-     "note": "Derin düşünme · DeepSeek-R1 14B"},
-    {"model": "huihui_ai/qwen2.5-vl-abliterated:7b-instruct", "size": 6.0, "role": "vision",
-     "note": "Görsel uzman · Qwen2.5-VL 7B, resim görür"},
-    {"model": "dolphin3:8b", "size": 4.9, "role": "chat", "caps": [],
-     "note": "Hafif sohbet · Dolphin 3 (Llama 3.1 8B) · araç kullanamaz (dosya/komut işi yapamaz)"},
-    {"model": "huihui_ai/qwen3-abliterated:4b", "size": 2.5, "role": "chat",
-     "note": "Zayıf bilgisayarlar için · Qwen3 4B, araç + düşünme"},
-    {"model": "huihui_ai/qwen3.5-abliterated:4b", "size": 3.3, "role": "chat",
-     "note": "Pil ve zayıf bilgisayarlar için · Qwen3.5 4B (temel modelin sansürsüzü), araç + düşünme"},
-]
+# role: sansürsüz modda hangi işi yapar (ekip ajanları ve uzmanlar da sansürsüz olsun); ayar/modeller.json
+UNCENSORED_MODELS = modeller.deger("sansursuz")
 UNCENSORED_ROLES = {"chat": "ana asistan", "code": "kod", "reasoning": "düşünme", "vision": "görme"}
 
 

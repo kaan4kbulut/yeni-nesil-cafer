@@ -1,0 +1,33 @@
+{
+  "ad": "metin_istatistik",
+  "surum": "1.0.0",
+  "aciklama": "Bir metin dosyasının satır, kelime ve karakter sayısını ve en sık geçen kelimelerini verir (kelime istatistiği, kelime sayımı).",
+  "etiketler": ["metin", "analiz", "dosya"],
+  "girdi": {
+    "yol": {"tip": "string", "zorunlu": true, "aciklama": "UTF-8 metin dosyası (çalışma klasörüne göre ya da okunabilir klasörde tam yol)"},
+    "en_sik": {"tip": "int", "zorunlu": false, "aciklama": "En sık geçen kaç kelime listelensin (1-50)", "varsayilan": 5}
+  },
+  "cikti": {
+    "satir": {"tip": "int", "aciklama": "Satır sayısı"},
+    "kelime": {"tip": "int", "aciklama": "Kelime sayısı"},
+    "karakter": {"tip": "int", "aciklama": "Karakter sayısı"},
+    "en_sik_kelimeler": {"tip": "list", "aciklama": "En sık geçen kelimeler (3 harften kısa olanlar ve sayılar hariç)",
+                         "eleman": {"kelime": "string", "adet": "int"}}
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": ["windows", "linux", "macos"],
+    "python": ">=3.12"
+  },
+  "izinler": ["dosya_oku"],
+  "zaman_asimi_sn": 30,
+  "sandbox": true,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {"girdi": {"yol": "ornek.txt"}, "beklenen": "satir 3, kelime 13, en sık kelime 'kedi' (3)"},
+    {"girdi": {"yol": "ornek.txt", "en_sik": 2}, "beklenen": "en_sik_kelimeler 2 öğe"}
+  ]
+}

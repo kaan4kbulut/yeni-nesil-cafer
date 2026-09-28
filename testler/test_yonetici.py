@@ -19,6 +19,24 @@ os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
 from asistan import manager  # noqa: E402
 from asistan.agent import PROGRAM, _clean  # noqa: E402
+from asistan.cekirdek import yonlendirici  # noqa: E402
+from asistan.cekirdek.saglayici import Saglik  # noqa: E402
+
+_YAMALAR = []
+
+
+def setUpModule():
+    """Yönlendirici bu testlerde gerçek sağlayıcılara sormasın: sağlık hep iyi, aday yok → yönetici sohbet modeli."""
+    _YAMALAR.extend([mock.patch.object(yonlendirici, "SAGLIK",
+                                       yonlendirici.SaglikOnbellegi(sorgu=lambda ad, _=None: Saglik(True))),
+                     mock.patch.object(yonlendirici, "adaylar", return_value=[])])
+    for yama in _YAMALAR:
+        yama.start()
+
+
+def tearDownModule():
+    for yama in _YAMALAR:
+        yama.stop()
 
 
 class PlanKarari(unittest.TestCase):
@@ -74,6 +92,7 @@ class _SahteAjan:
         self.connections, self.cb, self._provider = [], _Olaylar(), "claude"
         self.security_stop, self.focus, self.user_text = False, "", ""
         self.check_nudges, self.verified, self.gave_up = 0, False, False
+        self.yapmadi = self.dil_hatasi = False
         self.isler, self.cagrilar = list(isler), []
 
     def _model(self): return "sahte"
@@ -179,7 +198,9 @@ class GrupYoneticisi(unittest.TestCase):
         task = Task(title="Kareler", goal="kareler.txt dosyasına 1-10 karelerini yaz", provider="ollama",
                     model="qwen2.5:14b", folder=str(Path(_GECICI) / "is" / "kareler"))
         runner = TeamRunner(task, s, [], [], mock.MagicMock())
-        yonetici, _ = runner._manager(mock.MagicMock())
+        cb = mock.MagicMock()
+        cb.is_cancelled.return_value = False  # K12-F10: _execute_tool başında iptal denetlenir; MagicMock truthy olmasın
+        yonetici, _ = runner._manager(cb)
         self.assertFalse(yonetici.nudges)
         yonetici.user_text = "Write the final report. 1. Sonuç 2. Önerim"
         rapor = "## Sonuç\n1. kareler.txt oluşturuldu\n2. Dosyayı aç"

@@ -1,0 +1,62 @@
+{
+  "ad": "dosya_tasi",
+  "surum": "1.0.0",
+  "aciklama": "Çalışma klasörü içinde dosya ya da klasörü taşır / yeniden adlandırır; var olan dosyanın üstüne yazmaz.",
+  "etiketler": [
+    "dosya",
+    "yazma"
+  ],
+  "girdi": {
+    "kaynak": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Taşınacak dosya ya da klasör"
+    },
+    "hedef": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Yeni yol ya da içine taşınacak var olan klasör"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_yaz"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "kaynak": "a.txt",
+        "hedef": "arsiv/"
+      },
+      "beklenen": "a.txt arsiv klasörüne taşındı"
+    },
+    {
+      "girdi": {
+        "kaynak": "eski.md",
+        "hedef": "yeni.md"
+      },
+      "beklenen": "yeniden adlandırıldı"
+    }
+  ]
+}

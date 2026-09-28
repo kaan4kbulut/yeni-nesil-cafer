@@ -1,0 +1,70 @@
+{
+  "ad": "dosya_duzenle",
+  "surum": "1.0.0",
+  "aciklama": "Var olan dosyada tam olarak bir kez geçen bir metin parçasını değiştirir.",
+  "etiketler": [
+    "dosya",
+    "yazma"
+  ],
+  "girdi": {
+    "yol": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Dosya yolu"
+    },
+    "eski": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Değişecek metin (dosyada tam bir kez geçmeli)"
+    },
+    "yeni": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Yerine gelecek metin"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_oku",
+    "dosya_yaz"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "yol": "not.txt",
+        "eski": "merhaba",
+        "yeni": "selam"
+      },
+      "beklenen": "not.txt'de merhaba → selam"
+    },
+    {
+      "girdi": {
+        "yol": "a.md",
+        "eski": "# Eski",
+        "yeni": "# Yeni"
+      },
+      "beklenen": "başlık değişti"
+    }
+  ]
+}

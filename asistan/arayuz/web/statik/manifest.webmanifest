@@ -1,0 +1,10 @@
+{
+  "name": "YENİ NESİL CAFER",
+  "short_name": "CAFER",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#1b1a17",
+  "theme_color": "#1b1a17",
+  "lang": "tr",
+  "icons": [{"src": "/simge.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any"}]
+}

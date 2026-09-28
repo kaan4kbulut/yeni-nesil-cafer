@@ -11,6 +11,7 @@ from PySide6.QtWidgets import (
 )
 from pathlib import Path
 
+from .sidebar import run_in_background
 from .. import mcp, power
 from ..config import Settings
 from ..connections import load_connections
@@ -94,6 +95,34 @@ class SettingsDialog(QDialog):
         self.policy.addItem("En güçlü model (bulut dahil, ücretli olabilir)", "guclu")
         self.policy.setCurrentIndex(max(self.policy.findData(settings.model_policy), 0))
         form.addRow("Öncelik:", self.policy)
+        self.task_engine = QCheckBox("Çok adımlı işleri görev motoruyla yap (deneme: plan kaydedilir, program kapansa da "
+                                     "«devam et» ile kaldığı yerden sürer)")
+        self.task_engine.setChecked(bool(settings.extra.get("gorev_motoru", True)))  # B7: varsayılan açık
+        form.addRow("", self.task_engine)
+        from ..cekirdek import yonlendirici
+
+        self.privacy = QComboBox()  # K3: yönlendiricinin gizlilik modu
+        self.privacy.addItem("Karma: basit işler yerelde, gerekirse bulut", "karma")
+        self.privacy.addItem("Yalnızca yerel: hiçbir şey buluta gitmez", "yerel")
+        self.privacy.addItem("Bulut öncelikli: bağlı bulut modelleri önce", "bulut")
+        self.privacy.setCurrentIndex(max(self.privacy.findData(yonlendirici.gizlilik(settings)), 0))
+        if yonlendirici.gizlilik_kilitli():
+            self.privacy.setEnabled(False)
+            self.privacy.setToolTip("ayar.toml → [gizlilik] mod ile sabitlenmiş; oradan değiştir.")
+        else:
+            self.privacy.setToolTip("Yalnızca yerel seçilirse yönetici, işçi ve yedek modellerin hepsi bu bilgisayarda "
+                                    "çalışır; bulut bağlantıları kendiliğinden kullanılmaz.")
+        form.addRow("Gizlilik:", self.privacy)
+        self.boss_policy = QComboBox()  # eski Aşama 2: yöneticiye en güçlü model
+        self.boss_policy.addItem("Otomatik: en güçlü erişilebilir model", "otomatik")
+        self.boss_policy.addItem("Yerel: bu bilgisayardaki en güçlü model", "yerel")
+        self.boss_policy.addItem("Bulut: Claude Code ya da bağlı bulut modeli", "bulut")
+        self.boss_policy.setCurrentIndex(max(self.boss_policy.findData(
+            settings.extra.get(yonlendirici.EXTRA_POLITIKA, "otomatik")), 0))
+        self.boss_policy.setToolTip("Çok adımlı işleri planlayan ve her adımı denetleyen model. Otomatik: girişli "
+                                    "Claude Code → bağlı bulut → araç sınavını tam geçen en güçlü yerel model. "
+                                    "Gizlilik 'yalnızca yerel' iken her zaman yerel.")
+        form.addRow("Yönetici:", self.boss_policy)
         self.power = QComboBox()
         for value, text in power.MODES.items():
             self.power.addItem(text, value)
@@ -152,6 +181,8 @@ class SettingsDialog(QDialog):
         self.cloud_token.setEchoMode(QLineEdit.Password)
         self.cloud_on = QCheckBox("Hafızayı eşitle ve buluttan gelen işleri göster")
         self.cloud_on.setChecked(cloud.get("enabled", True))
+        self.cloud_remote = QCheckBox("Uzak mod: görevler sunucuda (Görevler penceresi sunucuyu kullanır; K9)")
+        self.cloud_remote.setChecked(bool(cloud.get("uzak_mod")))
         cloud_row = QHBoxLayout()
         test_btn = QPushButton("Bağlantıyı dene", objectName="smallButton")
         self.cloud_status = QLabel(objectName="hint")
@@ -161,10 +192,12 @@ class SettingsDialog(QDialog):
         form.addRow("Adres:", self.cloud_url)
         form.addRow("Anahtar:", self.cloud_token)
         form.addRow("", self.cloud_on)
+        form.addRow("", self.cloud_remote)
         form.addRow("", cloud_row)
         cloud_hint = QLabel("Bulut asistan bilgisayarına erişemez; yerel dosya gereken işleri kuyruğa bırakır, "
-                            "burada listelenir ve sen onaylarsan yapılır. Kurulum: programın klasöründeki "
-                            "sunucu/BENIOKU.md.", objectName="hint")
+                            "burada listelenir ve sen onaylarsan yapılır. Görevler dakikada bir sunucuyla eşitlenir "
+                            "(telefondan başlatılan görev burada görünür). Kurulum: docs/SUNUCU_KURULUM.md.",
+                            objectName="hint")
         cloud_hint.setWordWrap(True)
         form.addRow("", cloud_hint)
         form.addRow(QLabel("DİKTE VE GÜNCELLEMELER", objectName="label"))
@@ -215,10 +248,9 @@ class SettingsDialog(QDialog):
 
         probe = type("S", (), {"extra": {"cloud": {"url": self.cloud_url.text().strip(),
                                                    "token": self.cloud_token.text().strip()}}})()
-        try:
-            self.cloud_status.setText("✓ " + cloud_sync.check(probe))
-        except Exception as e:
-            self.cloud_status.setText(f"✗ {e}")
+        self.cloud_status.setText("deneniyor…")
+        run_in_background(lambda: cloud_sync.check(probe),  # K12-D6: 25 sn zaman aşımı pencereyi dondurmasın
+                          lambda r, e: self.cloud_status.setText("✓ " + str(r) if e is None else f"✗ {e}"), self)
 
     def _open_mcp_config(self):
         try:
@@ -243,10 +275,15 @@ class SettingsDialog(QDialog):
         extra = dict(settings.extra)
         extra["dikte_dil"] = self.dictation_lang.currentData()
         extra["dikte_temizle"] = self.dictation_clean.isChecked()
+        extra["gorev_motoru"] = self.task_engine.isChecked()
         extra["guncelleme_otomatik"] = self.auto_update.isChecked()
         extra["sonuclari_topla"] = self.collect_results.isChecked()
+        if self.privacy.isEnabled():  # ayar.toml'la sabitlenmişse arayüz yazmaz
+            extra["gizlilik"] = self.privacy.currentData()
+        extra["yonetici_politikasi"] = self.boss_policy.currentData()
         if url and token:
-            extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked()}
+            extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked(),
+                              "uzak_mod": self.cloud_remote.isChecked()}
         else:
             extra.pop("cloud", None)
         settings.extra = extra

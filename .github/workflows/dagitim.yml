@@ -1,0 +1,88 @@
+# K11 — Dağıtım: etiket (vX.Y) gönderilince üç platformda kurulum dosyaları derlenir (YeniNesilCafer-<sürüm>-Windows-Kurulum.exe,
+# -macOS.dmg, -Linux.AppImage), güncelleyici paketi (updates.ASSET + .sha256) eklenir ve GitHub sürümü YAYINLANIR
+# (taslak değil; etikette "beta"/"rc" varsa ön sürüm). Sürüm notu dagitim/RELEASE_NOTU.md şablonundan; aynı etikete
+# yeniden gönderim mevcut sürümü günceller (dosyalar üstüne yazılır; eski adlı dosyalar elle silinir).
+# Full (Ollama + model, ≤ 1,9 GB) CI'da derlenmez: geliştirici makinesinde `python dagitim/paketle.py --tam`,
+# `python dagitim/paketle.py --tam` ile üretilip elle yüklenir (GitHub 2 GB sınırı).
+name: Dağıtım
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  derle:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            urun: Linux
+          - os: windows-latest
+            urun: Windows
+          - os: macos-latest
+            urun: macOS
+    runs-on: ${{ matrix.os }}
+    env:
+      PYTHONIOENCODING: utf-8
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Qt'nin sistem kütüphaneleri ve appimagetool (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update && sudo apt-get install -y libegl1 libgl1 libxkbcommon0 libdbus-1-3 libfontconfig1 libfuse2
+          curl -fsSL -o /usr/local/bin/appimagetool https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x /usr/local/bin/appimagetool
+      - name: Bağımlılıklar
+        run: python -m pip install -r requirements.txt pyinstaller pillow  # pillow: macOS .icns simge dönüşümü
+      - name: Light paket
+        run: python dagitim/paketle.py --hafif
+      - uses: actions/upload-artifact@v4
+        with:
+          name: light-${{ matrix.urun }}
+          path: |
+            dist/dagitim/YeniNesilCafer-*
+            !dist/dagitim/build
+            !dist/dagitim/work
+            !dist/dagitim/AppDir
+          if-no-files-found: error
+
+  surum:
+    needs: derle
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Uygulama içi güncelleme paketi (updates.ASSET)
+        run: python -m pip install httpx && python dagitim/paketle.py --guncelleme
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist/indirilen
+          merge-multiple: true
+      - name: Dosyaları topla
+        run: |
+          mkdir -p dist/surum dist/not
+          cp dist/indirilen/* dist/surum/ 2>/dev/null || true
+          cp dist/dagitim/*.zip dist/dagitim/*.sha256 dist/surum/ 2>/dev/null || true
+          ls -la dist/surum
+      - name: Sürüm notu (dagitim/RELEASE_NOTU.md şablonu; dosya olarak yüklenmez)
+        run: |
+          python dagitim/paketle.py --surum-notu > dist/not/NOTLAR.md
+          head -8 dist/not/NOTLAR.md
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          prerelease: ${{ contains(github.ref_name, 'beta') || contains(github.ref_name, 'rc') }}
+          body_path: dist/not/NOTLAR.md
+          files: dist/surum/*

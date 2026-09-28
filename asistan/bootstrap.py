@@ -25,7 +25,7 @@ import urllib.request
 import zipfile
 from pathlib import Path
 
-OLLAMA_SURUM = "v0.34.4"  # paketleme/paketle.py ile aynı
+OLLAMA_SURUM = "v0.34.4"  # dagitim/paketle.py (--tam) bunu okur
 OLLAMA_URL = f"https://github.com/ollama/ollama/releases/download/{OLLAMA_SURUM}/{{}}"
 OLLAMA_DOSYALARI = {  # sistem → [(dosya, sha256)]; ROCm yalnızca AMD kartta
     "windows": [("ollama-windows-amd64.zip", "535193f38f3344e5b08f5d1c171c31ce11aa17f0124ff69ae26d8ec7fe06fa62")],

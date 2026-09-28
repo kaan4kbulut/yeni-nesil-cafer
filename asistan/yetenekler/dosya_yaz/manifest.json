@@ -1,0 +1,62 @@
+{
+  "ad": "dosya_yaz",
+  "surum": "1.0.0",
+  "aciklama": "Çalışma klasörüne metin dosyası yazar (varsa üstüne yazar); üst klasörler kendiliğinden açılır.",
+  "etiketler": [
+    "dosya",
+    "yazma"
+  ],
+  "girdi": {
+    "yol": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Dosya yolu (çalışma klasörüne göre)"
+    },
+    "icerik": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Dosyanın tam içeriği"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "dosya_yaz"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "yol": "rapor.md",
+        "icerik": "# Rapor\n"
+      },
+      "beklenen": "rapor.md yazıldı"
+    },
+    {
+      "girdi": {
+        "yol": "alt/liste.txt",
+        "icerik": "a\nb\n"
+      },
+      "beklenen": "alt klasörle birlikte yazıldı"
+    }
+  ]
+}

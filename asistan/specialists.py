@@ -5,6 +5,7 @@ Her rol için ayarlardan seçilen model kullanılır; seçilmemişse kurulu mode
 """
 
 import base64
+import json
 import re
 import mimetypes
 from functools import lru_cache
@@ -12,6 +13,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek import modeller
 from .config import Settings
 from .connections import ANTHROPIC_KEY, Connection
 from .keystore import get_secret
@@ -24,9 +26,9 @@ ROLES = {
 }
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 # ad parçasına göre tahmin (yetenek bilgisi vermeyen sağlayıcılar için)
-_NAME_HINTS = {
-    "reasoning": ("deepseek-r1", "qwq", "phi4-reasoning", "magistral", "gpt-oss"),
-    "code": ("coder", "codestral", "codellama", "devstral", "starcoder"),
+_NAME_HINTS = {  # ayar/modeller.json → aileler
+    "reasoning": tuple(modeller.deger("aileler.akil_yurutme")),
+    "code": tuple(modeller.deger("aileler.kod")),
 }
 
 
@@ -56,7 +58,7 @@ def vision_models(settings: Settings) -> list[str]:
 from .cli_agents import CLAUDE as _CLAUDE, is_cli, run as run_cli  # noqa: E402  (Codex, Gemini CLI de orada)
 
 CLAUDE_CODE = (_CLAUDE.provider, _CLAUDE.default)  # (sağlayıcı, model): kullanıcının Claude aboneliğiyle Claude Code
-# Claude Code'un çalışabildiği modeller (--model takma adları); "claude-code": Claude Code'un kendi varsayılanı
+# Claude Code'un çalışabildiği modeller (--model takma adları); ilki (CLAUDE.default) Claude Code'un kendi varsayılanı
 CLAUDE_CODE_MODELS = _CLAUDE.models
 
 
@@ -66,6 +68,36 @@ def claude_code_available() -> bool:
     return shutil.which("claude") is not None
 
 
+SALT_OKUNUR_YASAK = "Bash,Edit,Write,MultiEdit,NotebookEdit"  # K12-B6: kullanıcının global ayarı yazma açsa da
+DUZENLEME_YASAK = "Bash"  # edits=True: dosya düzenler, komut çalıştırmaz (docstring'deki söz artık bayrakla)
+
+
+def claude_komutu(exe: str, prompt: str, model: str, edits: bool, system: str) -> list[str]:
+    """`claude -p` komut satırı: salt okunur çağrıda dosya/komut araçları kapalı (`--disallowedTools`)."""
+    cmd = [exe, "-p", prompt, "--output-format", "text"]
+    if model and model != CLAUDE_CODE[1]:
+        cmd += ["--model", model]
+    if edits:
+        cmd += ["--permission-mode", "acceptEdits", "--disallowedTools", DUZENLEME_YASAK]
+    else:
+        cmd += ["--disallowedTools", SALT_OKUNUR_YASAK]
+    if system:
+        cmd += ["--append-system-prompt", system]
+    return cmd
+
+
+def claude_ortami() -> dict:
+    """K12-B3: beyaz listeli ortam (ANTHROPIC_API_KEY geçmez: abonelik hesabı kullanılır, API faturası değil) + Claude
+    Code'un kendi CLAUDE_* ayarları; iç içe oturum sayılmasın diye CLAUDECODE*/CLAUDE_CODE_ENTRYPOINT yok."""
+    import os
+
+    from .cekirdek.araclar import komut
+
+    ek = {k: v for k, v in os.environ.items()
+          if k.startswith("CLAUDE_") and not k.startswith("CLAUDECODE") and k != "CLAUDE_CODE_ENTRYPOINT"}
+    return komut.guvenli_ortam(os.environ, ek=ek)
+
+
 def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, cancelled=None,
                 timeout: int = 1800, model: str = "") -> str:
     """Claude Code'u komut satırından çalıştırır (`claude -p`); yanıt metnini döndürür.
@@ -73,7 +105,6 @@ def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, ca
     edits=True: çalışma klasöründeki dosyaları düzenleyebilir (komut çalıştırmak yine kapalı).
     cancelled: çağrılabilir; True dönerse süreç durdurulur ve Cancelled benzeri bir hata atılır.
     """
-    import os
     import shutil
     import subprocess
     import time
@@ -81,15 +112,8 @@ def claude_code(prompt: str, cwd: str, system: str = "", edits: bool = False, ca
     exe = shutil.which("claude")
     if exe is None:
         raise RuntimeError("Claude Code bulunamadı. Kurmak için: https://claude.com/claude-code")
-    cmd = [exe, "-p", prompt, "--output-format", "text"]
-    if model and model != CLAUDE_CODE[1]:
-        cmd += ["--model", model]
-    if edits:
-        cmd += ["--permission-mode", "acceptEdits"]
-    if system:
-        cmd += ["--append-system-prompt", system]
-    # başka bir Claude Code oturumundan başlatıldıysa iç içe oturum sayılmasın
-    env = {k: v for k, v in os.environ.items() if not k.startswith("CLAUDECODE") and k != "CLAUDE_CODE_ENTRYPOINT"}
+    cmd = claude_komutu(exe, prompt, model, edits, system)
+    env = claude_ortami()
     proc = subprocess.Popen(cmd, cwd=cwd, env=env, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                             stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     start = time.time()
@@ -198,9 +222,13 @@ def _image_parts(paths: list[Path]) -> list[tuple[str, str]]:
     return out
 
 
+STALL_SN = 150  # Ollama'dan parça başına en çok bu kadar beklenir (agent.STALL_SECONDS ile aynı; toplam 600 sn değil)
+
+
 def ask(settings: Settings, connections: list[Connection], provider: str, model: str, prompt: str,
-        images: list[Path] | None = None, system: str = "", schema: dict | None = None) -> str:
-    """Tek seferlik soru; yanıt metnini döndürür. schema verilirse yanıt JSON istenir (yerelde düşünmeden)."""
+        images: list[Path] | None = None, system: str = "", schema: dict | None = None, cancelled=None) -> str:
+    """Tek seferlik soru; yanıt metnini döndürür. schema verilirse yanıt JSON istenir (yerelde düşünmeden).
+    `cancelled()`: True dönerse (■) çağrı kesilir, `InterruptedError` (K12-D8: yönetici planı/denetimi 10 dk bekletiyordu)."""
     images = images or []
     parts = _image_parts(images)
     system = system or ("You are a specialist helping another AI assistant. Answer precisely and completely in the "
@@ -210,16 +238,35 @@ def ask(settings: Settings, connections: list[Connection], provider: str, model:
         msg = {"role": "user", "content": prompt}
         if parts:
             msg["images"] = [b64 for _, b64 in parts]
-        resp = httpx.post(settings.ollama_url.rstrip("/") + "/api/chat", json={
-            "model": model, "stream": False, "keep_alive": "10m",
-            "messages": [{"role": "system", "content": system}, msg],
-            # ana modelle aynıysa onun bağlamı: farklı bağlam modeli yeniden yükletir
-            "options": {"num_ctx": _ctx_for(settings, model)},
-            **({"format": schema, "think": False} if schema else {}),
-        }, timeout=httpx.Timeout(600, connect=10))
-        if resp.status_code != 200:
-            raise RuntimeError(f"{model} hatası ({resp.status_code}): {resp.text[:300]}")
-        return resp.json().get("message", {}).get("content", "").strip()
+        govde = {"model": model, "stream": True, "keep_alive": "10m",
+                 "messages": [{"role": "system", "content": system}, msg],
+                 # ana modelle aynıysa onun bağlamı: farklı bağlam modeli yeniden yükletir
+                 "options": {"num_ctx": _ctx_for(settings, model)},
+                 **({"format": schema, "think": False} if schema else {})}
+        parcalar = []  # K12-D8: akışlı — her satırda iptal denetlenir; okuma zaman aşımı parça başına
+        with httpx.stream("POST", settings.ollama_url.rstrip("/") + "/api/chat", json=govde,
+                          timeout=httpx.Timeout(STALL_SN, connect=10)) as resp:
+            if resp.status_code != 200:
+                resp.read()
+                raise RuntimeError(f"{model} hatası ({resp.status_code}): {getattr(resp, 'text', '')[:300]}")
+            for satir in resp.iter_lines():
+                if cancelled is not None and cancelled():
+                    raise InterruptedError("uzman çağrısı durduruldu")
+                if not satir.strip():
+                    continue
+                try:
+                    parca = json.loads(satir)
+                except ValueError:
+                    continue
+                parcalar.append(str((parca.get("message") or {}).get("content") or ""))
+        return "".join(parcalar).strip()
+    if schema and not images and (provider == "claude" or provider.startswith("api:")):
+        # şema-kısıtlı üretim (K4): Claude'da zorunlu araç, OpenAI uyumluda json_schema; program şemayı denetler
+        from .cekirdek import saglayici as sg, yapisal
+
+        sonuc = yapisal.uret(sg.bul(provider, settings, connections), [{"role": "user", "content": prompt}], schema,
+                             system, model=model)
+        return json.dumps(sonuc.veri, ensure_ascii=False) if sonuc.veri is not None else sonuc.ham.strip()
     if provider == "claude":
         import anthropic
 

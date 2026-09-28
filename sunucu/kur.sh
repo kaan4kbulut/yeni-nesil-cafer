@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# YENİ NESİL CAFER · bulut sunucusu kurulumu (Ubuntu 22.04 / 24.04; ARM ya da x86, ekran kartı gerekmez).
+# YENİ NESİL CAFER · sunucu kurulumu (Ubuntu 22.04 / 24.04; ARM ya da x86, ekran kartı gerekmez). K8: web + PWA
+# (python -m asistan sunucu) + Telegram; belge docs/SUNUCU_KURULUM.md. İdempotent: iki kez çalıştırmak bozmaz.
 # Kullanım:   sudo ./kur.sh [model]            (varsayılan model: qwen3.5:4b)
 #             sudo ./kur.sh --telegram TOKEN   (BotFather'dan alınan bot anahtarını ekler)
 set -euo pipefail
@@ -53,7 +54,9 @@ mkdir -p "$DEST" "$DATA/yeni-nesil-cafer" "$DATA/ayar"
 rm -rf "$DEST/asistan"
 cp -r "$SRC/asistan" "$DEST/"
 [ -x "$DEST/venv/bin/python" ] || python3 -m venv "$DEST/venv"
-"$DEST/venv/bin/pip" install -q --disable-pip-version-check httpx anthropic ddgs beautifulsoup4 keyring
+cp "$SRC/requirements-sunucu.txt" "$DEST/" 2>/dev/null || true
+"$DEST/venv/bin/pip" install -q --disable-pip-version-check -r "$DEST/requirements-sunucu.txt" 2>/dev/null || \
+"$DEST/venv/bin/pip" install -q --disable-pip-version-check fastapi uvicorn httpx anthropic ddgs beautifulsoup4 keyring psutil
 chown -R asistan:asistan "$DATA"
 
 echo "[5/7] Tailscale (web sayfası ve program yalnızca senin cihazlarından erişsin)"
@@ -83,7 +86,8 @@ Wants=network-online.target
 User=asistan
 Environment=XDG_DATA_HOME=$DATA XDG_CONFIG_HOME=$DATA/ayar HOME=$DATA
 WorkingDirectory=$DEST
-ExecStart=$DEST/venv/bin/python -m asistan.cloud_server
+Environment=CAFER_GENEL_KADEME_KILIDI=sunucu
+ExecStart=$DEST/venv/bin/python -m asistan sunucu --host $HOST --port 8765
 Restart=on-failure
 RestartSec=5
 NoNewPrivileges=true

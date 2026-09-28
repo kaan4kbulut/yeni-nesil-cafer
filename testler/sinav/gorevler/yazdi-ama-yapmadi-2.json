@@ -1,0 +1,18 @@
+{
+ "ad": "yazdi-ama-yapmadi-2",
+ "sira": 22,
+ "istek": "3D modelin basım hatalarını tespit etmek için bir denetleyici scripti yaz.",
+ "zaman_siniri_sn": 90,
+ "bitti": [
+  {
+   "tur": "dosya_var",
+   "yol": "*.py"
+  },
+  {
+   "tur": "arac_cagrildi",
+   "ad": "*"
+  }
+ ],
+ "kademe": "orta",
+ "tur": "cok_adimli"
+}

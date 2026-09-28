@@ -1,0 +1,64 @@
+{
+  "ad": "web_arama",
+  "surum": "1.0.0",
+  "aciklama": "Web'de arar (DuckDuckGo); başlık, adres ve özet listesi döner.",
+  "etiketler": [
+    "ag",
+    "arastirma"
+  ],
+  "girdi": {
+    "sorgu": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Arama ifadesi"
+    },
+    "adet": {
+      "tip": "int",
+      "zorunlu": false,
+      "aciklama": "Sonuç sayısı (1-10)",
+      "varsayilan": 5
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [
+      "ddgs"
+    ],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "ag"
+  ],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "sorgu": "Python programlama dili"
+      },
+      "beklenen": "en az 1 sonuç, adresler http ile başlar"
+    },
+    {
+      "girdi": {
+        "sorgu": "Ankara hava durumu",
+        "adet": 3
+      },
+      "beklenen": "en çok 3 sonuç"
+    }
+  ]
+}

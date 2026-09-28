@@ -1,0 +1,48 @@
+# docker compose -f sunucu/docker-compose.yml up -d           (yalnızca web; çıkarım bulut API'de)
+# docker compose -f sunucu/docker-compose.yml --profile gpu up -d   (+ Ollama, NVIDIA kartı olan sunucuda)
+services:
+  cafer-web:
+    build:
+      context: ..
+      dockerfile: sunucu/Dockerfile
+    image: yeni-nesil-cafer-web
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      CAFER_SAGLAYICI_OLLAMA_URL: http://ollama:11434
+    volumes:
+      - cafer-veri:/veri
+    ports:
+      - "127.0.0.1:8765:8765"   # dışarıya Caddy açar (HTTPS)
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-veri:/data
+      - caddy-ayar:/config
+
+  ollama:
+    image: ollama/ollama
+    profiles: ["gpu"]
+    restart: unless-stopped
+    volumes:
+      - ollama-modeller:/root/.ollama
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  cafer-veri:
+  caddy-veri:
+  caddy-ayar:
+  ollama-modeller:

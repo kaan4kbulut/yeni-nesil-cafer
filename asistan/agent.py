@@ -10,14 +10,17 @@ import re
 import subprocess
 import time
 import uuid
+from contextlib import closing
 from pathlib import Path
 from dataclasses import replace
 from datetime import date
 from typing import Protocol
 
-import anthropic
 import httpx
 
+from .cekirdek import modeller, saglayici as sg, yonlendirici
+from .cekirdek.saglayici import claude as sg_claude, cli_ajan as sg_cli, ollama as sg_ollama
+from .cekirdek.saglayici.openai_uyumlu import OpenAIUyumluSaglayici
 from .config import Settings
 from .connections import ANTHROPIC_KEY, Connection, key_error
 from .keystore import get_secret
@@ -33,26 +36,46 @@ from .registry import REGISTRY
 from . import permissions
 from .permissions import is_action  # manager ve testler buradan da alır
 
+
+class _TembelAnthropic:
+    """`anthropic` SDK'sı açılışta ~1 sn: ilk Claude çağrısında yüklenir (K10 açılış süresi; düşük kademede < 3 sn)."""
+
+    def __getattr__(self, ad):
+        import anthropic as sdk
+
+        return getattr(sdk, ad)
+
+
+anthropic = _TembelAnthropic()
+
 MAX_STEPS = 40  # tek bir kullanıcı mesajında en fazla model çağrısı
+SELECTOR_STEPS = 12  # araç seçici kipinde bir turda en çok araç kararı
+SELECTOR_PREDICT = 1500  # karar JSON'u kısa: uzun kod argümanı da sığsın
+SELECTOR_NOTE = (
+    "\n\n## How to use tools in this conversation\nYou do not call tools yourself. At each step answer with ONE JSON "
+    'decision: {{"eylem": "arac", "arac": <tool name>, "argumanlar": {{...}}, "gerekce": <why, short>}} to run a '
+    'tool, or {{"eylem": "cevap", "gerekce": ...}} when the work is done or no tool is needed. The program runs '
+    "the tool and shows you the result; then decide again. Tools:\n{tools}")
+SELECTOR_ANSWER = ("\n\nThe tools already ran; their results are in the conversation. Now write your answer to the "
+                   "user. You cannot run tools in this answer.")
 THINK_LIMIT = 6000  # yerel modelin gizli düşünmesi için karakter sınırı (~30 sn); aşılırsa düşünmeden cevaplar
 THINK_SECONDS = 240  # pilde yavaş modelde karakter sınırına varmadan dakikalarca düşünebilir: süre sınırı da var
 STALL_SECONDS = 150  # Ollama'dan bu kadar süre tek parça gelmezse çağrı takılmış sayılır (model yükleme dahil sığar)
 NUM_PREDICT = 8192  # tek çağrıda en çok bu kadar token: uzun hikâyeye yeter, kısır döngü dakikalarca sürmez
 # kendini tekrar eden model: metnin son REPEAT_TAIL karakteri metinde REPEAT_COUNT kez geçiyorsa döngüdedir.
-# qwen2.5:14b grup görevinde aynı kod bloğunu ~20 kez yazdı (8192 token, 3 dk 47 sn; 2026-09-27): o sürede
+# qwen2.5 14B grup görevinde aynı kod bloğunu ~20 kez yazdı (8192 token, 3 dk 47 sn; 2026-09-27): o sürede
 # Ollama tek isteği işlediği için sohbet de bekledi.
 REPEAT_TAIL = 300
 REPEAT_COUNT = 3
 QUICK_REQUEST = 60  # bu kadar kısa, tek satırlık istekler ("telegram aç") düşünmeden yapılır
 
 # Sunucu tarafı yedek model (refusal fallback) desteklenen modeller
-CLAUDE_FALLBACK_MODELS = {"claude-opus-5", "claude-fable-5-1"}
+CLAUDE_FALLBACK_MODELS = set(modeller.deger("claude.yedekli"))
 # Adaptive thinking desteklemeyen modeller
-CLAUDE_NO_THINKING = {"claude-haiku-4-5"}
+CLAUDE_NO_THINKING = set(modeller.deger("claude.dusunmesiz"))
 
 
-class Cancelled(Exception):
-    pass
+Cancelled = sg.Iptal  # kullanıcı durdurdu (çekirdekteki sınıfla aynı: arayüz ikisini de yakalar)
 
 
 class _SubRelay:
@@ -142,6 +165,47 @@ _ACTION = re.compile(r"uygula|çalıştır|kur\b|kurul|başlat|oluştur|yaz\b|si
 _TASK = re.compile(r"\b(kur(\b|ar m|abilir|ul|mak|ar\b)|yükle|indir|kaldır|sil(\b|er m|ebilir|mek)|başlat|durdur|"
                    r"çalıştır|oluştur|yaz(\b|ar m|abilir|mak)|düzenle|değiştir|taşı|kopyala|yedekle|gönder|ayarla|"
                    r"güncelle|temizle|düzelt|ekle|kapat|uygula|dönüştür|üret|hazırla|çiz|analiz et)", re.I)
+
+# araç gerektiren ama iş (değişiklik) sayılmayan istekler: okumak, aramak, saymak (araç seçici kipi bunlarda da açılır)
+_NEEDS_TOOL = re.compile(r"\b(oku|bul|ara|araştır|listele|say\b|saydır|hesapla|incele|kontrol et|bak)|dosya|klasör|"
+                         r"internet|web|\b\w+\.(txt|md|csv|json|py|pdf|xlsx|docx|png|jpg)\b", re.I)
+
+# üst-soru: model işi yapmak yerine izin/onay soruyor ("Araç kullanmak ister misiniz?", "Devam edeyim mi?"). Bu bir soru
+# değil "yazdı ama yapmadı"dır; gerçek sorular ("Hangi klasöre yazayım?") sonucu belirleyen bilgi ister ve dürtülmez.
+_META_SORU = re.compile(
+    r"ister\s*misin(iz)?\s*\??\s*$|(?:edeyim|yapayım|başlayayım|oluşturayım|çalıştırayım|uygulayayım|yazayım|kurayım|"
+    r"deneyeyim|ilerleyeyim|geçeyim)\s+mi\s*\??\s*$|"
+    r"\b(?:would you like|do you want|shall i|should i|may i|want me to)\b", re.I)
+
+# Türkçe metin göstergeleri (dil denetimi): Türkçeye özgü harfler ve en sık bağlaçlar / yardımcılar
+_TR_HARF = re.compile(r"[çğıöşüÇĞİÖŞÜ]")
+_TR_KELIME = re.compile(r"\b(ve|bir|için|ile|bu|şu|da|de|olarak|var|yok|dosya|klasör|oldu|oluştur\w*|yaz\w*|"
+                        r"sonuç|şimdi|ancak|ama|çünkü|gibi|daha|kadar|her|tüm|hazır|tamam|değil|evet|hayır)\b", re.I)
+_EN_KELIME = re.compile(r"\b(the|and|is|are|to|of|with|this|that|file|files|you|your|have|has|will|can|i|it|"
+                        r"in|on|for|from|created|folder|now|here|each|was|were|not|be|as|by|or)\b", re.I)
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
+_KOD_BLOGU = re.compile(r"```.*?```|`[^`\n]*`|https?://\S+", re.S)
+
+
+def meta_soru(text: str) -> bool:
+    """Cevap işi yapmak yerine izin soran bir üst-soruyla mı bitiyor? (BÖLÜM 2-b: gerçek soru sayılmaz, dürtülür)"""
+    son = (text or "").strip().splitlines()
+    return bool(son) and bool(_META_SORU.search(son[-1].strip()))
+
+
+def turkce_mi(text: str) -> bool:
+    """Cevap Türkçe mi? Kod, satır içi kod ve adresler sayılmaz; kısa metin yargılanmaz (True). CJK ağırlıklı ya da
+    İngilizce sık kelimeleri Türkçe göstergelerin çok üstünde olan metin Türkçe değildir (BÖLÜM 2-c dil bekçisi)."""
+    duz = _KOD_BLOGU.sub(" ", text or "")
+    harfler = [c for c in duz if c.isalpha()]
+    cjk = len(_CJK.findall(duz))
+    if cjk >= 10 and cjk > len(harfler) * 0.1:
+        return False  # planı Çince yazan küçük modeller (denetci becerisi, bilinen tuzaklar)
+    if len(harfler) < 40:
+        return True
+    tr = len(_TR_HARF.findall(duz)) + len(_TR_KELIME.findall(duz))
+    en = len(_EN_KELIME.findall(duz))
+    return not (en >= 5 and en > 3 * tr)
 
 
 PROGRAM = "_program"  # programın modele gönderdiği uyarı mesajlarının işareti (kullanıcının isteği değil)
@@ -313,13 +377,15 @@ def instruction_files(folder: str, top: str = "") -> str:
     root = Path(top).expanduser().resolve() if top else here
     dirs = [here] + [d for d in here.parents if d.is_relative_to(root)]
     parts = []
+    kalan = INSTRUCTIONS_LIMIT  # K12-F8: sınır dosya başına değil TOPLAM (3 düzey × 4000 = 12K bağlamı dolduruyordu)
     for d in reversed(dirs[:3]):  # iş → kategori → çalışma klasörü
         try:
             text = (d / INSTRUCTIONS_FILE).read_text(encoding="utf-8").strip()
         except (OSError, UnicodeDecodeError):
             continue
-        if text:
-            parts.append(f"### {d / INSTRUCTIONS_FILE}\n{text[:INSTRUCTIONS_LIMIT]}")
+        if text and kalan > 0:
+            parts.append(f"### {d / INSTRUCTIONS_FILE}\n{text[:kalan]}")
+            kalan -= len(text)
     if not parts:
         return ""
     return ("\n\n## User instructions (ASISTAN.md files the user keeps in the workspace; follow them, the more "
@@ -695,6 +761,10 @@ class Agent:
         # "iş bitmedi" dürtmeleri; grup yöneticisinde kapalı: plan, kontrol ve raporda işi kendisi yapmaz, dürtülünce
         # sahip olmadığı run_python'u tekrar tekrar çağırıp görevi bitirmiyordu (2026-09-27)
         self.nudges = True
+        self.yapmadi = False  # dürtüye rağmen yalnızca yazdı: yönetici devralır (motor / üst model / dürüst tek satır)
+        self.dil_hatasi = False  # cevap iki kez Türkçe olmadı: yönetici sonraki modele verir
+        self.bekleyen_soru = ""  # kullaniciya_sor çağrıldı: tur biter, arayüz "cevap bekliyor"
+        self.cevaplanan_soru = ""  # arayüz: bir önceki turda sorulan soru; bu turun mesajı onun cevabı
         self.focus = ""  # yönetici adımı: "iş bitti mi" denetimi tüm isteğe değil bu adıma bakar
         self.base_system = ""  # verilirse system_prompt + program_prompt yerine kullanılır (bulut kopyası)
         self.lean = False  # küçük bağlamlı yerel model: talimat ve araç tanımları kısaltılır (run() belirler)
@@ -754,6 +824,7 @@ class Agent:
     # ---- ortak araç çalıştırma ----
 
     def _execute_tool(self, call_id: str, name: str, args) -> tuple[str, bool]:
+        self._check_cancel()  # K12-F10: ■ basıldıysa sıradaki araç için onay penceresi açılmasın
         error = validate_input(name, args)
         self.cb.on_tool_start(call_id, name, args if isinstance(args, dict) else {"raw": args})
         if error is None and not any(s["name"] == name for s in self.tool_specs):
@@ -827,6 +898,25 @@ class Agent:
         return result
 
     # ---- programın kendi araçları (ajanın durumuna ihtiyaç duyanlar) ----
+
+    def _tool_kullaniciya_sor(self, args: dict) -> str:
+        """Kullanıcıya tek soru: soru (+ seçenekler madde olarak) baloncuğa yazılır, tur biter (`_soru_ile_bitti`)."""
+        soru = " ".join(str(args.get("soru") or "").split())
+        if not soru:
+            raise ToolError("soru is empty")
+        secenekler = [" ".join(str(s).split()) for s in (args.get("secenekler") or []) if str(s).strip()][:6]
+        metin = soru + ("".join(f"\n- {s}" for s in secenekler) if secenekler else "")
+        self.bekleyen_soru = metin
+        self.cb.on_text(("\n\n" if getattr(self.cb, "text", "") else "") + metin)
+        return ("The question is shown to the user; this turn ends now. Their answer will arrive as the next "
+                "message. Do not write anything further.")
+
+    def _soru_ile_bitti(self, messages: list) -> bool:
+        """Bu turda `kullaniciya_sor` çağrıldıysa: soru son asistan mesajı olarak geçmişe girer, döngü biter."""
+        if not self.bekleyen_soru:
+            return False
+        messages.append({"role": "assistant", "content": self.bekleyen_soru})
+        return True
 
     def _tool_remember(self, args: dict) -> str:
         """Programın kendi hafızası: kullanıcının sistemine dokunmaz, sohbette görünür."""
@@ -923,17 +1013,20 @@ class Agent:
 
     _gate_browser_type = _gate_browser_click
 
-    def _permit(self, call_id: str, name: str, args: dict) -> tuple[str, bool] | None:
-        """İzin hattının (`permissions.decide`) kararını uygular; çağrı çalışmayacaksa modele gidecek sonucu döndürür."""
+    def permission_context(self) -> "permissions.Context":
+        """İzin hattının bu ajan için bağlamı (görev motoru da planda `onay_gerekli` tahmini için kullanır)."""
         from .model_updates import is_uncensored
 
-        ctx = permissions.Context(
+        return permissions.Context(
             approval_mode=self.settings.approval_mode,
             # sansürsüz modelle güvenlik ajanı çalışamıyor (ikisi belleğe sığmıyor): o zaman kullanıcı onaylar
             uncensored=self._provider == "ollama" and is_uncensored(self.settings.ollama_model),
             confirm_commands=self.settings.confirm_commands, gate_actions=self.gate_actions,
             must_act=self.must_act, always_allowed=self.always_allowed, auto_approve=self.auto_approve)
-        decision = permissions.decide(name, args, ctx)
+
+    def _permit(self, call_id: str, name: str, args: dict) -> tuple[str, bool] | None:
+        """İzin hattının (`permissions.decide`) kararını uygular; çağrı çalışmayacaksa modele gidecek sonucu döndürür."""
+        decision = permissions.decide(name, args, self.permission_context())
         if decision.kind == permissions.DENY:  # yasak listesi: her kipte, güvenlik ajanının reddi gibi
             verdict = security.Verdict("reject", security.FORBIDDEN, f"Zararlı işlem: {decision.reason}.",
                                        [decision.reason])
@@ -961,6 +1054,12 @@ class Agent:
         if decision.kind == permissions.REVIEW:
             # güvenlik ajanı kipi: kullanıcıya sorulmaz; risk katmanına göre onay, geri çevirme ya da ret
             verdict = self._security_review(name, args)
+            if verdict.decision == "ask":  # K12-A3: güvenlik modeli yok — orta riskli adımı kullanıcı onaylar
+                if not self.cb.ask_approval(name, args):
+                    msg = "The user declined to run this."
+                    self.cb.on_tool_end(call_id, msg, True)
+                    return msg, True
+                return None
             if not verdict.approved:
                 msg = self._security_message(name, args, verdict)
                 self.cb.on_tool_end(call_id, msg, True)
@@ -1111,9 +1210,14 @@ class Agent:
         if found is None:
             raise ToolError(
                 f"No specialist model for '{role}' is installed. Tell the user which model would add this "
-                "ability (for images: `ollama pull gemma3:12b`) and meanwhile do the best you can.")
+                f"ability (for images: {modeller.deger('gorme_uzmani')}; they can download it from the Models menu, "
+                "never give them a terminal command) and meanwhile do the best you can.")
         provider, model = found
-        answer = specialists.ask(self.settings, self.connections, provider, model, question, images)
+        try:
+            answer = specialists.ask(self.settings, self.connections, provider, model, question, images,
+                                     cancelled=getattr(self.cb, "is_cancelled", None))
+        except InterruptedError:  # K12-D8
+            raise Cancelled() from None
         return f"[{model} yanıtı]\n{answer}"
 
     def _generate_image(self, args: dict) -> str:
@@ -1215,7 +1319,8 @@ class Agent:
         except InterruptedError:
             raise Cancelled()
         for name in set(REGISTRY.tools) - before:  # yeni araç bu turda hemen kullanılabilsin
-            self.tool_specs.append(REGISTRY.get(name).spec)
+            if REGISTRY.get(name).source == "fabrika":  # aynı anda kaydedilen görev motoru yetenekleri (y_) değil
+                self.tool_specs.append(REGISTRY.get(name).spec)
         return result
 
     def _find_api(self, topic: str) -> str:
@@ -1274,7 +1379,14 @@ class Agent:
         if step:
             messages.append({"role": "user", PROGRAM: True, "content": step})
         else:
+            if self.cevaplanan_soru:  # kullaniciya_sor'un cevabı: aynı bağlam, aynı iş sürer
+                messages.append({"role": "user", PROGRAM: True, "content": (
+                    f"The user is now answering your question «{self.cevaplanan_soru[:300]}». Treat the next message "
+                    "as the answer and continue the same work; do not repeat the question.")})
+                self.cevaplanan_soru = ""
             messages.append({"role": "user", "content": user_text})
+        self.bekleyen_soru = ""
+        self.yapmadi = self.dil_hatasi = False
         self.user_text = user_text
         self._provider = provider
         self._offer_decor(messages)
@@ -1320,13 +1432,9 @@ class Agent:
     # ---- Aboneliğinle çalışan resmi programlar (Claude Code, Codex, Gemini CLI; cli_agents.py) ----
 
     def _run_cli(self, messages: list, provider: str) -> None:
-        # önceki konuşma (varsa) kısaca bağlam olarak verilir; program her çağrıda yeni oturum açar
-        agent = cli_agents.AGENTS[provider]
-        history = [m for m in messages[:-1] if isinstance(m.get("content"), str) and m["content"].strip()][-6:]
-        prompt = messages[-1]["content"]
-        if history:
-            context = "\n\n".join(f"{m['role']}: {m['content'][:1500]}" for m in history)
-            prompt = f"Earlier conversation:\n{context}\n\nCurrent request:\n{prompt}"
+        # önceki konuşma (varsa) kısaca bağlam olarak verilir; program her çağrıda yeni oturum açar (sg_cli.istem)
+        saglayici = sg_cli.CliAjanSaglayici(provider, self.cli_model or self.settings.extra.get("cli_model", ""))
+        agent = saglayici.ajan
         system = "\n\n".join(x for x in ((self.profile.prompt if self.profile else ""), self.extra_system,
                                           "Reply in the user's language (usually Turkish).") if x)
         if self.gate_actions:  # onay yok: program yalnızca okur ve plan çıkarır; ✓ ile düzenleyebilir
@@ -1344,9 +1452,8 @@ class Agent:
             self.cb.on_tool_end(sid, result or "bitti", error)
 
         try:
-            text = cli_agents.run(provider, prompt, str(self.toolbox.root), system, edits=not self.gate_actions,
-                                  cancelled=self.cb.is_cancelled, on_step=step,
-                                  model=self.cli_model or self.settings.extra.get("cli_model", ""))
+            text = saglayici.sohbet(messages, system, klasor=str(self.toolbox.root),
+                                    duzenleyebilir=not self.gate_actions, iptal=self.cb.is_cancelled, adim=step).metin
         except InterruptedError:
             self.cb.on_tool_end(call_id, "durduruldu", True)
             raise Cancelled()
@@ -1361,11 +1468,8 @@ class Agent:
 
     # ---- Claude ----
 
-    def _claude_client(self) -> anthropic.Anthropic:
-        key = get_secret(ANTHROPIC_KEY)
-        if key:
-            return anthropic.Anthropic(api_key=key)
-        return anthropic.Anthropic()  # ANTHROPIC_API_KEY veya `ant auth login` profili
+    def _claude_client(self) -> "anthropic.Anthropic":
+        return sg_claude.istemci(get_secret(ANTHROPIC_KEY))  # anahtar yoksa ANTHROPIC_API_KEY / `ant auth login`
 
     # ---- döngülerin ortak parçaları (Claude / Ollama / OpenAI uyumlu) ----
 
@@ -1377,6 +1481,30 @@ class Agent:
                         "çevrilen işlemlerde ısrar etti. Hiçbir zararlı adım çalıştırılmadı.")
         return True
 
+    def _durum(self, msg: str) -> None:
+        """Dürtü/denetim durumu: sohbet baloncuğuna değil arayüzün durum satırına (BÖLÜM 2-d). Baloncukta yalnızca
+        paragraf ayrımı kalır; arayüz `on_status` vermiyorsa sessiz."""
+        fn = getattr(self.cb, "on_status", None)
+        if fn:
+            fn(msg)
+        self.cb.on_text("\n\n")
+
+    def _dil_denetimi(self, content: str, state: dict) -> str | None:
+        """Dil bekçisi (BÖLÜM 2-c): son cevap Türkçe değilse bir kez yeniden yazdırılır (yazılan metin baloncuktan geri
+        alınır); ikinci kez de olmadıysa `dil_hatasi` ile yönetici sonraki modele verir."""
+        if not self.nudges or self.bekleyen_soru or turkce_mi(content):
+            return None
+        if state.get("dil"):
+            self.dil_hatasi = True
+            return None
+        state["dil"] = True
+        fn = getattr(self.cb, "on_retract", None)
+        if fn:
+            fn()
+        self._durum("Cevap Türkçe değildi; yeniden yazdırılıyor")
+        return ("Your last answer was not in Turkish. Write the same answer again entirely in Turkish (keep code, "
+                "commands and file names as they are). Do not add anything else.")
+
     def _unfinished_nudge(self, messages: list, content: str, has_tools: bool, step: int, state: dict) -> str | None:
         """Model araç çağırmadan durdu: iş gerçekten bitti mi? Bitmediyse modele gidecek uyarı (döngü sürer).
 
@@ -1385,7 +1513,7 @@ class Agent:
         Cevap bir soruyla bitiyorsa model kullanıcıya sonucu belirleyen bir şey soruyor: dürtülmez (▶ turu hariç).
         Ondan önce, yöntemin küçük modellerin atladığı iki adımı program takip eder: görsel çıktıyı gözle denetleme
         ve çok denemeden sonra bulunan yolu beceri olarak kaydetme (her biri turda bir kez)."""
-        if not self.nudges:
+        if not self.nudges or self.bekleyen_soru:  # soru soruldu: "yapmadı" sayılmaz
             return None
         names = {s["name"] for s in self.tool_specs}
         if not self.gate_actions and "inspect_output" in names and "inspect_output" not in self.tools_used \
@@ -1393,7 +1521,7 @@ class Agent:
             made = new_outputs(str(self.toolbox.root), getattr(self, "run_started", time.time()))
             if made:
                 state["inspect"] = True
-                self.cb.on_text("\n\n*Sonucu gözle kontrol ediyorum.*\n\n")
+                self._durum("Sonuç gözle kontrol ediliyor")
                 return (f"You created {', '.join(made)}. Before finishing, check the main result with inspect_output "
                         "(question: does it show exactly what I asked for?) and fix anything that does not match; "
                         "then give your final answer." + APP_NOTE)
@@ -1403,14 +1531,20 @@ class Agent:
             return ("That took several attempts before it worked. Save what finally worked with learn_skill (the "
                     "library or tool, a short working code template, the pitfalls you hit) so next time is quick, "
                     "then give your final answer." + APP_NOTE)
-        if content.rstrip().endswith("?") and not self.must_act:
+        if content.rstrip().endswith("?") and not self.must_act and not meta_soru(content):
+            return None  # gerçek soru: sonucu belirleyen bilgi istiyor
+        if state.get("yapmadi") and not self.actions_tried:
+            # bir kez dürtüldü, yine yalnızca yazdı (BÖLÜM 2-a): ısrar yok; yönetici devralır (görev motoru →
+            # zincirde bir üst model → dürüst tek satır). Kullanıcı bu boş vaadi görmez (Manager._devral geri alır).
+            self.yapmadi = True
             return None
         if (has_tools and step == 1 and not self.actions_tried
                 and (self.must_act or (
                     not self.gate_actions and is_task_request(self.user_text)
                     and ("```" in content or re.search(r"(?m)^\s*(1[.)]|adım 1)", content, re.I)
-                         or _CLAIMS_WORK.search(content))))):
-            self.cb.on_text("\n\n*Şimdi gerçekten yapıyorum.*\n\n")
+                         or _CLAIMS_WORK.search(content) or meta_soru(content))))):
+            state["yapmadi"] = True
+            self._durum("Model yalnızca yazdı; araçlarla yapması istendi")
             return ("Nothing was executed yet: you only wrote text. Now actually do the work by calling the tools "
                     "(run_python, write_file, run_command…) step by step, then summarize the real results.")
         if not content.strip() and has_tools and not state.get("empty_act") and not self.gate_actions \
@@ -1418,7 +1552,7 @@ class Agent:
             # iş istendi ama hiçbir şey üretilmeden sessizce durdu (sık: tarif / resim okunduktan sonra): açıklama
             # isteme — küçük model o zaman konuşup bırakıyor; bir sonraki adımı gerçekten yaptır
             state["empty_act"] = True
-            self.cb.on_text("\n\n*Devam ediyorum.*\n\n")
+            self._durum("Model sessizce durdu; sonraki adım istendi")
             last = next((m.get("tool_name") or m.get("name") for m in reversed(messages) if m.get("role") == "tool"), "")
             how = ("Apply the recipe you just read: write the complete script and run it with run_python now."
                    if last == "use_skill" else "Call the next tool now (e.g. run_python with the complete script).")
@@ -1431,7 +1565,7 @@ class Agent:
                     "found, and what you propose next (if something failed, give a working alternative).")
         nudge = self._memory_check() or self._completion_check(messages)
         if nudge:
-            self.cb.on_text("\n\n*Henüz bitmedi, eksikleri tamamlıyorum.*\n\n")
+            self._durum("Henüz bitmedi; eksikler tamamlatılıyor")
         return nudge
 
     def _run_calls(self, tool_calls: list, messages: list, ollama: bool) -> None:
@@ -1454,24 +1588,12 @@ class Agent:
     # ---- Claude API ----
 
     def _run_claude(self, messages: list) -> None:
-        client = self._claude_client()
         model = self.settings.claude_model
-        # eager_input_streaming: büyük araç girdileri (dosya içeriği) üretilirken akar
-        tools = [{**spec, "eager_input_streaming": True} for spec in self.tool_specs]
-        params = dict(
-            model=model,
-            max_tokens=64000,
-            system=self._system(),
-            cache_control={"type": "ephemeral"},
-        )
-        if tools:
-            params["tools"] = tools
-        if model not in CLAUDE_NO_THINKING:
-            params["thinking"] = {"type": "adaptive", "display": "summarized"}
-        if model in CLAUDE_FALLBACK_MODELS:
-            # Güvenlik sınıflandırıcısı reddederse sunucu önerilen modelle yeniden dener
-            params["betas"] = ["server-side-fallback-2026-07-01"]
-            params["fallbacks"] = "default"
+        saglayici = sg_claude.ClaudeSaglayici(self._claude_client, model)
+        # eager_input_streaming (büyük araç girdileri üretilirken akar), düşünme ve sunucu yedeği: sağlayıcıda
+        params = saglayici.parametreler(self._system(), self.tool_specs, dusunme=model not in CLAUDE_NO_THINKING,
+                                        sunucu_yedegi=model in CLAUDE_FALLBACK_MODELS)
+        tools = params.get("tools", [])
 
         json_retries = 0
         compacted = False  # "prompt is too long" sonrası bir kez özetlendi
@@ -1480,25 +1602,28 @@ class Agent:
             self.cb.on_model_start(step)
             started = time.monotonic()
             try:
-                with client.beta.messages.stream(messages=_clean(messages), **params) as stream:
-                    for event in stream:
+                with closing(saglayici.akis(_clean(messages), parametreler=params)) as akis:
+                    for parca in akis:
                         self._check_cancel()
-                        if event.type == "text":
-                            self.cb.on_text(event.text)
-                        elif event.type == "thinking":
-                            self.cb.on_thinking(event.thinking)
-                    response = stream.get_final_message()
+                        if parca.tur == sg.METIN:
+                            self.cb.on_text(parca.metin)
+                        elif parca.tur == sg.DUSUNCE:
+                            self.cb.on_thinking(parca.metin)
+                        elif parca.tur == sg.SON:
+                            response = parca.son["yanit"]
                 json_retries = 0
                 elapsed = time.monotonic() - started
                 usage = response.usage
-                self.cb.on_model_end({
+                stats = {
                     "model": response.model,
                     "input_tokens": usage.input_tokens + (usage.cache_read_input_tokens or 0)
                     + (usage.cache_creation_input_tokens or 0),
                     "output_tokens": usage.output_tokens,
                     "seconds": elapsed,
                     "tokens_per_sec": usage.output_tokens / elapsed if elapsed else 0,
-                })
+                }
+                yonlendirici.harcama_ekle("claude", stats["input_tokens"] + stats["output_tokens"])  # bulut tavanı
+                self.cb.on_model_end(stats)
             except ValueError:
                 # SDK'nin hiç ayrıştıramadığı araç girdisi JSON'u: turu yeniden iste
                 json_retries += 1
@@ -1538,7 +1663,7 @@ class Agent:
                     result, is_error = self._execute_tool(block.id, block.name, block.input)
                 results.append({"type": "tool_result", "tool_use_id": block.id, "content": result, "is_error": is_error})
             messages.append({"role": "user", "content": results})
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             self.cb.on_text("\n\n")
         self.cb.on_text("\n\n*Adım sınırına ulaşıldı.*")
@@ -1553,6 +1678,11 @@ class Agent:
         ]
         system = {"role": "system", "content": self._system()}
         caps = specialists._capabilities(self.settings.ollama_url, self.settings.ollama_model)
+        if tools and self._selector_turn():
+            # araç sınavını tam geçemeyen model, iş isteğinde: karar şema-kısıtlı, aracı program çalıştırır
+            self._compact(messages, system, [])
+            self._run_selector(url, system, messages, tools)
+            return
         if tools and caps and "tools" not in caps:
             tools = self._drop_tools(system)
         self._compact(messages, system, tools)
@@ -1619,13 +1749,14 @@ class Agent:
                 self.cb.on_text("\n\n*(Cevap bağlam sınırı yüzünden yarıda kaldı. Yeni bir sohbet açmak ya da "
                                 "Ayarlar'dan bağlamı büyütmek sorunu çözer.)*")
             if not tool_calls:
-                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state)
+                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state) \
+                    or self._dil_denetimi(content, state)
                 if nudge:
                     messages.append({"role": "user", PROGRAM: True, "content": nudge})
                     continue
                 return
             self._run_calls(tool_calls, messages, ollama=True)
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             if self.gate_actions and self.blocked_calls >= 2 and tools:
                 # küçük modeller engellenen işlemi inatla tekrar dener: araçları kapat, planı yazsın
@@ -1675,14 +1806,11 @@ class Agent:
                   "preferences and facts about them, files and folders created or changed (exact paths), commands "
                   "that worked or failed, decisions taken, and what is still open. Write in the user's language, "
                   f"as a compact list, at most {words} words. No introduction.\n\n" + text)
+        saglayici = sg_ollama.OllamaSaglayici(self.settings.ollama_url, self.settings.ollama_model)
         try:
-            r = httpx.post(self.settings.ollama_url.rstrip("/") + "/api/chat", json={
-                "model": self.settings.ollama_model, "messages": [{"role": "user", "content": prompt}],
-                "stream": False, "think": False, "keep_alive": "30m",
-                "options": {"num_ctx": num_ctx, "num_predict": words * 3}}, timeout=httpx.Timeout(300, connect=10))
-            r.raise_for_status()
-            return ((r.json().get("message") or {}).get("content") or "").strip()
-        except (httpx.HTTPError, ValueError):
+            return saglayici.sohbet([{"role": "user", "content": prompt}], num_ctx=num_ctx, num_predict=words * 3,
+                                    dusunme=False, okuma_zaman_asimi=300).metin.strip()
+        except (httpx.HTTPError, ValueError, sg.SaglayiciHatasi, RuntimeError):
             return ""
 
     def _describe(self, spec: dict) -> str:
@@ -1694,6 +1822,115 @@ class Agent:
         names = [line.split(":", 1)[0].lstrip("- ").strip() for line in listing.splitlines() if line.startswith("- ")]
         return (head + " Before the first call to an API, call find_api with the topic to get its exact paths and "
                 "parameters.\nAvailable APIs: " + ", ".join(names))
+
+    # ---- şema-kısıtlı üretim ve araç seçici kipi (K4, eski Aşama 3) ----
+
+    def structured(self, messages: list, schema: dict, model: str | None = None, system: str = "") -> dict | None:
+        """Şema-kısıtlı tek cevap (`cekirdek/yapisal.py`): Ollama `format`, OpenAI uyumlu json_schema, Claude
+        zorunlu araç, CLI talimat. Program şemayı denetler; uymazsa bir düzeltme turu. Şemaya uyan nesne ya da None."""
+        from .cekirdek import yapisal
+
+        if self._provider == "ollama":
+            model = model or self.settings.ollama_model
+            sysinfo.make_room(self.settings.ollama_url, model)
+            num_ctx = power.num_ctx(self.settings)
+            sent = fit_context(messages, num_ctx, len(system) + len(json.dumps(schema)), _CTX_SCALE.get(model, 1.0))
+            saglayici = sg_ollama.OllamaSaglayici(self.settings.ollama_url, model)
+            return yapisal.uret(saglayici, sent, schema, system,
+                                ollama_ek={"num_ctx": num_ctx, "num_predict": SELECTOR_PREDICT}).veri
+        saglayici = sg.bul(self._provider, self.settings, self.connections)
+        return yapisal.uret(saglayici, _clean(messages), schema, system, model=model or self._model()).veri
+
+    def _selector_turn(self) -> bool:
+        """Bu turda araç seçici kipi mi? Yalnızca araç sınavını tam geçemeyen yerel model iş yaparken; sohbet
+        mesajında (selam, soru) model eskisi gibi doğrudan cevaplar. Kip seçimi roster'da, kullanıcıya görünmez."""
+        from . import roster
+
+        if self.json_format is not None or self.profile is not None and self.profile.tools == []:
+            return False
+        request = learning.original_request(self.user_text)
+        if not (self.must_act or self.focus or is_task_request(request) or _NEEDS_TOOL.search(request)):
+            return False
+        try:
+            return roster.arac_kipi(self.settings, self.settings.ollama_model) == "secici"
+        except Exception:
+            return False  # kart/Ollama okunamadı: eski yol
+
+    @staticmethod
+    def _selector_view(messages: list) -> list:
+        """Araç şablonu olmayan modele giden geçmiş: araç çağrıları ve sonuçları düz metin (kayıtlı geçmiş aynı)."""
+        out = []
+        for m in messages:
+            if m.get("role") == "assistant" and m.get("tool_calls"):
+                calls = "; ".join(f"{(c.get('function') or {}).get('name')} "
+                                  f"{json.dumps((c.get('function') or {}).get('arguments'), ensure_ascii=False)[:400]}"
+                                  for c in m["tool_calls"])
+                out.append({"role": "assistant", "content": ((m.get("content") or "") + f"\n[tool call: {calls}]")
+                            .strip()})
+            elif m.get("role") == "tool":
+                out.append({"role": "user", PROGRAM: True,
+                            "content": f"[result of {m.get('tool_name') or 'the tool'}]\n{m.get('content') or ''}"})
+            else:
+                out.append(m)
+        return out
+
+    def _run_selector(self, url: str, system: dict, messages: list, tools: list) -> None:
+        """Araç seçici kipi: her adımda model yalnızca şema-kısıtlı bir KARAR verir ({eylem: arac|cevap, arac: kayıtlı
+        araç adlarından biri, argumanlar, gerekce}); argümanlar aracın şemasına uymazsa ikinci çağrı o aracın kendi
+        şemasıyla. Aracı program `_execute_tool` ile çalıştırır (izin hattı aynı). "cevap" gelince cevap her zamanki
+        gibi akarak yazılır. Araç tanımları talimata yalnızca ad + ilk cümle olarak girer (lean bütçesi)."""
+        specs = {t["function"]["name"]: t["function"] for t in tools}
+        names = list(specs)
+        listing = "\n".join(f"- {n}: {self._first_sentence(specs[n].get('description') or '')}" for n in names)
+        decide = system["content"] + SELECTOR_NOTE.format(tools=listing)
+        def schema(first: bool) -> dict:
+            # bu turda henüz hiçbir araç çalışmadıysa "cevap" seçilemez: gemma3 / dolphin3 ilk kararda araçsız
+            # "cevap" deyip "dosya oluşturuldu" yazıyordu (2026-09-28 ölçümü, 0/6). Program kanıtla bilir: iş yapılmadı.
+            return {"type": "object", "properties": {
+                "eylem": {"type": "string", "enum": ["arac"] if first else ["arac", "cevap"]},
+                "arac": {"type": "string", "enum": names},
+                "argumanlar": {"type": "object"},
+                "gerekce": {"type": "string"}},
+                "required": ["eylem", "arac", "gerekce"] if first else ["eylem", "gerekce"]}
+
+        model = self.settings.ollama_model
+        ran = 0  # bu turda program tarafından çalıştırılan araçlar
+        for step in range(1, SELECTOR_STEPS + 1):
+            self._check_cancel()
+            self.cb.on_model_start(step)
+            started = time.monotonic()
+            decision = self.structured(self._selector_view(messages), schema(ran == 0), model, decide)
+            self.cb.on_model_end({"model": model, "input_tokens": 0, "output_tokens": 0, "load_seconds": 0,
+                                  "seconds": time.monotonic() - started, "tokens_per_sec": 0})
+            if not decision or decision.get("eylem") != "arac" or decision.get("arac") not in specs:
+                break
+            name = decision["arac"]
+            args = decision.get("argumanlar") if isinstance(decision.get("argumanlar"), dict) else {}
+            problem = validate_input(name, dict(args))
+            if problem:  # argümanlar aracın şemasına uymuyor: o aracın kendi şemasıyla ikinci karar
+                ask = self._selector_view(messages) + [{"role": "user", PROGRAM: True, "content": (
+                    f"Give the arguments for the tool {name} ({problem}). Tool: "
+                    f"{specs[name].get('description', '')[:600]}")}]
+                args = self.structured(ask, specs[name]["parameters"], model, decide) or args
+            call = {"id": uuid.uuid4().hex, "function": {"name": name, "arguments": args}}
+            messages.append({"role": "assistant", "content": "", "tool_calls": [call]})
+            self._run_calls([call], messages, ollama=True)
+            ran += 1
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
+                return
+            if self.gate_actions and self.blocked_calls >= 2:
+                break  # onay bekleyen işlemde ısrar etmesin: planı yazsın
+            self.cb.on_text("\n\n")
+        self._check_cancel()
+        self.cb.on_model_start(SELECTOR_STEPS + 1)
+        answer = {"role": "system", "content": system["content"] + SELECTOR_ANSWER}
+        content, _, final = self._ollama_step(url, answer, self._selector_view(messages), [])
+        messages.append({"role": "assistant", "content": content})
+
+    @staticmethod
+    def _first_sentence(text: str) -> str:
+        first = text.strip().split("\n")[0]
+        return (first.split(". ")[0] + ".")[:200] if ". " in first else first[:200]
 
     def _drop_tools(self, system: dict) -> list:
         """Araç desteklemeyen model (ör. gemma3): araç listesi gönderilmez, yalnızca sohbet edilir."""
@@ -1732,56 +1969,40 @@ class Agent:
         # cevap bağlamın kalanına sığsın: taşarsa Ollama istemin başını silip üretmeyi sürdürür (context shift),
         # model kendi talimatını kaybeder ve anlamsız, dakikalarca süren bir cevap yazar
         room = num_ctx - estimate_tokens(sent, fixed) * scale
-        payload = {
-            "model": self.settings.ollama_model,
-            "messages": [system, *sent],
-            **({"tools": tools} if tools else {}),
-            "stream": True,
-            **({"format": self.json_format} if self.json_format else {}),
-            "options": {"num_ctx": num_ctx, "num_predict": int(min(NUM_PREDICT, max(REPLY_RESERVE, room)))},
-            **({"think": False} if self.no_think else {}),
-            "keep_alive": "30m",  # modeli bellekte tut; her mesajda yeniden yüklenmesin
-        }
+        saglayici = sg_ollama.OllamaSaglayici(url, self.settings.ollama_model)
+        payload = saglayici.istek([system, *sent], "", tools, num_ctx=num_ctx,
+                                  num_predict=int(min(NUM_PREDICT, max(REPLY_RESERVE, room))),
+                                  dusunme=not self.no_think, bicim=self.json_format)
         content, tool_calls, final = "", [], {}
         thought = 0  # bu çağrıda üretilen düşünme metninin uzunluğu
         checked = 0  # tekrar denetiminin en son baktığı metin uzunluğu
         started = time.monotonic()
-        with httpx.stream("POST", url, json=payload, timeout=httpx.Timeout(600, connect=10, read=STALL_SECONDS)) as resp:
-            if resp.status_code != 200:
-                resp.read()
-                if tools and "does not support tools" in resp.text:
-                    raise _NoToolSupport()
-                raise RuntimeError(f"Ollama hatası ({resp.status_code}): {resp.text}")
-            for line in resp.iter_lines():
+        # boş akış (takılma) sağlayıcıda httpx.ReadTimeout olur; "araç yok" hatası AracDesteklenmiyor; içi boş
+        # satırlar NABIZ olarak gelir: iptal (■ / Esc) her satırda denetlenir
+        with closing(_eski_hata_metni(saglayici.akis([], govde=payload, okuma_zaman_asimi=STALL_SECONDS))) as akis:
+            for parca in akis:
                 self._check_cancel()
-                if not line:
-                    continue
-                chunk = json.loads(line)
-                if "error" in chunk:
-                    raise RuntimeError(f"Ollama hatası: {chunk['error']}")
-                msg = chunk.get("message", {})
-                if msg.get("thinking"):
-                    self.cb.on_thinking(msg["thinking"])
-                    thought += len(msg["thinking"])
+                if parca.tur == sg.DUSUNCE:
+                    self.cb.on_thinking(parca.metin)
+                    thought += len(parca.metin)
                     if (thought > THINK_LIMIT or time.monotonic() - started > THINK_SECONDS) \
                             and not content and not tool_calls:
                         raise _ThinkTooLong()
-                if msg.get("content"):
-                    content += msg["content"]
-                    self.cb.on_text(msg["content"])
+                elif parca.tur == sg.METIN:
+                    content += parca.metin
+                    self.cb.on_text(parca.metin)
                     if len(content) - checked >= 200:
                         checked = len(content)
                         cut = repeat_cut(content)
-                        if cut:  # akışı kapatmak Ollama'da üretimi de durdurur
+                        if cut:  # akışı kapatmak (closing) Ollama'da üretimi de durdurur
                             content = content[:cut]
                             self.cb.on_text("\n\n*(Model aynı metni tekrar tekrar yazmaya başladı; durdurdum.)*\n\n")
                             final = {"done_reason": "repeat"}
                             break
-                tool_calls.extend(msg.get("tool_calls") or [])
-                if not (content or tool_calls or thought) and time.monotonic() - started > STALL_SECONDS:
-                    raise httpx.ReadTimeout("boş parçalar geliyor")  # akış sürüyor ama içi boş: takılma sayılır
-                if chunk.get("done"):
-                    final = chunk
+                elif parca.tur == sg.ARAC:
+                    tool_calls.extend(parca.araclar)
+                elif parca.tur == sg.SON:
+                    final = parca.son
         if final.get("done_reason") == "length":
             self._learn_ctx(num_ctx, final.get("eval_count", 0), estimate_tokens(payload["messages"][1:], fixed))
         return content, tool_calls, final
@@ -1799,11 +2020,10 @@ class Agent:
     # ---- OpenAI uyumlu sağlayıcılar (OpenAI, Gemini, Groq, OpenRouter, LM Studio...) ----
 
     def _run_openai(self, messages: list, conn: Connection) -> None:
-        url = conn.base_url.rstrip("/") + "/chat/completions"
         model = self.settings.api_models.get(conn.id) or (conn.models[0] if conn.models else "")
         if not model:
             raise RuntimeError(f"{conn.name} için model seçilmemiş. API'ler sekmesinden bağlantıyı test et.")
-        headers = {"Authorization": f"Bearer {conn.key}"} if conn.key else {}
+        saglayici = OpenAIUyumluSaglayici(conn, model)
         tools = [
             {"type": "function", "function": {"name": s["name"], "description": s["description"], "parameters": s["input_schema"]}}
             for s in self.tool_specs
@@ -1816,58 +2036,35 @@ class Agent:
             self._check_cancel()
             self.cb.on_model_start(step)
             ctx = api_context(model)
-            payload = {"model": model, "messages": [system, *fit_context(messages, ctx, fixed)], "stream": True}
-            if self.json_format:
-                payload["response_format"] = {"type": "json_object"}
-            if tools:
-                payload["tools"] = tools
+            payload = saglayici.istek([system, *fit_context(messages, ctx, fixed)], "", tools,
+                                      json_bicimi=bool(self.json_format))
             started = time.monotonic()
-            content, calls, usage, chunks = "", {}, {}, 0
-            with httpx.stream("POST", url, json=payload, headers=headers,
-                              timeout=httpx.Timeout(600, connect=15)) as resp:
-                if resp.status_code != 200:
-                    resp.read()
-                    if resp.status_code in (400, 413) and _OVERFLOW.search(resp.text) and ctx > MIN_API_CTX:
-                        # bağlam aşıldı (LM Studio 4K, küçük Groq modelleri…): bütçe yarıya, özetle, yeniden dene
-                        _API_CTX[model] = max(MIN_API_CTX, ctx // 2)
-                        self._compact(messages, system, tools, _API_CTX[model], force=True)
-                        continue
-                    if resp.status_code == 401:
-                        raise key_error(conn, 401)
-                    raise RuntimeError(f"{conn.name} hatası ({resp.status_code}): {resp.text[:500]}")
-                for line in resp.iter_lines():
-                    self._check_cancel()
-                    if not line.startswith("data:"):
-                        continue
-                    data = line[5:].strip()
-                    if data == "[DONE]":
-                        break
-                    chunk = json.loads(data)
-                    if chunk.get("error"):
-                        raise RuntimeError(f"{conn.name} hatası: {chunk['error']}")
-                    usage = chunk.get("usage") or (chunk.get("x_groq") or {}).get("usage") or usage
-                    for choice in chunk.get("choices") or []:
-                        delta = choice.get("delta") or {}
-                        thinking = delta.get("reasoning_content") or delta.get("reasoning")
-                        if thinking:
-                            self.cb.on_thinking(thinking)
-                        if delta.get("content"):
-                            chunks += 1
-                            content += delta["content"]
-                            self.cb.on_text(delta["content"])
-                        # araç çağrıları parça parça gelir; index ile birleştirilir
-                        for tc in delta.get("tool_calls") or []:
-                            chunks += 1
-                            slot = calls.setdefault(tc.get("index", len(calls)), {
-                                "id": "", "type": "function", "function": {"name": "", "arguments": ""}})
-                            if tc.get("id"):
-                                slot["id"] = tc["id"]
-                            fn = tc.get("function") or {}
-                            slot["function"]["name"] += fn.get("name") or ""
-                            slot["function"]["arguments"] += fn.get("arguments") or ""
+            content, tool_calls, son = "", [], {}
+            try:
+                with closing(saglayici.akis([], govde=payload)) as akis:
+                    for parca in akis:
+                        self._check_cancel()
+                        if parca.tur == sg.DUSUNCE:
+                            self.cb.on_thinking(parca.metin)
+                        elif parca.tur == sg.METIN:
+                            content += parca.metin
+                            self.cb.on_text(parca.metin)
+                        elif parca.tur == sg.SON:
+                            tool_calls, son = parca.araclar, parca.son
+            except sg.SaglayiciHatasi as e:
+                if e.durum in (400, 413) and _OVERFLOW.search(e.govde) and ctx > MIN_API_CTX:
+                    # bağlam aşıldı (LM Studio 4K, küçük Groq modelleri…): bütçe yarıya, özetle, yeniden dene
+                    _API_CTX[model] = max(MIN_API_CTX, ctx // 2)
+                    self._compact(messages, system, tools, _API_CTX[model], force=True)
+                    continue
+                if e.durum == 401:
+                    raise key_error(conn, 401) from None
+                raise RuntimeError(f"{conn.name} hatası ({e.durum}): {e.govde[:500]}") from None
 
             elapsed = time.monotonic() - started
-            out_tokens = usage.get("completion_tokens") or chunks
+            usage = son.get("usage") or {}
+            out_tokens = usage.get("completion_tokens") or son.get("parca", 0)
+            yonlendirici.harcama_ekle(f"api:{conn.id}", (usage.get("prompt_tokens") or 0) + (out_tokens or 0))
             self.cb.on_model_end({
                 "model": model,
                 "input_tokens": usage.get("prompt_tokens", 0),
@@ -1875,22 +2072,20 @@ class Agent:
                 "seconds": elapsed,
                 "tokens_per_sec": out_tokens / elapsed if elapsed else 0,
             })
-            tool_calls = [calls[i] for i in sorted(calls)]
-            for tc in tool_calls:
-                tc["id"] = tc["id"] or uuid.uuid4().hex
             assistant = {"role": "assistant", "content": content}
             if tool_calls:
                 assistant["tool_calls"] = tool_calls
             messages.append(assistant)
             if not tool_calls:
                 # OpenAI uyumlu bağlantılar da küçük modellere gidebilir (LM Studio, Groq…): aynı uyarılar
-                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state)
+                nudge = self._unfinished_nudge(messages, content, bool(tools), step, state) \
+                    or self._dil_denetimi(content, state)
                 if nudge:
                     messages.append({"role": "user", PROGRAM: True, "content": nudge})
                     continue
                 return
             self._run_calls(tool_calls, messages, ollama=False)
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             if self.gate_actions and self.blocked_calls >= 2 and tools:
                 tools = []  # engellenen işlemde ısrar: araçları kapat, planı yazsın
@@ -1909,44 +2104,22 @@ def repeat_cut(text: str) -> int:
     return text.find(tail) + REPEAT_TAIL
 
 
+def _eski_hata_metni(akis):
+    """Sağlayıcının HTTP hatası kullanıcıya eskisi gibi görünsün ("RuntimeError: Ollama hatası (500): …")."""
+    try:
+        yield from akis
+    except sg.SaglayiciHatasi as e:
+        raise RuntimeError(str(e)) from None
+
+
 class _ThinkTooLong(Exception):
     """Ollama: model cevaba geçmeden çok uzun düşündü (döngüye girmiş olabilir)."""
 
 
-class _NoToolSupport(Exception):
-    """Ollama: seçili model araç çağrısını desteklemiyor."""
+_NoToolSupport = sg_ollama.AracDesteklenmiyor  # Ollama: seçili model araç çağrısını desteklemiyor
 
-
-def ollama_models(base_url: str) -> list[dict]:
-    """Kurulu modeller (/api/tags): name, size, details{parameter_size, quantization_level}."""
-    resp = httpx.get(base_url.rstrip("/") + "/api/tags", timeout=5)
-    resp.raise_for_status()
-    return resp.json().get("models", [])
-
-
-def list_ollama_models(base_url: str) -> list[str]:
-    return [m["name"] for m in ollama_models(base_url)]
-
-
-def ollama_running(base_url: str) -> list[dict]:
-    """Bellekteki modeller (/api/ps): size ve size_vram ile GPU/CPU payı hesaplanır."""
-    resp = httpx.get(base_url.rstrip("/") + "/api/ps", timeout=2)
-    resp.raise_for_status()
-    return resp.json().get("models", [])
-
-
-def describe_error(exc: Exception) -> str:
-    """Hataları kullanıcıya gösterilecek Türkçe metne çevirir."""
-    if isinstance(exc, anthropic.AuthenticationError):
-        return "Claude API anahtarı geçersiz ya da eksik. Sol paneldeki API'ler sekmesinden anahtarını gir."
-    if isinstance(exc, anthropic.RateLimitError):
-        return "Claude API hız sınırına ulaşıldı. Biraz bekleyip tekrar dene."
-    if isinstance(exc, anthropic.APIStatusError):
-        return f"Claude API hatası ({exc.status_code}): {exc.message}"
-    if isinstance(exc, anthropic.APIConnectionError):
-        return "Claude API'ye bağlanılamadı. İnternet bağlantını kontrol et."
-    if isinstance(exc, httpx.ConnectError):
-        return "Ollama'ya bağlanılamadı. `ollama serve` çalışıyor mu?"
-    if isinstance(exc, TypeError) and "api_key" in str(exc).lower():
-        return "Claude API anahtarı bulunamadı. Sol paneldeki API'ler sekmesinden anahtarını gir."
-    return f"{type(exc).__name__}: {exc}"
+# K1: sağlayıcıya özgü yardımcılar çekirdekte (cekirdek/saglayici); eski adlar aynı işlevler
+ollama_models = sg_ollama.modeller  # kurulu modeller (/api/tags)
+ollama_running = sg_ollama.bellekteki_modeller  # bellekteki modeller (/api/ps)
+list_ollama_models = sg_ollama.model_adlari
+describe_error = sg.hata_metni  # hataları kullanıcıya gösterilecek Türkçe metne çevirir

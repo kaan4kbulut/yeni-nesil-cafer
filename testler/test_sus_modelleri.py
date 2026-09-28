@@ -21,9 +21,9 @@ sys.path.insert(0, str(KOK))
 # gerçek kurulum klasörü: başka bir test dosyası XDG_DATA_HOME'u geçici klasöre almış olabilir (birlikte
 # çalışınca kütüphaneler bulunamayıp testler sessizce atlanıyordu)
 _VERI = Path.home() / ".local/share"
-_YOLLAR = [p for p in (_VERI / "yeni-nesil-cafer-app/ajan-kutuphaneleri", _VERI / "yeni-nesil-cafer/python-kutuphaneleri")
-           if p.is_dir()]
-os.environ["PYTHONPATH"] = os.pathsep.join([*map(str, _YOLLAR), os.environ.get("PYTHONPATH", "")]).strip(os.pathsep)
+import kutuphane_yolu  # noqa: E402  (testler/: yalnızca bu Python'la uyumlu kütüphane klasörleri PYTHONPATH'e)
+
+_YOLLAR = kutuphane_yolu.pythonpath_ekle()
 _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")

@@ -227,7 +227,7 @@ class SesAjaniGuncellemeTesti(unittest.TestCase):
     def test_eski_talimat_guncellenir(self):
         self.yaz("... the Turkish voice tr_TR-fahrettin-medium (download the voice files ...")
         self.assertIn("tr_TR-dfki-medium", self.ses().prompt)
-        self.assertEqual((profiles.CONFIG_DIR / ".ajan-kategorileri").read_text(), "3")
+        self.assertEqual((profiles.CONFIG_DIR / ".ajan-kategorileri").read_text(), "4")  # K5: 4. göç adımı
 
     def test_kullanicinin_talimati_korunur(self):
         self.yaz("Benim kendi ses ajanı talimatım.")

@@ -20,7 +20,11 @@ BETIKLER = SINAV / "betikler"
 
 AGIR = {"internet", "gpu", "motor", "uzun"}  # --hizli bunları atlar; hiçbiri yoksa görev "hizli"
 ALANLAR = {"ad", "sira", "istek", "ekler", "onceki_mesajlar", "yeni_sohbette", "gecmis", "hazirla", "etiketler",
-           "zaman_siniri_sn", "bitti"}
+           "zaman_siniri_sn", "bitti", "kademe", "tur"}
+# K7: görevin beklendiği en düşük kademe ve görev türü (yönlendirme tablosuna geri besleme: cekirdek/yonlendirici GOREV_ROLU)
+KADEMELER = ("dusuk", "orta", "yuksek")
+KADEME_SIRASI = {"dusuk": 0, "orta": 1, "yuksek": 2}
+TURLER_GOREV = ("sohbet", "ozet", "siniflandirma", "planlama", "analiz", "cok_adimli", "kod_uretimi", "yetenek_uretimi")
 CJK = re.compile(r"[぀-ヿ㐀-䶿一-鿿가-힯豈-﫿]")
 # denetim türü → zorunlu alanlar
 TURLER = {
@@ -75,6 +79,10 @@ def dogrula(gorev: dict, dosya_adi: str = "") -> list[str]:
         h.append("bilinmeyen alan: " + ", ".join(sorted(set(gorev) - ALANLAR)))
     if etiketler(gorev) - AGIR:
         h.append("bilinmeyen etiket: " + ", ".join(sorted(etiketler(gorev) - AGIR)))
+    if gorev.get("kademe", "orta") not in KADEMELER:
+        h.append(f"bilinmeyen kademe: {gorev.get('kademe')}")
+    if gorev.get("tur", "cok_adimli") not in TURLER_GOREV:
+        h.append(f"bilinmeyen görev türü: {gorev.get('tur')}")
     if not isinstance(gorev["zaman_siniri_sn"], int) or gorev["zaman_siniri_sn"] <= 0:
         h.append("zaman_siniri_sn pozitif tam sayı olmalı")
     for ek in gorev.get("ekler") or []:
@@ -217,3 +225,16 @@ def denetim(d: dict, is_klasoru: Path, cevap: str, araclar: list[str], planlar: 
         son = (out.stdout.strip() + "\n" + out.stderr.strip()).strip().splitlines()
         return out.returncode == 0, (son[-1] if son else f"çıkış {out.returncode}")[:200]
     return False, f"bilinmeyen denetim {tur}"
+
+
+def kademe(gorev: dict) -> str:
+    return str(gorev.get("kademe") or "orta")
+
+
+def tur(gorev: dict) -> str:
+    return str(gorev.get("tur") or "cok_adimli")
+
+
+def kademede(gorev: dict, secilen: str) -> bool:
+    """Görev bu kademede bekleniyor mu (görevin kademesi ≤ seçilen)?"""
+    return KADEME_SIRASI.get(kademe(gorev), 1) <= KADEME_SIRASI.get(secilen, 1)

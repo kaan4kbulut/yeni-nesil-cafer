@@ -70,8 +70,8 @@ class LearningDialog(QDialog):
         outer.setContentsMargins(22, 18, 22, 14)
         intro = QLabel("Asistan sohbetlerden öğrendiklerini burada tutar. Hepsi yalnızca bu bilgisayarda saklanır; "
                        "istediğini silebilirsin. "
-                       + ("Arama anlam üzerinden yapılır (nomic-embed-text)." if memory_db.semantic() else
-                          "Anlamsal arama için `nomic-embed-text` modeli kurulu değil; şimdilik kelime araması."),
+                       + (f"Arama anlam üzerinden yapılır ({memory_db.EMBED_MODEL})." if memory_db.semantic() else
+                          memory_db.semantic_note()),
                        objectName="hint")
         intro.setWordWrap(True)
         outer.addWidget(intro)

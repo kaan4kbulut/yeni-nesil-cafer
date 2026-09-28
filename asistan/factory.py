@@ -25,6 +25,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from .cekirdek import modeller
 from .config import DATA_DIR
 from .registry import REGISTRY, Tool, safe_name
 
@@ -98,9 +99,9 @@ def find_ready(need: str) -> dict:
                 packages.append((e.package, e.note))
     models = []
     if re.search(r"\bocr\b|taranmış|belge oku|yazıyı oku", text):
-        models.append(("glm-ocr:latest", "taranmış belge ve resimdeki yazıyı okuma"))
+        models.append((modeller.deger("ocr"), "taranmış belge ve resimdeki yazıyı okuma"))
     if re.search(r"resim|görsel|fotoğraf|image|photo", text) and re.search(r"gör|anla|tanı|analiz|describe", text):
-        models.append(("gemma4:12b", "resim görme (look_at_image aracı bunu kullanır)"))
+        models.append((modeller.deger("gorme"), "resim görme (look_at_image aracı bunu kullanır)"))
     mcp = [label for keys, label in MCP_CATALOG.items() if any(k in text for k in keys)]
     return {"packages": packages, "models": models, "mcp": mcp}
 
@@ -198,9 +199,12 @@ def _offline_prefix() -> list[str]:
 def install_packages(packages: list[str]) -> str:
     from .tools import python_exe
 
+    from .cekirdek.araclar import komut
+
     PACKAGES_DIR.mkdir(parents=True, exist_ok=True)
     out = subprocess.run([python_exe(), "-m", "pip", "install", "--disable-pip-version-check", "--target",
-                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
+                          str(PACKAGES_DIR), "--upgrade", *packages], capture_output=True, text=True, encoding="utf-8",
+                         errors="replace", timeout=900, env=komut.guvenli_ortam(os.environ))  # K12-B3: kurulum kancaları sır görmez
     if out.returncode != 0:
         lines = [ln for ln in (out.stderr or out.stdout).splitlines() if ln.strip()]
         raise FactoryError("paket kurulamadı: " + " | ".join(lines[-4:]))
@@ -208,9 +212,13 @@ def install_packages(packages: list[str]) -> str:
 
 
 def sandbox_test(tool: dict) -> tuple[bool, str]:
-    """(geçti mi, çıktı). Geçici klasörde, internetsiz, zaman sınırlı."""
+    """(geçti mi, çıktı). Geçici klasörde, internetsiz, zaman sınırlı.
+    K12-B8: Linux'ta `unshare -rn` yoksa "internetsiz" sözü tutulamaz → test koşulmaz, araç kaydedilmez."""
     from .tools import python_exe
 
+    if sys.platform == "linux" and not _offline_prefix():
+        return False, ("araç sandbox'ı izole edilemedi: bu sistemde `unshare -rn` çalışmıyor (util-linux / kullanıcı ad "
+                       "alanı); modelin yazdığı kod ağsız koşturulamadığı için fabrika aracı kaydedilmedi")
     with tempfile.TemporaryDirectory(prefix="arac-sinav-") as tmp:
         d = Path(tmp)
         (d / "arac.py").write_text(tool["code"], encoding="utf-8")
@@ -301,13 +309,20 @@ def tools() -> list[dict]:
     return out
 
 
+def git_ortami() -> dict:
+    """K12-B3: git alt sürecine beyaz listeli ortam + kimlik (sırlar geçmez)."""
+    from .cekirdek.araclar import komut
+
+    return komut.guvenli_ortam(os.environ, ek={"GIT_AUTHOR_NAME": "YENİ NESİL CAFER", "GIT_AUTHOR_EMAIL": "asistan@localhost",
+                                               "GIT_COMMITTER_NAME": "YENİ NESİL CAFER", "GIT_COMMITTER_EMAIL": "asistan@localhost"})
+
+
 def _git(*args: str) -> None:
     """Araç klasörü git ile sürümlenir (asistanın yaptığı her ekleme/silme geri alınabilsin)."""
     if not shutil.which("git"):
         return
     TOOLS_DIR.mkdir(parents=True, exist_ok=True)
-    env = {**os.environ, "GIT_AUTHOR_NAME": "YENİ NESİL CAFER", "GIT_AUTHOR_EMAIL": "asistan@localhost",
-           "GIT_COMMITTER_NAME": "YENİ NESİL CAFER", "GIT_COMMITTER_EMAIL": "asistan@localhost"}
+    env = git_ortami()
     if not (TOOLS_DIR / ".git").exists():
         subprocess.run(["git", "init", "-q"], cwd=TOOLS_DIR, env=env, capture_output=True)
     subprocess.run(["git", "add", "-A"], cwd=TOOLS_DIR, env=env, capture_output=True)
@@ -340,7 +355,7 @@ def _writers(settings, chat: tuple[str, str]) -> list[tuple[str, str]]:
     """Aracı yazacak modeller, sırayla: bulut önceliğinde bulut önce; yoksa yönetici modeli, sonra bağlı Claude."""
     from . import roster, specialists
 
-    local = roster.manager_for(settings, chat) if chat[0] else chat
+    local = roster.manager_for(settings, chat, policy="yerel") if chat[0] else chat
     cloud = []
     if specialists._claude_available():
         cloud.append(("claude", settings.claude_model))

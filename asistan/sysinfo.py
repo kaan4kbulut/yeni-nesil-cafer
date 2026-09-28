@@ -15,25 +15,18 @@ from pathlib import Path
 
 import httpx
 
-# Yerel model basamakları (Eylül 2026, Ollama kayıt sunucusunda doğrulandı; boyut = indirme GB).
+from .cekirdek import modeller
+
+# Yerel model basamakları (Eylül 2026, Ollama kayıt sunucusunda doğrulandı; boyut = indirme GB; ayar/modeller.json).
 # Her yetenekte zayıf sistemden güçlüye; (model, boyut, en az VRAM GB, ya da ekran kartı yoksa en az RAM GB)
 # Pakete gömülü temel model: 8 GB RAM'li sıradan bir bilgisayarda bile çalışır; sohbet, araç kullanma, resim görme
 # ve düşünme tek modelde (ollama show: completion · vision · tools · thinking)
-BASE_MODEL = ("qwen3.5:4b", 3.4)  # 2b testlerde çok adımlı işlerde dosya bozdu; 4b aynı işleri doğru yaptı
+BASE_MODEL = (modeller.deger("temel.model"), modeller.deger("temel.boyut_gb"))
 APP_DIR = Path(__file__).resolve().parent.parent
 BUNDLE_DIR = APP_DIR / "modeller"  # paketteki model dosyası ve Modelfile
 OLLAMA_DIR = APP_DIR / "ollama"  # pakete gömülü Ollama (kurulum paketinden gelmişse)
-LADDERS = {
-    "chat": ("Sohbet ve görevler", "araç kullanır: dosya, komut, web", [
-        ("qwen3:1.7b", 1.4, 0, 4), ("qwen3:4b", 2.5, 4, 8), ("qwen3:8b", 5.2, 6, 16),
-        ("qwen3:14b", 9.3, 11, 32), ("qwen3:30b", 18.6, 20, 64)]),
-    "vision": ("Resim görme", "fotoğraf, ekran görüntüsü, taranmış belge", [
-        ("gemma3:4b", 3.3, 4, 8), ("qwen3-vl:8b", 6.1, 7, 16), ("gemma3:12b", 8.1, 11, 32)]),
-    "code": ("Kod", "yazılım, hata ayıklama", [
-        ("qwen2.5-coder:7b", 4.7, 6, 16), ("qwen2.5-coder:14b", 9.0, 11, 32), ("qwen3-coder:30b", 18.6, 20, 64)]),
-    "reasoning": ("Derin düşünme", "zor problem, matematik, plan", [
-        ("deepseek-r1:8b", 5.2, 6, 16), ("deepseek-r1:14b", 9.0, 11, 32), ("gpt-oss:20b", 13.8, 16, 64)]),
-}
+LADDERS = {tur: (b["baslik"], b["not"], [tuple(m) for m in b["modeller"]])
+           for tur, b in modeller.deger("basamaklar").items()}
 MODEL_SIZES = {m: size for _, _, ladder in LADDERS.values() for m, size, _, _ in ladder}
 
 
@@ -61,6 +54,8 @@ class SystemInfo:
     ollama_running: bool = False
     ollama_models: list = field(default_factory=list)
     laptop: bool = False  # pil var: pildeyken program hafif moda geçer (power.py)
+    hibrit: bool = False  # K13: dahili + ayrı ekran kartı (dGPU uyuyabilir, pilde güç sınırına takılır)
+    dahili_gpu: str = ""  # Ollama'nın KULLANAMAYACAĞI dahili kart (bilgi amaçlı)
 
 
 def _run(cmd: list[str]) -> str:
@@ -171,6 +166,27 @@ def restart_ollama(ollama_url: str) -> bool:
     return ensure_ollama(ollama_url)
 
 
+def restart_ollama_service() -> tuple[bool, str]:
+    """K13: kullanıcı onayıyla Ollama'yı yeniden başlatır — kartı görmeyen Ollama için. Programın başlattığı süreç
+    kendi yolundan, sistem servisi `systemctl restart ollama` (Linux; yetki gerekiyorsa pkexec). (başarılı, ileti)."""
+    from .config import Settings
+
+    url = Settings.load().ollama_url
+    if program_owned():
+        return restart_ollama(url), "Ollama yeniden başlatıldı"
+    if platform.system() != "Linux" or not shutil.which("systemctl"):
+        return False, "Bu sistemde Ollama'yı otomatik yeniden başlatamıyorum; uygulamayı kapatıp açmayı dene"
+    for komut in (["systemctl", "restart", "ollama"], ["pkexec", "systemctl", "restart", "ollama"]):
+        if komut[0] == "pkexec" and not shutil.which("pkexec"):
+            break
+        try:
+            if subprocess.run(komut, capture_output=True, timeout=60).returncode == 0:
+                return True, "Ollama servisi yeniden başlatıldı"
+        except (OSError, subprocess.SubprocessError):
+            continue
+    return False, "Ollama servisi yeniden başlatılamadı (yetki gerekiyor olabilir)"
+
+
 def ensure_ollama(ollama_url: str = "http://localhost:11434", wait: float = 15) -> bool:
     """Ollama sunucusu çalışmıyorsa arka planda başlatır (kullanıcı elle açmak zorunda kalmasın).
 
@@ -265,6 +281,14 @@ def scan(ollama_url: str = "http://localhost:11434") -> SystemInfo:
     from . import power
 
     info.laptop = power.state().has_battery
+    try:
+        from .cekirdek import donanim
+
+        env = donanim.gpu_envanteri()
+        info.hibrit = bool(env["hibrit"])
+        info.dahili_gpu = env["dahili"][0]["ad"] if env["dahili"] else ""
+    except Exception:  # bilgi amaçlı: tarama bunun yüzünden düşmez
+        pass
     info.ollama_installed = bool(ollama_path())
     ensure_ollama(ollama_url)
     try:
@@ -290,11 +314,8 @@ def _fallback_ladders() -> dict:
 
 
 # yetenek listesinde olmayan ama programın kullandığı modeller: (tür, başlık, not, model, GB, varsayılan seçili)
-SUPPORT_MODELS = [
-    ("memory", "Hafıza (anlamca arama)", "önceki sohbetlerden öğrenilenleri anlamca bulur; yoksa kelime araması",
-     "nomic-embed-text:latest", 0.3, True),
-    ("ocr", "Resimden yazı okuma (OCR)", "taranmış belge ve fotoğraftaki yazı", "glm-ocr:latest", 2.2, False),
-]
+SUPPORT_MODELS = [(d["tur"], d["baslik"], d["not"], d["model"], d["boyut_gb"], d["secili"])
+                  for d in modeller.deger("destek")]
 
 
 def recommend(info: "SystemInfo", live: dict | None = None) -> tuple[str, list[Suggestion]]:

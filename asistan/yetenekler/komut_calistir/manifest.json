@@ -1,0 +1,66 @@
+{
+  "ad": "komut_calistir",
+  "surum": "1.0.0",
+  "aciklama": "Çalışma klasöründe kabuk komutu çalıştırır (Linux/macOS: bash, Windows: PowerShell); çıkış kodu, stdout ve stderr döner. Her çalıştırma onaylanır.",
+  "etiketler": [
+    "komut",
+    "sistem"
+  ],
+  "girdi": {
+    "komut": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Çalıştırılacak komut"
+    },
+    "amac": {
+      "tip": "string",
+      "zorunlu": true,
+      "aciklama": "Onay penceresi için: ne yaptığı ve neden, bir iki cümle Türkçe"
+    }
+  },
+  "cikti": {
+    "sonuc": {
+      "tip": "string",
+      "zorunlu": false,
+      "aciklama": "Aracın sonucu (metin)"
+    }
+  },
+  "gereksinimler": {
+    "pip": [],
+    "ikili": [],
+    "min_kademe": "dusuk",
+    "isletim": [
+      "windows",
+      "linux",
+      "macos"
+    ],
+    "python": ">=3.12"
+  },
+  "izinler": [
+    "komut",
+    "dosya_oku",
+    "dosya_yaz",
+    "dosya_sil",
+    "ag"
+  ],
+  "zaman_asimi_sn": 120,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {
+      "girdi": {
+        "komut": "echo merhaba",
+        "amac": "deneme"
+      },
+      "beklenen": "exit code: 0 ve stdout'ta merhaba"
+    },
+    {
+      "girdi": {
+        "komut": "ls",
+        "amac": "klasörü görmek için"
+      },
+      "beklenen": "exit code: 0"
+    }
+  ]
+}

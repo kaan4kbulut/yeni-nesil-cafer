@@ -1,5 +1,6 @@
 """Ana pencere: sansürsüz kip, güvenlik ajanı, ayarlar, güç (pil) kipi ve resim üretimi kurulumu."""
 
+import logging
 from pathlib import Path
 
 from PySide6.QtCore import QTimer
@@ -7,6 +8,7 @@ from PySide6.QtWidgets import QMessageBox
 
 from .. import power, roster, specialists
 from ..agent import describe_error, list_ollama_models, settings_for
+from ..cekirdek import profil
 
 from .dialogs import SettingsDialog
 from .icons import pixmap
@@ -22,8 +24,8 @@ class ModesMixin:
     def _installed_uncensored(self) -> list[str]:
         from .. import model_updates
 
-        try:
-            return [m for m in list_ollama_models(self.settings.ollama_url) if model_updates.is_uncensored(m)]
+        try:  # yalnızca araç sınavını tam geçenler (roster.sansursuz_secilebilir); sınanmamış model seçilemez
+            return roster.sansursuz_secilebilir(list_ollama_models(self.settings.ollama_url))
         except Exception:
             return []
 
@@ -65,11 +67,20 @@ class ModesMixin:
             # araç kullanabilen (dosya, komut, ekip işleri yapabilen) sansürsüz modeller önce
             installed = sorted(self._installed_uncensored(), key=lambda m: "tools" not in
                                specialists._capabilities(self.settings.ollama_url, m))
+            if model and model not in installed:  # menüden seçilen model sınavı geçmemiş: kip açılmaz
+                self._update_free_btn()
+                self.chat.add_notice(f"🔓 {model.split('/')[-1]} araç sınavını tam geçmedi; sansürsüz kipte yalnızca "
+                                     "sınavı geçen modeller seçilebilir (Modeller → kartlar).")
+                return
             model = model or (self.settings.extra.get("uncensored_model") if
                               self.settings.extra.get("uncensored_model") in installed else "") or \
                 (installed[0] if installed else "")
             if not model:  # kurulu sansürsüz model yok: bilgisayara sığan en büyüğünü indirmeyi öner
                 info = self._system_info()
+                if info is None:  # K12-D3: tarama arka planda sürüyor
+                    self._notify("Sistem taranıyor; birkaç saniye sonra yeniden dene.")
+                    self._update_free_btn()
+                    return
                 budget = info.vram_gb * 0.92 if info.vram_gb else info.ram_gb * 0.5
                 fits = [u for u in model_updates.UNCENSORED_MODELS if u["size"] <= budget] or \
                     sorted(model_updates.UNCENSORED_MODELS, key=lambda u: u["size"])[:1]
@@ -142,7 +153,10 @@ class ModesMixin:
         self.conn_label.setText(f'<span style="color:{color}">●</span>&nbsp; {text}')
 
     def _refresh_models_status(self):
-        share = self.right.models.refresh()
+        """Model panelini arka planda yeniler (K12-D1); sonuç `_models_refreshed` ile gelir."""
+        self.right.models.refresh()
+
+    def _models_refreshed(self, share):
         self.gpu_share = share
         self._fix_gpu()
         self._update_context_label()
@@ -180,6 +194,87 @@ class ModesMixin:
             "Hafif mod: küçük model, en çok 8K bağlam, düşünmesiz yanıt; modeller arasında gidip gelinmez.\n"
             "Fişe takılınca tam güce döner. Ayarlar → Güç'ten değiştirilebilir." if power.saving(self.settings)
             else "Pildesin ama Ayarlar → Güç 'her zaman tam güç': büyük modeller pilde yavaş çalışır.")
+
+    # ---- donanım kademesi (cekirdek/profil.py): açılışta ölçülür, durum çubuğunda görünür, elle kilitlenebilir
+    def _measure_profile(self):
+        self._update_tier_btn()
+        run_in_background(lambda: profil.guncelle(sunucu=False), self._profile_measured, self)
+
+    def _profile_measured(self, _p, _e):
+        self._update_tier_btn()
+        # K7: ilk kullanımda varsayılan yerel modelin 30 sn ölçümü, sonra kademe otomatik ayarı (kilit varsa dokunmaz)
+        from ..cekirdek import donanim
+        from ..cekirdek.analiz import olcum
+
+        if getattr(self, "guc_izleyici", None) is None:  # K13: güç/donanım kararı (15 sn'de bir, arka plan)
+            donanim.gui_parcacigini_isaretle()
+            self.guc_izleyici = olcum.GucIzleyici(
+                self.settings, self._tier_notice_short,
+                lambda: self.worker is not None or bool(self.task_worker and self.task_worker.isRunning()))
+            self.guc_izleyici.start()
+        run_in_background(lambda: olcum.acilis(self.settings.ollama_url, self._tier_notice),
+                          lambda _s, _e2: self._update_tier_btn(), self)
+
+    def _tier_notice_short(self, metin: str):
+        """K13 durum satırı: rahatsız edici pencere yok; durum çubuğunda geçici satır + kademe düğmesi yenilenir."""
+        logging.getLogger(__name__).info(metin)
+        QTimer.singleShot(0, self, lambda: (self._notify("⚡ " + metin, 15000), self._profile_changed()))
+
+    def _tier_notice(self, metin: str):
+        QTimer.singleShot(0, self, lambda: self._notify("📐 " + metin, 20000))  # arka plan iş parçacığından arayüze
+
+    # ---- K10: düşük kademede sade arayüz (sohbet + görevler + ayarlar; diğer bölümler Görünüm menüsünden açılır)
+    def _sade_arayuz(self):
+        sade = profil.kademe() == "dusuk" and not self.settings.extra.get("gelismis_arayuz")
+        self.model_tabs.setVisible(not sade and bool(self.settings.extra.get("model_cubugu")))
+        for i in range(1, 5):  # Grup Çalışması, Ajanlar, API'ler, Kütüphaneler; Sohbet kalır
+            b = self.side_tabs.button(i)
+            if b is not None:
+                b.setVisible(not sade)
+        if sade and self.toggle_right.isChecked():
+            self.toggle_right.setChecked(False)
+        self.toggle_right.setVisible(not sade)
+        return sade
+
+    def _toggle_gelismis_arayuz(self, on: bool):
+        self.settings.extra = {**self.settings.extra, "gelismis_arayuz": bool(on)}
+        self.settings.save()
+        self._sade_arayuz()
+
+    def _toggle_model_cubugu(self, on: bool):
+        self.settings.extra = {**self.settings.extra, "model_cubugu": bool(on)}
+        self.settings.save()
+        self._sade_arayuz()
+
+    def _sync_advanced_menu(self):
+        for action, btn in ((self.adv_guard, self.guard_btn), (self.adv_free, self.free_btn), (self.adv_light, self.light_btn)):
+            action.blockSignals(True)
+            action.setChecked(btn.isChecked())
+            action.blockSignals(False)
+
+    def _update_tier_btn(self):
+        p = profil.yukle() or {}
+        tier = profil.kademe()
+        locked = profil.kilit()
+        self.tier_btn.setText(f"kademe: {profil.ADLAR[tier]}" + (" 🔒" if locked else ""))
+        off = [profil.AGIR_OZELLIKLER[o] for o in profil.AGIR_OZELLIKLER if not profil.acik_mi(o)]
+        why = (p.get("kademe") or {}).get("neden") or "ölçülüyor…"
+        tip = (f"Elle kilitli. Ölçüm: {why}" if locked else why) + (
+            "\nBu kademede kapalı: " + ", ".join(off) if off else "") + "\nTıkla: profil özeti ve kademe kilidi."
+        self.tier_btn.setToolTip(tip)
+        try:
+            self._sade_arayuz()
+        except AttributeError:  # menü henüz kurulmadı (açılış sırası)
+            pass
+
+    def _open_profile(self):
+        from .profil_dialog import ProfileDialog
+
+        ProfileDialog(self, on_change=self._profile_changed, ayarlar=self.settings).exec()  # K12-C2
+
+    def _profile_changed(self):
+        self._update_tier_btn()
+        self._update_context_label()  # dusuk kademede bağlam tavanı değişir
 
     def _update_light_btn(self):
         btn = getattr(self, "light_btn", None)

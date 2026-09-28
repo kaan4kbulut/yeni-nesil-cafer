@@ -27,6 +27,7 @@ from pathlib import Path
 
 import httpx
 
+from .cekirdek.araclar import komut as _komut
 from .config import CONFIG_DIR, DATA_DIR
 from .registry import REGISTRY, Tool, safe_name
 
@@ -60,6 +61,13 @@ def load_config() -> dict:
 # ---------------------------------------------------------------- bağlantılar
 
 
+def sunucu_ortami(conf: dict) -> dict:
+    """K12-B2: MCP sunucusu (npx/uvx ile inen üçüncü taraf kod) yalnızca beyaz listeli ortamı + mcp.json'daki `env`'i
+    görür; ANTHROPIC_API_KEY / CAFER_* / OPENAI_API_KEY geçmez (CLAUDE.md pazarlık dışı)."""
+    ek = {str(k): str(v) for k, v in (conf.get("env") or {}).items()}
+    return _komut.guvenli_ortam(os.environ, ek=ek)
+
+
 class _Stdio:
     """Yerel süreç: stdin'e istek yazılır, stdout'tan satır satır cevap okunur."""
 
@@ -67,7 +75,7 @@ class _Stdio:
         command = os.path.expanduser(str(conf.get("command") or ""))
         exe = shutil.which(command) or command  # Windows: npx → npx.cmd
         args = [os.path.expanduser(str(a)) for a in conf.get("args") or []]
-        env = {**os.environ, **{str(k): str(v) for k, v in (conf.get("env") or {}).items()}}
+        env = sunucu_ortami(conf)
         LOG_DIR.mkdir(parents=True, exist_ok=True)
         self.log = open(LOG_DIR / f"{safe_name(name)}.log", "ab")
         try:
@@ -126,6 +134,10 @@ class _Stdio:
             self.proc.wait(timeout=3)
         except Exception:
             self.proc.kill()
+            try:
+                self.proc.wait(timeout=3)  # K12-D10: kill sonrası toplanmazsa zombi kalır
+            except Exception:
+                pass
         if self.proc.stdout:
             self.proc.stdout.close()
         self.log.close()
@@ -301,6 +313,12 @@ _servers: dict[str, Server] = {}
 _lock = threading.Lock()
 
 
+def risk_sinifi(hints: dict, trusted: bool) -> str:
+    """K12-A7: sunucunun `readOnlyHint` beyanı yalnızca kullanıcının mcp.json'da "trusted" dediği sunucuda/araçta
+    onayı kaldırır ("okur"); diğer her şey "calistirir" (her seferinde kullanıcı ya da güvenlik ajanı)."""
+    return "okur" if (hints or {}).get("readOnlyHint") and trusted else "calistirir"
+
+
 def _register(server: Server) -> None:
     source = f"mcp:{server.name}"
     REGISTRY.remove_source(source)
@@ -310,16 +328,17 @@ def _register(server: Server) -> None:
         name = safe_name(f"{server.name}__{t['name']}")
         schema = t.get("inputSchema") if isinstance(t.get("inputSchema"), dict) else {}
         schema = {"type": "object", "properties": {}, **schema}
+        guvenilir = trusted is True or (isinstance(trusted, list) and t["name"] in trusted)
         REGISTRY.put(Tool(
             name=name,
             description=f"[MCP · {server.name}] {t.get('description') or t.get('title') or t['name']}"[:1024],
             schema=schema,
-            risk="okur" if hints.get("readOnlyHint") else "calistirir",
+            risk=risk_sinifi(hints, guvenilir),
             label=(f"{server.name}: {t.get('title') or t['name']}", "bitti"),
             source=source,
             group="mcp",
             runner=lambda args, s=server, tool=t["name"]: s.call(tool, args),
-            trusted=trusted is True or (isinstance(trusted, list) and t["name"] in trusted),
+            trusted=guvenilir,
             hints=hints,
         ))
 

@@ -8,5 +8,7 @@
    "tur": "cevap_icerir",
    "regex": "42[.,]5\\b"
   }
- ]
+ ],
+ "kademe": "orta",
+ "tur": "cok_adimli"
 }

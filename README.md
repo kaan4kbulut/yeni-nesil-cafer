@@ -21,43 +21,38 @@ istersen Claude, GPT, Gemini gibi bulut modellerine de bağlanır. Arayüz ve ko
 
 ## Kurulum
 
-[Sürümler (Releases)](../../releases/latest) sayfasından sistemine uygun **tek dosyayı** indir (yaklaşık 1 MB).
-Kurulum gereken her şeyi (Python, kütüphaneler, Ollama, tarayıcı; ~2,5 GB) resmi kaynaklarından **kendisi indirir**,
-doğrular ve kurar; senden hiçbir şey kurmanı istemez. Yapay zekâ modellerini ilk açılıştaki kurulum sihirbazı
-bilgisayarına uygun olanları seçip indirir.
+1. [Sürümler](../../releases/latest) sayfasındaki **"Hangisini indireyim?"** tablosundan işletim sistemine uygun tek dosyayı indir
+   (Windows `…-Windows-Kurulum.exe`, macOS `…-macOS.dmg`, Linux `…-Linux.AppImage`).
+2. Çift tıkla (Windows "bilgisayarınızı korudu" derse **Ek bilgi → Yine de çalıştır**; macOS'ta ilk açılış sağ tık → Aç; Linux'ta
+   `chmod +x` sonra çalıştır, menüye eklemek için `--install`).
+3. İlk açılışta kurulum sihirbazı bilgisayarını tarar; Ollama'yı ve sana uygun modelleri kendisi indirir. Senden komut istemez.
 
-**Windows 10 / 11**
-1. `YENI-NESIL-CAFER.v…-Windows-internet.zip` dosyasını indir → sağ tık → **Tümünü ayıkla…**
-2. Çıkan klasördeki **`Kur.bat`**'a çift tıkla. "Windows bilgisayarınızı korudu" çıkarsa: **Ek bilgi → Yine de
-   çalıştır** (program imzasız olduğu için Windows bu uyarıyı gösterir; kurulum betiği açık metindir).
-3. Kurulum internet hızına göre 5–15 dakika sürer; ilerlemeyi pencerede görürsün. Bitince program açılır.
+![Sohbet penceresi](docs/ekran-goruntusu.png)
+<!-- ekran görüntüsü yeri: docs/ekran-goruntusu.png (sohbet + sağ panel), 1280×800 -->
 
-**Linux (64 bit)**
+Gerekenler: kurulum sırasında internet (~2,5 GB + modeller 3–10 GB), en az 8 GB RAM (önerilen 16 GB ve 8 GB+ ekran kartı ya da
+16 GB+ Apple Silicon Mac), ~15 GB boş alan. Kurulum yarıda kesilirse programı yeniden aç: inenler korunur, kaldığı yerden sürer.
+
+**Geliştiriciler (pipx):**
 ```sh
-tar xzf YENI-NESIL-CAFER.v*-Linux-internet.tar.gz
-./YENI-NESIL-CAFER.v*/kur.sh
+pipx install "git+https://github.com/kaan4kbulut/yeni-nesil-cafer.git[sunucu]"
+cafer profil               # donanım profili ve kademe
+cafer sunucu --port 8765   # web + telefon (PWA); masaüstü için main.py (PySide6)
 ```
-
-**macOS** (Apple Silicon M1 ve sonrası: macOS 14+; Intel Mac: macOS 12+)
-1. `YENI-NESIL-CAFER.v…-macOS-internet.zip` dosyasını indir → çift tıkla (açılır).
-2. Çıkan klasördeki **`Kur.command`**'a **sağ tık → Aç → Aç** (program imzasız olduğu için ilk seferde böyle açılır;
-   "Apple doğrulayamadı" derse: Sistem Ayarları → Gizlilik ve Güvenlik → **Yine de Aç**).
-3. Terminal penceresinde kurulum ilerler (5–15 dk); bitince program açılır. Uygulamalar klasöründe ve masaüstünde
-   "YENİ NESİL CAFER" olarak durur. Intel Mac'lerde yerel modeller yalnızca işlemcide ve yavaş çalışır.
-
-Kurulum yarıda kesilirse aynı dosyayı yeniden çalıştır: inenler korunur, kaldığı yerden sürer.
-
-Gerekenler: kurulum sırasında internet (kurulum ~2,5 GB, modeller bilgisayarına göre 3–10 GB), en az 8 GB RAM
-(önerilen 16 GB ve 8 GB+ ekran kartı ya da 16 GB+ Apple Silicon Mac), ~15 GB boş alan.
-
-İnternetsiz kurulum için her şeyi içeren tam paket de var (~8 GB, GitHub sınırı yüzünden 2 GB'lık parçalar); isteyene
-elden verilir.
+Sunucu/telefon kullanımı için `docs/SUNUCU_KURULUM.md`.
 
 ## Güncelleme
 
 Kurduktan sonra büyük paketi bir daha indirmen gerekmez. Yeni sürüm çıkınca program haber verir:
 **Yardım → Güncelleme var → Güncelle** (yalnızca birkaç MB indirir). Kurmadan önce şimdiki sürüm yedeklenir;
 yeni sürüm açılamazsa kendiliğinden eski sürüme dönülür.
+
+## Sorun bildir
+
+Bir şey ters giderse mesaj kutusunun yanındaki **🐞 sorun** düğmesine bas: program ne olduğunu, sohbetin ilgili kısmını,
+hataları ve sistem bilgisini tek dosyada masaüstündeki `YENİ NESİL CAFER` klasörüne yazar (API anahtarları gizlenir) ve
+geliştiriciye verilecek cümleyi panoya kopyalar. Bu dosyayı bir [Issue](../../issues/new) olarak ekle ya da doğrudan gönder.
+Yardım → **Sorun bildir…** aynı raporu önizlemeli hazırlar.
 
 ## Geliştirme
 
@@ -66,8 +61,8 @@ Python 3.12 + PySide6. Mimari, kurallar ve bilinen tuzaklar [`CLAUDE.md`](CLAUDE
 ```sh
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./calistir.sh                                              # geliştirme kopyasını çalıştır
-QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s testler   # testler
-paketleme/yayinla.sh                                       # yeni sürümü GitHub'da yayımla
+QT_QPA_PLATFORM=offscreen .venv/bin/python -m pytest testler -q             # testler
+git tag vX.Y && git push origin vX.Y                       # yeni sürüm: CI üç platformda derler ve yayımlar
 ```
 
 Program kendi kodunu değiştirmez; sorunları algılayıp rapor hazırlar, düzeltmeyi geliştirici yapar.

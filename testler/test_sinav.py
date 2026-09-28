@@ -20,9 +20,9 @@ sys.path.insert(0, str(KOK))
 sys.path.insert(0, str(KOK / "testler" / "sinav"))
 # ajan kütüphaneleri gerçek kurulumdan (test_sus_modelleri ile aynı neden: XDG geçiciyken bulunamıyorlardı)
 _VERI = Path.home() / ".local/share"
-_YOLLAR = [p for p in (_VERI / "yeni-nesil-cafer-app/ajan-kutuphaneleri", _VERI / "yeni-nesil-cafer/python-kutuphaneleri")
-           if p.is_dir()]
-os.environ["PYTHONPATH"] = os.pathsep.join([*map(str, _YOLLAR), os.environ.get("PYTHONPATH", "")]).strip(os.pathsep)
+import kutuphane_yolu  # noqa: E402  (testler/: yalnızca bu Python'la uyumlu kütüphane klasörleri PYTHONPATH'e)
+
+_YOLLAR = kutuphane_yolu.pythonpath_ekle()
 _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
@@ -56,15 +56,15 @@ def kup_stl(yol: Path, kenar: float = 20, kaydir: tuple = (0, 0, 0), eksik: int 
 
 
 class Gorevler(unittest.TestCase):
-    def test_yirmi_gorev_gecerli(self):
+    def test_yirmi_gorev_gecerli(self):  # K5: 21. trendyol (internet); 22. yazdı-ama-yapmadı ikinci varyantı (BÖLÜM 2-f)
         gorevler = denetim.yukle()
-        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 21)))
-        self.assertEqual(len({g["ad"] for g in gorevler}), 20)
-        self.assertEqual(sum(denetim.hizli_mi(g) for g in gorevler), 15)
+        self.assertEqual([g["sira"] for g in gorevler], list(range(1, 23)))
+        self.assertEqual(len({g["ad"] for g in gorevler}), 22)
+        self.assertEqual(sum(denetim.hizli_mi(g) for g in gorevler), 16)
         # --hizli'de ağır etiketli görev yok; internet/gpu/motor/uzun görevleri talimattaki gibi
         agir = {g["ad"]: sorted(denetim.etiketler(g)) for g in gorevler if not denetim.hizli_mi(g)}
         self.assertEqual(agir, {"uzun-baglam": ["uzun"], "spiral-lamba": ["gpu"], "figur-tilki": ["gpu", "motor"],
-                                "duckduckgo": ["internet"], "hepsiburada": ["internet"]})
+                                "duckduckgo": ["internet"], "hepsiburada": ["internet"], "trendyol": ["internet"]})
 
     def test_bozuk_gorev_hata_verir(self):
         hatalar = denetim.dogrula({"ad": "x", "sira": 1, "istek": "?", "zaman_siniri_sn": 0, "etiketler": ["hizli"],
@@ -225,6 +225,24 @@ class OnayKurali(unittest.TestCase):
         self.assertFalse(self.evet("browser_click", {"purpose": "Tarayıcı — satın alma / ödeme: …"}, ["internet"]))
 
 
+class Kademe(unittest.TestCase):
+    def test_kademe_secimi_ve_geri_besleme(self):
+        a = calistir.secenekler(["--kademe", "dusuk"])
+        adlar = [g["ad"] for g in calistir.secilenler(a)]
+        self.assertTrue(adlar and all(denetim.kademe(g) == "dusuk" for g in calistir.secilenler(a)))
+        self.assertEqual(calistir.kapsam(a), "kademe:dusuk+hizli")
+        self.assertGreater(len(calistir.secilenler(calistir.secenekler(["--kademe", "yuksek", "--hepsi"]))),
+                           len(calistir.secilenler(calistir.secenekler(["--kademe", "orta", "--hepsi"]))))
+        for g in denetim.yukle():  # her görevin kademesi ve türü var, geçerli
+            self.assertIn(denetim.kademe(g), denetim.KADEMELER)
+            self.assertIn(denetim.tur(g), denetim.TURLER_GOREV)
+        from asistan.cekirdek.analiz import olcum
+
+        with mock.patch.object(olcum, "sinav_geri_besle", return_value={"ozet": {"gecen": 0, "toplam": 2}}) as gb:
+            calistir.geri_besle([{"tur": "ozet", "gecti": False}], calistir.secenekler(["--kademe", "orta"]))
+        self.assertEqual(gb.call_args.args[1], "orta")
+
+
 class Rapor(unittest.TestCase):
     def test_son_kosu_ve_tekrar(self):
         klasor = Path(tempfile.mkdtemp(dir=_GECICI))
@@ -242,8 +260,9 @@ class Rapor(unittest.TestCase):
         metin = rapor.read_text(encoding="utf-8")
         self.assertIn("| m1 | sohbet modeli | hizli ×2 |", metin)  # yalnızca son koşu; tek görev denemesi rapora girmez
         self.assertNotIn("gorev:hesap", metin)
-        self.assertIn("| 3. hesap | 1/2 · 10 sn |", metin)
-        self.assertIn("| 1. yaz-kaydet | — |", metin)
+        self.assertIn("| 3. hesap · dusuk/cok_adimli | 1/2 · 10 sn |", metin)  # K7: görev kademesi/türü
+        self.assertIn("| 1. yaz-kaydet · dusuk/cok_adimli | — |", metin)
+        self.assertIn("| dusuk | cok_adimli | 1/2 | 50 |", metin)  # K7: kademe × görev türü tablosu
         self.assertIn("Özet: 1/2 geçti (%50)", metin)
         self.assertIn("çağrılmadı", metin)
 

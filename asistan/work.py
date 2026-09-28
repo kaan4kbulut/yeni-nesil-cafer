@@ -168,6 +168,14 @@ def safe_in_folder(folder: str, name: str, args: dict) -> bool:
     text = str(args.get("command") or args.get("code") or "")
     if re.search(r"\bsudo\b|\.\.|~|\$HOME|\bsystemctl\b|\bpkexec\b|\bchmod\b|\bchown\b|\bdd\b", text):
         return False
+    # K12-A8: internete gönderme, paket kurma ve silme klasör içinde de kullanıcı onayı ister (CLAUDE.md); otomatik
+    # onay yalnızca klasörde okuyan/hesaplayan/yazan komut ve kodlar için
+    if re.search(r"\b(curl|wget|nc|ncat|ssh|scp|rsync|ftp|telnet|sftp)\b|\bgit\s+(push|pull|fetch|clone)\b|"
+                 r"\b(pip3?|pipx|npm|pnpm|yarn|pacman|yay|paru|apt(-get)?|dnf|yum|flatpak|snap|brew|cargo|winget)\s+"
+                 r"(install|add|-S\w*|-i)\b|-m\s+pip\b|\brm\b|\brmdir\b|\bshred\b|\bunlink\b|"
+                 r"\b(subprocess|socket|requests|httpx|urllib|aiohttp|ftplib|smtplib|shutil\.rmtree|os\.remove|"
+                 r"os\.unlink|os\.rmdir|os\.system|os\.popen|\.unlink\(|rmtree\()", text):
+        return False
     allowed = (folder, "/tmp", "/dev/null", "/usr/bin/", "/bin/")
     for path in re.findall(r"(?<![\w.:/-])/[\w./+-]+", text):
         if not path.startswith(allowed):

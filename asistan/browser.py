@@ -30,21 +30,17 @@ NAV_TIMEOUT = 45_000
 
 
 def _browsers_path() -> str:
-    """Chromium'un yeri: programın kendi klasörü (kurulum paketine gömülür)."""
-    from .tools import PROGRAM_DIR
+    """Chromium'un yeri: programın kendi klasörü (kurulum paketine gömülür); karar `cekirdek.profil.tarayici_klasoru`."""
+    from .cekirdek import profil
 
-    for p in (PROGRAM_DIR / "tarayici", Path.home() / ".local/share/yeni-nesil-cafer-app/tarayici"):
-        if p.is_dir():
-            return str(p)
-    return ""
+    return profil.tarayici_klasoru()
 
 
 def available() -> bool:
-    try:
-        import playwright  # noqa: F401
-    except ImportError:
-        return False
-    return bool(_browsers_path())
+    """Kademe açık + playwright + gömülü Chromium (`cekirdek.profil.tarayici_hazir`; çekirdek bu modülü içe aktarmaz)."""
+    from .cekirdek import profil
+
+    return profil.tarayici_hazir()
 
 
 # ---------------------------------------------------------------- onay kapısı
@@ -105,6 +101,39 @@ def gate(action: str, element: dict, url: str, text: str = "", submit: bool = Fa
     if _CHECKOUT_URL.search(url) and role == "button" and kind != "search":  # bağlantı sayfadan çıkar, düğme onaylar
         return "satın alma / ödeme: ödeme sayfasında bir düğmeye tıklanacak"
     return None
+
+
+def ozel_ag_denetle(url: str) -> None:
+    """Yerel / özel ağ adresi tarayıcıyla da açılmaz (`web._adres_denetle` ile aynı kural; K12-A10)."""
+    from .cekirdek.araclar.temel import AracHatasi
+    from .cekirdek.araclar.web import _adres_denetle
+
+    if url.startswith("about:"):
+        return
+    try:
+        _adres_denetle(url)
+    except AracHatasi as e:
+        raise ValueError(str(e).replace("web_fetch", "the browser")) from None
+
+
+_ETIKET_JS = """e => ({role: (e.getAttribute('role') || e.tagName || '').toLowerCase(),
+    name: (e.getAttribute('aria-label') || e.innerText || e.value || e.title || '').trim().slice(0, 160),
+    href: e.getAttribute('href') || ''})"""
+
+
+def _norm(metin) -> str:
+    return " ".join(str(metin or "").lower().split())
+
+
+def etiket_degisti(eski: dict, yeni: dict, url: str) -> str | None:
+    """Tıklama anında öğenin etiketi/adresi okuma anındakinden farklıysa ve yeni hali kapıya takılıyorsa nedeni."""
+    e_ad, y_ad = _norm(eski.get("name")), _norm(yeni.get("name"))
+    e_href, y_href = _norm(eski.get("href")), _norm(yeni.get("href"))
+    ayni_ad = not y_ad or not e_ad or e_ad in y_ad or y_ad in e_ad
+    ayni_href = not y_href or not e_href or e_href == y_href
+    if ayni_ad and ayni_href:
+        return None
+    return gate("click", {**eski, **yeni}, url)
 
 
 # ---------------------------------------------------------------- sayfa okuma (tarayıcıda çalışan betik)
@@ -356,12 +385,18 @@ class Browser:
             raise ValueError("Only http(s) web addresses can be opened in the browser.")
         if not re.match(r"https?://", url, re.I):
             url = "https://" + url
+        ozel_ag_denetle(url)  # K12-A10: web_fetch kuralı tarayıcıda da (localhost, 192.168.x, Ollama API, yönlendirici)
 
         def run(ctx):
             page = self._page(ctx)
             page.bring_to_front()
             page.goto(url, wait_until="domcontentloaded")
             self._settle(page)
+            try:
+                ozel_ag_denetle(page.url)  # yönlendirme ile özel ağa düşmüşse geri çekil
+            except ValueError:
+                page.goto("about:blank")
+                raise
             return self._snapshot(page)
         return self._call(run)
 
@@ -388,6 +423,15 @@ class Browser:
                 before = len(ctx.pages)
                 loc.scroll_into_view_if_needed()
                 before_url = page.url
+                # K12-A10: kapı okuma anındaki etikete bakmıştı; sayfa betiği düğmeyi "Siparişi ver"e çevirdiyse tıklama
+                try:
+                    guncel = loc.evaluate(_ETIKET_JS)
+                except Exception:
+                    guncel = None
+                neden = etiket_degisti(self.elements.get(int(ref), {}), guncel, page.url) if guncel else None
+                if neden:
+                    return (f"Tıklanmadı: öğe [{ref}] okunduğundan beri değişti ({neden}). browser_read ile sayfayı "
+                            "yeniden oku; gerekiyorsa onay istenecek.")
                 loc.click()
                 self._settle(page, before_url if self.elements.get(int(ref), {}).get("role") == "link" else "")
                 if len(ctx.pages) > before:  # yeni sekme açıldı: ona geç
@@ -454,6 +498,31 @@ class Browser:
             self._settle(page)
             return self._snapshot(page)
         return self._call(run)
+
+    def extract_items(self, find: str = "", max_items: int = 30) -> str:
+        """Sayfadaki ürün/ilan listesi (JSON-LD → tekrar eden kartlar); her çağrıda DOM yeniden okunur, öğe numarası
+        kullanılmaz (sayfa kendini yeniden çizse de doğru). Bulunamazsa hata: uydurma yok."""
+        import json
+
+        from .cekirdek.araclar import urunler
+        from .cekirdek.araclar.temel import AracHatasi
+
+        def run(ctx):
+            page = self._page(ctx)
+            try:
+                page.wait_for_load_state("domcontentloaded", timeout=10_000)
+            except Exception:
+                pass
+            return page.content(), page.url
+        html, url = self._call(run)
+        items, method = urunler.cikar(html, url, urunler.EN_COK)
+        items = urunler.suz(items, find)[:max(1, min(int(max_items or 30), urunler.EN_COK))]
+        if not items:
+            raise AracHatasi("liste bulunamadı: bu sayfada fiyatlı ürün/ilan listesi yok (JSON-LD ya da tekrar eden "
+                             "fiyatlı kartlar)" + (f" — '{find}' içeren ürün yok" if find else "")
+                             + ". Başka bir sayfa aç ya da aramayı değiştir; satır uydurma.")
+        head = f"{len(items)} ürün ({'yapısal veri' if method == 'json-ld' else 'sayfa kartları'}) — {url[:200]}"
+        return head + "\n" + "\n".join(json.dumps(o, ensure_ascii=False) for o in items)
 
     def screenshot(self, folder: Path) -> Path:
         folder.mkdir(parents=True, exist_ok=True)

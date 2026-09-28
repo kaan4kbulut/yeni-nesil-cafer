@@ -31,11 +31,12 @@ APP = QApplication.instance() or QApplication([])
 
 from asistan import dictation as d  # noqa: E402
 from asistan.config import Settings  # noqa: E402
+from asistan.gui import dikte_kaydi as k  # noqa: E402  (K1: Qt'li kayıt arayüzde)
 
 
 
-def dikte(fmt_kind=QAudioFormat.SampleFormat.Int16) -> d.Dictation:
-    x = d.Dictation(lambda: Settings(), lambda: [])
+def dikte(fmt_kind=QAudioFormat.SampleFormat.Int16) -> k.Dictation:
+    x = k.Dictation(lambda: Settings(), lambda: [])
     x.fmt = QAudioFormat()
     x.fmt.setSampleRate(16000)
     x.fmt.setChannelCount(1)
@@ -80,7 +81,7 @@ class DikteTesti(unittest.TestCase):
         durum = []
         x.busy.connect(durum.append)
         x.recording, x.started, x.data = True, time.monotonic(), bytearray(b"\x00\x01" * 100)
-        with mock.patch("asistan.dictation.threading.Thread") as thread:
+        with mock.patch("asistan.gui.dikte_kaydi.threading.Thread") as thread:
             x.stop()
         thread.assert_not_called()
         self.assertEqual(durum, [""])
@@ -97,7 +98,7 @@ class DikteTesti(unittest.TestCase):
             Path(args[0]).unlink()
             return mock.Mock()
 
-        with mock.patch("asistan.dictation.threading.Thread", side_effect=calis):
+        with mock.patch("asistan.gui.dikte_kaydi.threading.Thread", side_effect=calis):
             x.stop()
         self.assertEqual(yazilan, {"rate": 16000, "frames": 48000, "channels": 1})
         self.assertTrue(x.working)
