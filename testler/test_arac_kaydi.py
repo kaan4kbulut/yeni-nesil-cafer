@@ -25,7 +25,7 @@ from asistan.profiles import AgentProfile  # noqa: E402
 from asistan.registry import REGISTRY, RISKS  # noqa: E402
 
 ESKI_ONAY = {"run_command", "run_python", "install_python_package"}  # kayıttan önceki elle yazılmış liste
-ONAY = ESKI_ONAY | {"install_app"}  # sonradan eklenen, bilerek onaya tabi araçlar (internetten program kurar)
+ONAY = ESKI_ONAY | {"install_app", "send_notification"}  # sonradan eklenen, bilerek onaya tabi araçlar (internetten kurar / gönderir)
 ESKI_EYLEM = {"write_file", "edit_file", "run_command", "run_python", "start_team_task", "install_python_package"}
 
 

@@ -26,9 +26,9 @@ class Istemci:
         self.url, self.anahtar, self.http = url.rstrip("/"), anahtar, http or httpx
 
     def istek(self, yontem: str, yol: str, govde: dict | None = None) -> dict:
+        ek = {"timeout": ZAMAN} if self.http is httpx else {}  # TestClient zaman aşımı almaz
         try:
-            r = self.http.request(yontem, self.url + yol, json=govde, timeout=ZAMAN,
-                                  headers={"Authorization": f"Bearer {self.anahtar}"})
+            r = self.http.request(yontem, self.url + yol, json=govde, headers={"Authorization": f"Bearer {self.anahtar}"}, **ek)
         except httpx.HTTPError as e:
             raise UzakHata(f"sunucuya ulaşılamadı: {e}") from e
         if r.status_code == 401:
