@@ -1,0 +1,9 @@
+# Sunucu (web + telefon) modu: yalnızca çekirdek + web; PySide6, playwright, 3D kütüphaneleri yok (MIMARI §9)
+fastapi>=0.115
+uvicorn>=0.30
+httpx>=0.27
+anthropic>=1,<2
+ddgs>=9
+beautifulsoup4>=4.12
+keyring>=25
+psutil>=5.9

@@ -29,3 +29,8 @@
 - [ ] Yardım → Modeller…: tok/sn ve başarı sütunları dolu mu? "Varsayılan yap" listeyi değiştiriyor mu (DATA_DIR/modeller.json)? "Listeyi yenile" önerilen satırını dolduruyor mu?
 - [ ] `python -m asistan profil --benchmark` koş; küçük model yavaşsa (< 3 tok/sn) durum çubuğunda "📐 Kademe … → …" bildirimi ve profil özetinde "hız ölçümüyle ayarlandı".
 - [ ] `python testler/sinav/calistir.py --kademe dusuk --tekrar 1` → RAPOR.md'de "kademe × görev türü" tablosu; sonda "Yönlendirmeye geri beslendi" satırı.
+
+## K8 — Sunucu modu (2026-09-28 sabah)
+- [ ] `CAFER_TOKEN=test123 python -m asistan sunucu --host 0.0.0.0 --port 8765` → telefonu aynı Wi-Fi'ye bağla, `http://<bilgisayar-ip>:8765` aç, anahtarı gir, "Ana ekrana ekle"; sohbette bir soru sor, görevler'de bir iş başlat, onaylar'da onayla.
+- [ ] `docker compose -f sunucu/docker-compose.yml up --build -d` → `./sunucu/dogrula.sh http://127.0.0.1:8765 <anahtar>` hepsi ✓; imaj boyutunu not et.
+- [ ] VPS'e SSH ile gir, `docs/SUNUCU_KURULUM.md` adımları; `sunucu/kur.sh` iki kez çalıştırınca bozmuyor mu?

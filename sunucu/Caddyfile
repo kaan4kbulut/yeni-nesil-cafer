@@ -1,0 +1,5 @@
+# Otomatik HTTPS (Let's Encrypt). .env içindeki CAFER_ALAN_ADI alan adın (ör. cafer.ornek.com); DNS A kaydı sunucuya.
+{$CAFER_ALAN_ADI} {
+    encode gzip
+    reverse_proxy cafer-web:8765
+}

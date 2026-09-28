@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1b1a17">
+<title>YENİ NESİL CAFER</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/simge.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/simge.svg">
+<link rel="stylesheet" href="/stil.css">
+</head>
+<body>
+<header>
+  <h1>▣ YENİ NESİL CAFER</h1>
+  <nav>
+    <button data-sekme="sohbet" class="secili">sohbet</button>
+    <button data-sekme="gorevler">görevler</button>
+    <button data-sekme="onaylar">onaylar <span id="onay-sayisi"></span></button>
+  </nav>
+  <span id="durum">·</span>
+</header>
+
+<main>
+  <section id="sekme-sohbet" class="sekme acik">
+    <div id="mesajlar"></div>
+    <form id="sohbet-form">
+      <textarea id="metin" rows="2" placeholder="Bir şey sor… (Enter gönderir, Shift+Enter yeni satır)"></textarea>
+      <button type="submit">gönder</button>
+    </form>
+  </section>
+
+  <section id="sekme-gorevler" class="sekme">
+    <form id="gorev-form">
+      <input id="gorev-istek" placeholder="Çok adımlı iş (bilgisayarın kapalıyken de sürer)">
+      <button type="submit">başlat</button>
+    </form>
+    <ul id="gorev-listesi" class="liste"></ul>
+    <pre id="gorev-ayrinti"></pre>
+  </section>
+
+  <section id="sekme-onaylar" class="sekme">
+    <p class="ipucu">Bekleyen onaylar: kurulum, yetenek üretimi ya da dosya değiştiren adımlar. Onaylamadan hiçbir şey yapılmaz.</p>
+    <ul id="onay-listesi" class="liste"></ul>
+  </section>
+</main>
+
+<dialog id="giris">
+  <form method="dialog">
+    <p>Erişim anahtarı (sunucu kurulumunda yazılan <code>CAFER_TOKEN</code>):</p>
+    <input id="anahtar" type="password" autocomplete="current-password">
+    <button>bağlan</button>
+  </form>
+</dialog>
+<script>if ("serviceWorker" in navigator) navigator.serviceWorker.register("/sw.js").catch(() => {});</script>
+<script src="/uygulama.js"></script>
+</body>
+</html>

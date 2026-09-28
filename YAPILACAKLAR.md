@@ -337,14 +337,14 @@ değil — bu taban çizgisi); `yayinla.sh` eşiğin altında durduğunu bir den
 ## Aşama K8 — Sunucu modu (web + telefon)
 **Hedef:** Aynı paket sunucuda çalışır; telefondan PWA ile kullanılır; bilgisayar kapalıyken görevler sürer.
 
-- [ ] `arayuz/web/`: FastAPI; uç noktalar `/saglik`, `/gorev` (POST/GET), `/onaylar`, `/yetenekler`, `/profil`, `/sohbet` (SSE akış)
-- [ ] Tek kullanıcı token kimliği (`CAFER_TOKEN`); yanlış/eksik → 401
-- [ ] PWA: `manifest.webmanifest`, service worker, "ana ekrana ekle"; sohbet + görevler + onaylar ekranları (sade, masaüstüyle aynı retro dil)
-- [ ] `cafer sunucu --port` giriş noktası; masaüstü kodu yüklenmez (`/sunucu` bunu doğrular)
-- [ ] `sunucu/Dockerfile` (python:3.12-slim, sadece çekirdek + web), `docker-compose.yml` (cafer-web + isteğe bağlı `ollama` servisi GPU profiliyle), `Caddyfile`, `.env.ornek`
-- [ ] `docs/SUNUCU_KURULUM.md`: 2 vCPU/4 GB VPS'e 10 adımda kurulum; alan adı + HTTPS; yedekleme (`.cafer/` klasörü)
-- [ ] Testler: uç nokta testleri (TestClient), token, SSE akışı
-- [ ] `sunucu/kur.sh` sıfır Ubuntu 24.04'te idempotent, `sunucu/dogrula.sh`, gerçek sunucuda (Hetzner) kurulum — mevcut
+- [x] `arayuz/web/`: FastAPI; uç noktalar `/saglik`, `/gorev` (POST/GET), `/onaylar`, `/yetenekler`, `/profil`, `/sohbet` (SSE akış)
+- [x] Tek kullanıcı token kimliği (`CAFER_TOKEN`); yanlış/eksik → 401
+- [x] PWA: `manifest.webmanifest`, service worker, "ana ekrana ekle"; sohbet + görevler + onaylar ekranları (sade, masaüstüyle aynı retro dil)
+- [x] `cafer sunucu --port` giriş noktası; masaüstü kodu yüklenmez (`/sunucu` bunu doğrular)
+- [x] `sunucu/Dockerfile` (python:3.12-slim, sadece çekirdek + web), `docker-compose.yml` (cafer-web + isteğe bağlı `ollama` servisi GPU profiliyle), `Caddyfile`, `.env.ornek`
+- [x] `docs/SUNUCU_KURULUM.md`: 2 vCPU/4 GB VPS'e 10 adımda kurulum; alan adı + HTTPS; yedekleme (`.cafer/` klasörü)
+- [x] Testler: uç nokta testleri (TestClient), token, SSE akışı
+- [ ] `sunucu/kur.sh` sıfır Ubuntu 24.04'te idempotent, `sunucu/dogrula.sh`, gerçek sunucuda (Hetzner) kurulum — mevcut (kur.sh + dogrula.sh yazıldı; sıfır makinede ve Hetzner'da deneme ELLE: KONTROL_LISTEN K8)
       plandan taşındı (eski Aşama 5, talimat aşağıda). Kurulum belgesi tek olur: `docs/SUNUCU_KURULUM.md` ve
       `sunucu/BENIOKU.md` aynı adımları ayrı ayrı anlatmaz (bkz. `NOTLAR/SORULAR.md`).
 

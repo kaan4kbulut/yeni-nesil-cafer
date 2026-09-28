@@ -9,3 +9,6 @@ dist/
 # sınav setinin ayrıntılı kayıtları (RAPOR.md git'te)
 testler/sinav/sonuclar/
 .cafer/
+
+# sunucu ayarları (anahtarlar)
+sunucu/.env

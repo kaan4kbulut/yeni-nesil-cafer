@@ -1,7 +1,7 @@
 """Komut satırı yüzü (`cafer` / `python -m asistan`): çekirdeği çağırır, Qt yüklemez.
 
-Komutlar: `profil` (donanım profili ve kademe), `gorev` (görev motoru), `yetenek` (yetenek kayıt defteri). Sunucu
-(`sunucu`) K8'de eklenir.
+Komutlar: `profil` (donanım profili ve kademe), `gorev` (görev motoru), `yetenek` (yetenek kayıt defteri), `sinav`
+(K7), `sunucu` (K8: FastAPI + PWA; masaüstü kodu yüklenmez).
 """
 
 import sys
@@ -9,7 +9,8 @@ import sys
 KOMUTLAR = {"profil": "donanım profili ve kademe (--json, --kilitle <kademe>, --kilidi-ac)",
             "gorev": "\"<istek>\" çok adımlı görev; --liste, --goster/--devam/--onayla/--reddet/--iptal <id>",
             "yetenek": "yetenekler: liste; --json, --dogrula, --duman [ad …]",
-            "sinav": "sınav seti (geliştirme kopyasında): --kademe orta, --hizli, --hepsi, --tekrar N (K7)"}
+            "sinav": "sınav seti (geliştirme kopyasında): --kademe orta, --hizli, --hepsi, --tekrar N (K7)",
+            "sunucu": "web + telefon (PWA) sunucusu: --host 127.0.0.1 --port 8765 (K8; CAFER_TOKEN)"}
 
 
 def _yardim() -> str:
@@ -38,6 +39,18 @@ def ana(argv: list[str] | None = None) -> int:
         return yetenek_komutu.komut(kalan)
     if komut == "sinav":
         return _sinav(kalan)
+    if komut == "sunucu":
+        import argparse
+
+        ap = argparse.ArgumentParser(prog="cafer sunucu", description="Web + telefon sunucusu (FastAPI + PWA)")
+        ap.add_argument("--host", default="127.0.0.1")
+        ap.add_argument("--port", type=int, default=8765)
+        ap.add_argument("--telegramsiz", action="store_true", help="Telegram bot döngüsünü başlatma")
+        a = ap.parse_args(kalan)
+        from ..web import calistir
+
+        calistir(a.host, a.port, telegram=not a.telegramsiz)
+        return 0
     print(f"Bilinmeyen komut: {komut}\n\n{_yardim()}", file=sys.stderr)
     return 2
 
