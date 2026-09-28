@@ -17,7 +17,7 @@ Bu dosya depo kökünde, `CLAUDE.md`'nin yanında durur. Her aşama için Claude
 
    Ardından aşamanın talimat bloğunu yapıştır. Büyük aşamalarda (1, 2, 3) plan kipini kullan: Claude Code'da Shift+Tab ile
    "plan mode"a geç ya da "önce plan yap, kod yazma" de; planı okumadan onaylama.
-3. **Aşama bitince:** testler yeşil, `arayuz_denetimi` 0 hata, commit, `paketleme/aktar.sh`, programda gerçek bir deneme.
+3. **Aşama bitince:** testler yeşil, `arayuz_denetimi` 0 hata, commit, `dagitim/aktar.sh`, programda gerçek bir deneme.
    Sonra CLAUDE.md'ye yalnızca kalıcı kural/karar, `NOTLAR/<tarih>.md`'ye deney ve ölçüm. Buradaki kutuyu ✓ yap.
 4. **Yeni özellik isteği** gelirse (senden ya da Claude Code'dan) bu dosyanın sonuna "Sonraya" listesine yaz; aşamayı bölme.
 5. Bir şey bozulursa: `problem_report.py`'nin ürettiği raporu Claude Code'a ver; "rapordaki kanıtlardan başla" de.

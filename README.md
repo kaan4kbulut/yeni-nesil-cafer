@@ -77,7 +77,7 @@ Python 3.12 + PySide6. Mimari, kurallar ve bilinen tuzaklar [`CLAUDE.md`](CLAUDE
 python -m venv .venv && .venv/bin/pip install -r requirements.txt
 ./calistir.sh                                              # geliştirme kopyasını çalıştır
 QT_QPA_PLATFORM=offscreen .venv/bin/python -m unittest discover -s testler   # testler
-paketleme/yayinla.sh                                       # yeni sürümü GitHub'da yayımla
+git tag vX.Y && git push origin vX.Y                       # yeni sürüm: CI üç platformda derler ve yayımlar
 ```
 
 Program kendi kodunu değiştirmez; sorunları algılayıp rapor hazırlar, düzeltmeyi geliştirici yapar.

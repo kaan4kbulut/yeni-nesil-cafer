@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Kaynaktaki değişiklikleri kurulu programa aktarır: önce yedek alır, kopyalar, derler, programı yeniden başlatır.
-# Kullanım: paketleme/aktar.sh [--baslatma]   (--baslatma: yalnızca kopyala, programı yeniden başlatma)
+# Kullanım: dagitim/aktar.sh [--baslatma]   (--baslatma: yalnızca kopyala, programı yeniden başlatma)
 set -euo pipefail
 
 KAYNAK="$(cd "$(dirname "$0")/.." && pwd)"

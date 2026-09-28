@@ -3,7 +3,7 @@
 # (taslak değil; etikette "beta"/"rc" varsa ön sürüm). Sürüm notu dagitim/RELEASE_NOTU.md şablonundan; aynı etikete
 # yeniden gönderim mevcut sürümü günceller (dosyalar üstüne yazılır; eski adlı dosyalar elle silinir).
 # Full (Ollama + model, ≤ 1,9 GB) CI'da derlenmez: geliştirici makinesinde `python dagitim/paketle.py --tam`,
-# `paketleme/yayinla.sh --tam` ile yüklenir (GitHub 2 GB sınırı).
+# `python dagitim/paketle.py --tam` ile üretilip elle yüklenir (GitHub 2 GB sınırı).
 name: Dağıtım
 
 on:

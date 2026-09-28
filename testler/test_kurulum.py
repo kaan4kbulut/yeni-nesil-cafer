@@ -114,13 +114,7 @@ class MacKurulumu(unittest.TestCase):
             rapor = gpu.check([], Settings(), False)
         self.assertTrue(rapor.ok)
         self.assertIn("Metal", rapor.text)
-        sys.path.insert(0, str(KOK / "paketleme"))
-        import paketle
-
-        metin = paketle.betik(KOK / "paketleme" / "mac" / "Kur.command").decode()
-        self.assertNotIn("@PY_", metin)
-        self.assertIn(paketle.PY_SHA["mac_arm64"], metin)
-        self.assertIn("aarch64-apple-darwin", metin)
+        # eski tam paketleyici (Kur.command) NOTLAR/arsiv/paketleme'ye taşındı; macOS kurulumu artık CI'nin .dmg'si
 
 
 class SihirbazOllama(unittest.TestCase):

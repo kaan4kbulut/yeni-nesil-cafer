@@ -9,7 +9,7 @@ Sıra şu, atlama yok:
 
 1. **Aşamayı bul.** `YAPILACAKLAR.md`'yi oku. "$ARGUMENTS" ile başlayan aşamayı bul. Kod verilmemişse ilk tamamlanmamış aşamayı seç ve seçtiğini bana söyle. Aşamanın "Bitti sayılır" maddelerini kendi kontrol listen olarak al.
 
-2. **Bağlamı yükle.** `docs/MIMARI.md` ve `docs/SEMALAR.md`'de bu aşamayla ilgili bölümleri oku. `NOTLAR/MEVCUT_DURUM.md` varsa oku (K0'da üretilir). Mevcut kodda etkilenecek dosyaları Grep/Glob ile bul; tahmin etme, bak.
+2. **Bağlamı yükle.** `docs/MIMARI.md` ve `docs/SEMALAR.md`'de bu aşamayla ilgili bölümleri oku. `NOTLAR/arsiv/MEVCUT_DURUM.md` varsa oku (K0'da üretilir). Mevcut kodda etkilenecek dosyaları Grep/Glob ile bul; tahmin etme, bak.
 
 2b. **Görev listesini kur.** Aşamanın her maddesi için `TaskCreate` ile bir görev aç; ilk görevin başlığı aşama koduyla başlasın (ör. `K3: yonlendirici.py iskeleti`). Son görev her zaman `K<n>: /kontrol + NOTLAR` olsun. Bir maddeye başlarken onu `in_progress`, bitirince `completed` yap — **atlamadan, sırayla**. Bu liste terminaldeki ilerleme çubuğunu besler; güncellemezsen kullanıcı nerede olduğunu göremez. Çalışırken bir madde daha ortaya çıkarsa `TaskCreate` ile ekle (çubuk kendini ayarlar).
 

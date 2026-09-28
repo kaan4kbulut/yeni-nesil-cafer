@@ -242,10 +242,12 @@ class B8FabrikaSandbox(unittest.TestCase):
 
 class B9KurulumPaketi(unittest.TestCase):
     def test_gelistirici_artiklari_pakete_girmez(self):
-        sys.path.insert(0, str(KOK / "paketleme"))
-        import paketle
+        import importlib.util
 
-        yasak = {".cafer", ".claude", "NOTLAR", "sunucu", ".github", ".venv", ".git"}
+        spec = importlib.util.spec_from_file_location("dagitim_paketle_b9", KOK / "dagitim" / "paketle.py")
+        paketle = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(paketle)
+        yasak = {".cafer", ".claude", "NOTLAR", "sunucu", ".github", ".venv", ".git", "testler", "docs"}
         for kaynak, hedef in paketle.program_dosyalari():
             rel = kaynak.relative_to(paketle.PROJE)
             self.assertFalse(set(rel.parts) & yasak, rel)

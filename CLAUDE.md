@@ -68,7 +68,7 @@ yalnızca model ve araçlar. Sunucudaki kopya bilgisayara erişemez; yerel iş k
   `cards.py`, `memory_db.py`/`learning.py`, `factory.py`/`mcp.py`/`browser.py`/`apps.py`, `cloud_server.py`/`cloud_sync.py`,
   `updates.py`/`bootstrap.py`/`problem_report.py`/`gpu.py`, görsel/3D/ses modülleri.
 - **Arayüz `gui/`:** `window.py` + `window_*.py`, `worker.py`, `panels.py`, `sidebar.py`, `dialogs.py`, `setup_wizard.py`.
-- **Veri:** `asistan/ayar/` (modeller.json, guvenlik.toml), `asistan/yetenekler/`. **Dağıtım:** `paketleme/`, `dagitim/`, `sunucu/`.
+- **Veri:** `asistan/ayar/` (modeller.json, guvenlik.toml), `asistan/yetenekler/`. **Dağıtım:** `dagitim/` (aktar.sh, paketle.py, CI), `sunucu/`.
 - **Testler:** `testler/` (unittest; `pytest.ini` yalnızca burayı toplar), `testler/arayuz_denetimi.py` (0 hata olmalı),
   `testler/sinav/` (gerçek görevli sınav: `calistir.py --hizli|--motor`, RAPOR.md).
 

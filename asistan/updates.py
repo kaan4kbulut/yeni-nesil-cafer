@@ -189,7 +189,7 @@ def confirm() -> str:
 
 
 def build_package(source_dir: Path, out_dir: Path) -> tuple[Path, str]:
-    """Yayın için kod paketi (paketleme/yayinla.sh): (zip yolu, sha256)."""
+    """Yayın için kod paketi (dagitim/paketle.py --guncelleme, CI): (zip yolu, sha256)."""
     got = re.search(r'__version__ = "([^"]+)"', (source_dir / "asistan/__init__.py").read_text(encoding="utf-8"))
     version = got.group(1)
     out_dir.mkdir(parents=True, exist_ok=True)

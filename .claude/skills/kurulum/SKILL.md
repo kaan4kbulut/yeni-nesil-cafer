@@ -1,6 +1,6 @@
 ---
 name: kurulum
-description: Kurulum, kurulu kopyaya aktarma, paketleme, dağıtım paketleri (Light/Full, Windows/macOS/Linux), sunucu/Docker kurulumu, sürüm ve yayın işlerinde yükle — paketleme/aktar.sh, dagitim/paketle.py, updates.py, yayinla.sh kuralları burada.
+description: Kurulum, kurulu kopyaya aktarma, dağıtım paketleri (Windows/macOS/Linux), sunucu/Docker kurulumu, sürüm ve yayın işlerinde yükle — dagitim/aktar.sh, dagitim/paketle.py, updates.py, CI dagitim.yml kuralları burada.
 ---
 
 # Kurulum, paketleme, dağıtım ve sürüm
@@ -8,7 +8,7 @@ description: Kurulum, kurulu kopyaya aktarma, paketleme, dağıtım paketleri (L
 ## Kurulu kopya
 
 - Kullanıcının çalıştırdığı kopya `~/.local/share/yeni-nesil-cafer-app/` (kendi Python'u `python/bin/python3`,
-  kütüphaneler `ajan-kutuphaneleri/`). Kaynaktaki değişiklik kullanıcıya ancak `paketleme/aktar.sh` ile ulaşır; testler
+  kütüphaneler `ajan-kutuphaneleri/`). Kaynaktaki değişiklik kullanıcıya ancak `dagitim/aktar.sh` ile ulaşır; testler
   ve sınav kütüphane yolunu hep gerçek kurulumdan bağlar.
 - Veri `~/.local/share/yeni-nesil-cafer/` (DATA_DIR), ayarlar `~/.config/yeni-nesil-cafer/`. 2.2 öncesi Yerel Asistan
   klasörleri ilk ayar yüklemesinde `ayar.klasorleri_tasi` ile taşınır, anahtarlar `keystore.OLD_SERVICE`'ten kopyalanır.
@@ -32,8 +32,8 @@ description: Kurulum, kurulu kopyaya aktarma, paketleme, dağıtım paketleri (L
   karşılaştırması tuple). Yeni sürüm 15 sn açık kalamazsa `main.rollback_if_needed` geri alır; düzgün kapanış çökme
   sayılmaz. Tek dosya (PyInstaller onefile) kopyada uygulama içi güncelleme uyumsuzdur (onedir + zip ya da
   "yeni sürümü indir"; SORULAR K11).
-- Yayın `paketleme/yayinla.sh`: testler geçmeden, atlanan test varken, sınav eşiğin (`testler/sinav/esik.json`)
-  altındayken yayın yok. CHANGELOG.md'ye sürüm notu, `pyproject.toml` sürümü.
+- Yayın: `git tag vX.Y` → CI (`dagitim.yml`) üç platformda derler ve yayınlar; testler geçmeden, atlanan test varken,
+  sınav eşiğin (`testler/sinav/esik.json`) altındayken etiket atılmaz. Eski sürümler `dagitim/paketle.py --eski-sil`. CHANGELOG.md'ye sürüm notu, `pyproject.toml` sürümü.
 
 ## Dağıtım paketleri (K11)
 
@@ -41,9 +41,9 @@ description: Kurulum, kurulu kopyaya aktarma, paketleme, dağıtım paketleri (L
   sığan model, `--butce-gb 1.9`), `--guncelleme` (updates.ASSET + sha256), `--kuru` (plan). `.github/workflows/dagitim.yml`
   `v*` etiketinde üç platformda derler, taslak sürüme yükler. Büyük model dosyası repoya girmez.
 - Paylaşılan paketlere geliştirici artıkları girmez: `.venv`, `.git`, `.cafer`, `.claude`, `NOTLAR`, `testler/sinav/sonuclar`,
-  `sunucu/.env`, `__pycache__` her paketleyicide hariç (`paketleme/paketle.py` ve `dagitim/paketle.py` aynı listeyi kullanmalı).
-- Her yeni değişiklikten sonra kurulum paketleri (Linux/Windows + bulut) yeniden üretilir; kullanıcı bunları
-  arkadaşlarıyla paylaşıp denetiyor. Bulut paketi `paketleme/bulut_paketi.sh` → `dist/`.
+  `sunucu/.env`, `__pycache__` hariç (`dagitim/paketle.py ATLA`).
+- Her yeni değişiklikten sonra kurulum paketleri yeniden üretilir (etiket → CI); kullanıcı bunları arkadaşlarıyla
+  paylaşıp denetiyor. Bulut paketi `dagitim/bulut_paketi.sh` → `dist/`. Eski tam paketleyici `NOTLAR/arsiv/paketleme/`.
 
 ## Sunucu (K8/K9)
 

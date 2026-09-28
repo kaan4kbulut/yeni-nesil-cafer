@@ -49,7 +49,7 @@ sayılabilir mi?" cümlesi.
 ```
 Engelleyici yoksa ve testler yeşilse GEÇTİ. Stil sorunları "Uyarı"dır.
 
-## Bilinen tuzaklar (tam metin: `NOTLAR/mimari-ayrintilar.md`)
+## Bilinen tuzaklar (tam metin: `NOTLAR/arsiv/mimari-ayrintilar.md`)
 
 - NVIDIA sürücüsü bellek baskısında bozulabilir (Xid 62/154, "Reset required"): Ollama sessizce CPU'ya düşer, her şey
   "takılır", `nvidia-smi` `ERR!`. `gpu.fault()` algılar (30 sn önbellek), `power.saving` True, çözüm yeniden başlatma.

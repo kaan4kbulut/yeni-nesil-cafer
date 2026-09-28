@@ -118,7 +118,7 @@ def surum_notu(v: str = "", sablon: Path | None = None) -> str:
     b = re.split(r"^## ", m, flags=re.M)
     degisiklikler = "\n".join(b[1].splitlines()[1:]).strip() if len(b) > 1 else ""
     internet = "\n".join(f"- `{SURUM_ADI}-{s}-internet.{u}`" for s, u in (("Windows", "zip"), ("Linux", "tar.gz"), ("macOS", "zip")))
-    benioku_yolu = PROJE / "paketleme" / "BENIOKU.txt"
+    benioku_yolu = PROJE / "dagitim" / "BENIOKU.txt"
     benioku = ""
     if benioku_yolu.exists():
         metin = benioku_yolu.read_text(encoding="utf-8").replace("@PAKET@", SURUM_ADI).replace("@SURUM@", v)
@@ -223,10 +223,10 @@ def tam(build: Path, butce_gb: float) -> None:
     bootstrap.ollama(uyg)
     if model:
         subprocess.run(["ollama", "pull", model], check=True)
-        # paketleme/paketle.py gomulu_model ile aynı yol: blob + Modelfile program/modeller/ (ad çakışmasın: dosyadan yükle)
+        # eski tam paketleyicinin (NOTLAR/arsiv/paketleme) gomulu_model yolu: blob + Modelfile program/modeller/ (ad çakışmasın: dosyadan yükle)
         import importlib.util
 
-        spec = importlib.util.spec_from_file_location("paketleme_paketle", PROJE / "paketleme" / "paketle.py")
+        spec = importlib.util.spec_from_file_location("paketleme_paketle", PROJE / "NOTLAR" / "arsiv" / "paketleme" / "paketle.py")
         eski = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(eski)
         for src, rel in eski.gomulu_model():
