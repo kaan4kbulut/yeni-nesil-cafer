@@ -167,6 +167,8 @@ class Yurutucu:
 
     # ---- döngü
     def kos(self, gorev: dict) -> dict:
+        if hasattr(self.model, "gorev_id"):  # bulut sayacı görev başına (Görevler penceresi ayrı iş parçacığında)
+            self.model.gorev_id = gorev["gorev_id"]
         gorev["durum"] = "calisiyor"
         self._kaydet(gorev)
         adimlar = gorev["adimlar"]

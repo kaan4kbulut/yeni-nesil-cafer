@@ -32,6 +32,7 @@ class YonlendiriciModeli:
         self.ayarlar, self.baglantilar, self.sor = ayarlar, list(baglantilar or []), sor
         self._kararlar: dict[str, yonlendirici.Secim] = {}
         self._tavan_red = False  # bu motorda tavan bir kez reddedildi: yeniden sorulmaz
+        self.gorev_id: str | None = None  # yürütücü görev kimliğini verir: bulut sayacı görev başına, iş parçacığından bağımsız
 
     def _karar(self, rol: str) -> yonlendirici.Secim:
         if rol not in self._kararlar:
@@ -65,11 +66,13 @@ class YonlendiriciModeli:
                 continue
             try:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
-                if sema is not None:
-                    s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model)
+                if sema is not None:  # yapisal.uret her çağrıyı (düzeltme turu dahil) deftere kendisi yazar
+                    s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model, gorev_id=self.gorev_id)
                     metin, veri, hatalar = s.ham, s.veri, s.hatalar
                 else:
-                    metin, veri, hatalar = saglayici.sohbet(mesajlar, sistem, model=model).metin, None, []
+                    yanit = saglayici.sohbet(mesajlar, sistem, model=model)
+                    metin, veri, hatalar = yanit.metin, None, []
+                    yapisal.harcama_yaz(saglayici, yanit, sistem, mesajlar, metin, self.gorev_id)
             except sg.Iptal:
                 raise  # kullanıcı durdurdu: başka model denenmez
             except Exception as e:
@@ -81,8 +84,6 @@ class YonlendiriciModeli:
                 zincir.basarisiz(str(e)[:200], zaman_asimi=ulasilamadi)  # ulaşılamıyorsa hemen sıradaki
                 continue
             zincir.basarili()
-            if _ucretli(ad):  # ücretli bulut: token yaklaşık (karakter/4)
-                yonlendirici.harcama_ekle(ad, (len(sistem) + len(str(mesajlar)) + len(metin or "")) // 4)
             neden = (karar.neden if (ad, model) == karar.anahtar else tavan_notu
                      or f"yedek: {karar.anahtar[1] if karar.anahtar else '?'} hata verdi")
             return Cevap(metin or "", veri, {"saglayici": ad, "model": model, "neden": neden}, hatalar)
@@ -93,7 +94,8 @@ class YonlendiriciModeli:
         """Ücretli bulut çağrısı yapılabilir mi? Tavan aşıldıysa kullanıcıya bir kez sorulur."""
         from ... import permissions
 
-        karar = permissions.bulut_tavani(yonlendirici.tavan_durumu(), yonlendirici.tavan_onaylandi())
+        karar = permissions.bulut_tavani(yonlendirici.tavan_durumu(self.gorev_id),
+                                         yonlendirici.tavan_onaylandi(self.gorev_id))
         if karar.kind == permissions.ALLOW:
             return True
         if self._tavan_red:
@@ -102,7 +104,7 @@ class YonlendiriciModeli:
             "purpose": f"Bulut maliyet tavanı aşıldı: {karar.reason}. {model} ile devam edilsin mi? "
                        "(Hayır dersen bu iş yerel modelle sürer.)", "model": f"{ad}/{model}"}))
         if evet:
-            yonlendirici.tavan_onayla()
+            yonlendirici.tavan_onayla(self.gorev_id)
         else:
             self._tavan_red = True
             _gunluk.warning("bulut tavanı aşıldı (%s): %s/%s kullanılmıyor", karar.reason, ad, model)

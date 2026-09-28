@@ -60,7 +60,7 @@ class ModellerDosyasi(unittest.TestCase):
         for yol in ("temel.model", "temel.boyut_gb", "varsayilan.ollama", "varsayilan.claude", "varsayilan.bulut_sunucu",
                     "gomme", "gorme", "gorme_uzmani", "ocr", "arac_ustasi", "dikte_temizleme", "basamaklar", "destek",
                     "kategoriler.boyutlar", "kategoriler.kucuk", "kategoriler.modeller", "claude.modeller",
-                    "claude.yedekli", "claude.dusunmesiz", "bulut_katalog", "cli", "sansursuz",
+                    "claude.yedekli", "claude.dusunmesiz", "bulut_katalog", "cli", "sansursuz", "fiyatlar",
                     "aileler.kusak_puani", "aileler.arac_cagiramaz", "aileler.akil_yurutme", "aileler.kod",
                     "aileler.kod_menusu"):
             self.assertIsNotNone(modeller.deger(yol), yol)

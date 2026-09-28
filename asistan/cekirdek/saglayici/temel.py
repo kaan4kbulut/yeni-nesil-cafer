@@ -79,6 +79,19 @@ class Saglayici(ABC):
     def saglik(self) -> Saglik:
         """Sağlayıcı şu an kullanılabilir mi? Ücretli çağrı yapmaz (anahtar var mı, sunucu açık mı)."""
 
+    def kullanim(self, yanit: Yanit) -> tuple[int, int]:
+        """Çağrının gerçek token sayısı (girdi, çıktı) sağlayıcının `usage` verisinden; bilinmiyorsa (0, 0)."""
+        return 0, 0
+
     def maliyet(self, girdi_token: int, cikti_token: int, model: str = "") -> float | None:
-        """Bu çağrının tahmini maliyeti (USD). Yerel ve abonelikli sağlayıcılarda 0; fiyatı bilinmiyorsa None."""
-        return 0.0
+        """Bu çağrının maliyeti (USD): fiyat listesi `ayar/modeller.json → fiyatlar` (USD / 1M token, [girdi, çıktı]).
+        Yerel (Ollama) ve abonelikli (CLI) sağlayıcılarda 0; listede olmayan modelde None."""
+        ad = getattr(self, "ad", "") or ""
+        if ad == "ollama" or ad.startswith("cli:"):
+            return 0.0
+        from .. import modeller
+
+        fiyat = (modeller.deger("fiyatlar") or {}).get(model or getattr(self, "model", ""))
+        if not fiyat:
+            return None
+        return (int(girdi_token) * float(fiyat[0]) + int(cikti_token) * float(fiyat[1])) / 1_000_000

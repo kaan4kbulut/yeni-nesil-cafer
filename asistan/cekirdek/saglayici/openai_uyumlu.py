@@ -98,5 +98,6 @@ class OpenAIUyumluSaglayici(Saglayici):
             return Saglik(False, f"{self.baglanti.name} için model seçilmemiş")
         return Saglik(True)
 
-    def maliyet(self, girdi_token: int, cikti_token: int, model: str = "") -> float | None:
-        return None  # fiyat listesi K3'te (ayar/modeller.json); bilinmiyor
+    def kullanim(self, yanit) -> tuple[int, int]:
+        u = yanit.son.get("usage") or {}
+        return int(u.get("prompt_tokens") or 0), int(u.get("completion_tokens") or 0)

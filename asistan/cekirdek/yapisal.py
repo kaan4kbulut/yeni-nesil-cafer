@@ -54,13 +54,15 @@ def _tur(saglayici) -> str:
 
 
 def _cagir(saglayici, mesajlar: list, sistem: str, sema: dict, model: str, durum: dict,
-           ollama_ek: dict | None = None) -> str:
-    """Tek çağrı; sağlayıcının JSON kısıtını kullanır. `durum["openai"]`: bağlantının desteklediği en iyi kip."""
+           ollama_ek: dict | None = None) -> tuple[str, object]:
+    """Tek çağrı; sağlayıcının JSON kısıtını kullanır. `durum["openai"]`: bağlantının desteklediği en iyi kip.
+    (metin, sağlayıcının yanıtı) döner: yanıttan gerçek token kullanımı okunur."""
     tur = _tur(saglayici)
     duz = semalar.duzlestir(sema)
     secenek = {"model": model} if model else {}
     if tur == "ollama":
-        return saglayici.sohbet(mesajlar, sistem, bicim=duz, dusunme=False, **secenek, **(ollama_ek or {})).metin
+        y = saglayici.sohbet(mesajlar, sistem, bicim=duz, dusunme=False, **secenek, **(ollama_ek or {}))
+        return y.metin, y
     if tur == "openai":
         while True:
             kip = durum.setdefault("openai", "json_schema")
@@ -68,7 +70,8 @@ def _cagir(saglayici, mesajlar: list, sistem: str, sema: dict, model: str, durum
             talimat = TALIMAT.format(sema=json.dumps(duz, ensure_ascii=False))
             ek_sistem = "" if kip == "json_schema" else "\n\n" + talimat
             try:
-                return saglayici.sohbet(mesajlar, sistem + ek_sistem, **ek, **secenek).metin
+                y = saglayici.sohbet(mesajlar, sistem + ek_sistem, **ek, **secenek)
+                return y.metin, y
             except SaglayiciHatasi as e:
                 if e.durum == 400 and kip == "json_schema":
                     durum["openai"] = "json_object"  # bu bağlantı json_schema bilmiyor: bir alt kip
@@ -83,24 +86,44 @@ def _cagir(saglayici, mesajlar: list, sistem: str, sema: dict, model: str, durum
         yanit = saglayici.sohbet(mesajlar, sistem, parametreler=params)
         for blok in getattr(yanit.son.get("yanit"), "content", None) or []:
             if getattr(blok, "type", "") == "tool_use":
-                return json.dumps(blok.input, ensure_ascii=False)
-        return yanit.metin
+                return json.dumps(blok.input, ensure_ascii=False), yanit
+        return yanit.metin, yanit
     ek_sistem = TALIMAT.format(sema=json.dumps(duz, ensure_ascii=False))
     sistem = f"{sistem}\n\n{ek_sistem}" if sistem else ek_sistem
-    return saglayici.sohbet(mesajlar, sistem, **secenek).metin
+    y = saglayici.sohbet(mesajlar, sistem, **secenek)
+    return y.metin, y
+
+
+def harcama_yaz(saglayici, yanit, sistem: str, mesajlar: list, metin: str, gorev_id: str | None = None) -> None:
+    """Ücretli sağlayıcının çağrısı bulut defterine: gerçek `usage` (yoksa karakter/4 tahmini). Yerel ve CLI sayılmaz."""
+    ad = getattr(saglayici, "ad", "") or ""
+    if not ad or ad == "ollama" or ad.startswith("cli:"):
+        return
+    from . import yonlendirici
+
+    girdi, cikti = (0, 0)
+    if yanit is not None and hasattr(saglayici, "kullanim"):
+        try:
+            girdi, cikti = saglayici.kullanim(yanit)
+        except Exception:  # sağlayıcı beklenmedik biçim verdiyse tahmine düş
+            girdi, cikti = 0, 0
+    toplam = (girdi + cikti) or (len(sistem) + len(str(mesajlar)) + len(metin or "")) // 4
+    yonlendirici.harcama_ekle(ad, toplam, gorev_id=gorev_id)
 
 
 def uret(saglayici, mesajlar: list, sema: dict, sistem: str = "", model: str = "", deneme: int = 2,
-         ek_denetim=None, ollama_ek: dict | None = None) -> Sonuc:
+         ek_denetim=None, ollama_ek: dict | None = None, gorev_id: str | None = None) -> Sonuc:
     """`sema`ya uyan tek JSON nesnesi. İlk deneme + (deneme-1) düzeltme turu; sağlayıcı hataları yukarı çıkar.
 
     `ek_denetim(veri) -> list[str]`: şemanın anlatamadığı kurallar (ör. adım bağımlılığı geriye bakmalı); hataları da
-    düzeltme turunda modele gösterilir. `ollama_ek`: Ollama seçenekleri (num_ctx, num_predict)."""
+    düzeltme turunda modele gösterilir. `ollama_ek`: Ollama seçenekleri (num_ctx, num_predict). Ücretli sağlayıcıda
+    HER çağrı (düzeltme turu dahil) gerçek `usage` ile bulut defterine yazılır (`gorev_id`: görev sayacı)."""
     mesajlar = list(mesajlar)
     durum: dict = {}
     sonuc = Sonuc(None)
     for i in range(max(1, deneme)):
-        ham = _cagir(saglayici, mesajlar, sistem, sema, model, durum, ollama_ek)
+        ham, yanit = _cagir(saglayici, mesajlar, sistem, sema, model, durum, ollama_ek)
+        harcama_yaz(saglayici, yanit, sistem, mesajlar, ham, gorev_id)
         sonuc.ham, sonuc.deneme = ham, i + 1
         veri = json_ayikla(ham)
         sonuc.hatalar = ["$: JSON nesnesi yok"] if veri is None else semalar.dogrula(veri, sema)

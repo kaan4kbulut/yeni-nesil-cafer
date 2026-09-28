@@ -69,5 +69,11 @@ class ClaudeSaglayici(Saglayici):
             return Saglik(True)
         return Saglik(False, "Claude API anahtarı yok")
 
-    def maliyet(self, girdi_token: int, cikti_token: int, model: str = "") -> float | None:
-        return None  # fiyat listesi K3'te (ayar/modeller.json); bilinmiyor
+    def kullanim(self, yanit) -> tuple[int, int]:
+        """SDK'nin son mesajındaki `usage`: girdi = düz + önbelleğe yazılan + önbellekten okunan; çıktı."""
+        u = getattr(yanit.son.get("yanit"), "usage", None)
+        if u is None:
+            return 0, 0
+        girdi = sum(int(getattr(u, ad, 0) or 0) for ad in
+                    ("input_tokens", "cache_creation_input_tokens", "cache_read_input_tokens"))
+        return girdi, int(getattr(u, "output_tokens", 0) or 0)

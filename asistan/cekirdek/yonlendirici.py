@@ -9,8 +9,10 @@ sınanır. Adayları `adaylar()` programın kadrosundan (roster, kartlar, bağla
 bu dosyadadır; `roster.manager_for` ve `roster.stronger` buraya devreder (ikinci bir seçim kodu yok).
 """
 
+import contextlib
 import json
 import logging
+import os
 import threading
 import time
 from dataclasses import dataclass, field
@@ -226,12 +228,44 @@ SAGLIK = SaglikOnbellegi()
 
 # ---------------------------------------------------------------- bulut harcaması ve tavan
 
-_gorev = threading.local()  # bu iş parçacığındaki isteğin bulut token sayacı
+_gorev = threading.local()  # bu iş parçacığındaki İSTEĞİN görev kimliği (Manager: gorev_basla() her istekte)
+_sayaclar: dict[str, dict] = {}  # görev kimliği → {"token": int, "onay": bool}; iş parçacığından bağımsız
+_sayac_kilidi = threading.Lock()
 _defter_kilidi = threading.Lock()
 
 
 def _defter_yolu():
     return ayar.DATA_DIR / "bulut_harcama.json"
+
+
+@contextlib.contextmanager
+def _dosya_kilidi(yol):
+    """Süreçler arası kilit (CLI + masaüstü aynı anda yazabilir): POSIX `flock`, Windows `msvcrt.locking`."""
+    yol.parent.mkdir(parents=True, exist_ok=True)
+    with open(yol, "a+b") as f:
+        try:
+            if os.name == "nt":
+                import msvcrt
+
+                f.seek(0)
+                msvcrt.locking(f.fileno(), msvcrt.LK_LOCK, 1)
+            else:
+                import fcntl
+
+                fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        except OSError:
+            pass  # kilitlenemeyen dosya sistemi: süreç içi kilit yine var
+        try:
+            yield
+        finally:
+            try:
+                if os.name == "nt":
+                    f.seek(0)
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                else:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            except OSError:
+                pass
 
 
 def _defter() -> dict:
@@ -242,26 +276,42 @@ def _defter() -> dict:
         return {}
 
 
-def gorev_basla() -> None:
-    """Yeni istek: görev başına sayaç sıfırlanır, tavan onayı yeniden sorulur."""
-    _gorev.token = 0
-    _gorev.onay = False
+def _kimlik(gorev_id: str | None) -> str:
+    """Sayaç anahtarı: verilen görev kimliği; yoksa bu iş parçacığındaki isteğin kimliği; o da yoksa ortak kova."""
+    return gorev_id if gorev_id is not None else getattr(_gorev, "kimlik", "")
 
 
-def gorev_token() -> int:
-    return getattr(_gorev, "token", 0)
+def gorev_basla(gorev_id: str | None = None) -> str:
+    """Yeni istek/görev: sayaç sıfırlanır, tavan onayı yeniden sorulur. Kimlik verilmezse bu iş parçacığı için
+    üretilir (Manager yolu); görev motoru kendi görev kimliğini verir. Kimliği döndürür."""
+    kimlik = gorev_id or f"istek-{threading.get_ident()}-{time.monotonic_ns()}"
+    _gorev.kimlik = kimlik
+    with _sayac_kilidi:
+        _sayaclar[kimlik] = {"token": 0, "onay": False}
+        if len(_sayaclar) > 500:  # eski istekler birikmesin
+            for eski in list(_sayaclar)[:-200]:
+                _sayaclar.pop(eski, None)
+    return kimlik
+
+
+def gorev_token(gorev_id: str | None = None) -> int:
+    with _sayac_kilidi:
+        return int((_sayaclar.get(_kimlik(gorev_id)) or {}).get("token", 0))
 
 
 def gunluk_token(gun: str | None = None) -> int:
     return int(_defter().get(gun or date.today().isoformat(), 0))
 
 
-def harcama_ekle(saglayici: str, token: int) -> None:
-    """Ücretli bulut çağrısının token'ı günlük deftere ve görev sayacına eklenir (yerel ve CLI sayılmaz)."""
+def harcama_ekle(saglayici: str, token: int, gorev_id: str | None = None) -> None:
+    """Ücretli bulut çağrısının token'ı günlük deftere ve görevin sayacına eklenir (yerel ve CLI sayılmaz)."""
     if not token or saglayici == "ollama" or str(saglayici).startswith("cli:"):
         return
-    _gorev.token = gorev_token() + int(token)
-    with _defter_kilidi:
+    kimlik = _kimlik(gorev_id)
+    with _sayac_kilidi:
+        kayit = _sayaclar.setdefault(kimlik, {"token": 0, "onay": False})
+        kayit["token"] += int(token)
+    with _defter_kilidi, _dosya_kilidi(_defter_yolu().with_suffix(".lock")):
         defter = _defter()
         gun = date.today().isoformat()
         defter = {g: t for g, t in defter.items() if g >= _gun_once(30)}  # 30 günden eskisi silinir
@@ -279,24 +329,27 @@ def _gun_once(n: int) -> str:
     return (date.today() - timedelta(days=n)).isoformat()
 
 
-def tavan_durumu() -> str:
+def tavan_durumu(gorev_id: str | None = None) -> str:
     """Tavan aşıldıysa kullanıcıya gösterilecek neden; aşılmadıysa boş. 0 ya da negatif tavan = sınırsız."""
     gunluk = int(ayar.deger("bulut.gunluk_tavan_token") or 0)
     gorev = int(ayar.deger("bulut.gorev_tavan_token") or 0)
     if gunluk > 0 and gunluk_token() >= gunluk:
         return f"bugünkü bulut kullanımı {gunluk_token():,} token (günlük tavan {gunluk:,})".replace(",", ".")
-    if gorev > 0 and gorev_token() >= gorev:
-        return f"bu iş {gorev_token():,} token harcadı (görev tavanı {gorev:,})".replace(",", ".")
+    harcanan = gorev_token(gorev_id)
+    if gorev > 0 and harcanan >= gorev:
+        return f"bu iş {harcanan:,} token harcadı (görev tavanı {gorev:,})".replace(",", ".")
     return ""
 
 
-def tavan_onaylandi() -> bool:
-    return bool(getattr(_gorev, "onay", False))
+def tavan_onaylandi(gorev_id: str | None = None) -> bool:
+    with _sayac_kilidi:
+        return bool((_sayaclar.get(_kimlik(gorev_id)) or {}).get("onay", False))
 
 
-def tavan_onayla() -> None:
-    """Kullanıcı bu istek için tavanı aşmayı onayladı: aynı istekte bir daha sorulmaz."""
-    _gorev.onay = True
+def tavan_onayla(gorev_id: str | None = None) -> None:
+    """Kullanıcı bu istek/görev için tavanı aşmayı onayladı: aynı istekte bir daha sorulmaz."""
+    with _sayac_kilidi:
+        _sayaclar.setdefault(_kimlik(gorev_id), {"token": 0, "onay": False})["onay"] = True
 
 
 # ---------------------------------------------------------------- saf karar
