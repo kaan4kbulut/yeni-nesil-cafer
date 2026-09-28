@@ -46,7 +46,7 @@ def dogrula(kayit: Kayit) -> int:
 
 def duman(kayit: Kayit, adlar: list[str] | None = None, ayarlar=None) -> int:
     """Örnekleri koşar; (başarısız + geçersiz manifest) sayısı > 0 ise 1."""
-    from ...config import Settings
+    from ..ayar import Settings
     from ..gorev.ajan import AjanYetenekleri
     from ..gorev.dogrulayici import _BASARISIZ
 

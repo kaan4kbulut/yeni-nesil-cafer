@@ -37,9 +37,9 @@ def motor_kur(ayarlar=None, baglantilar=None, istek: str = "", gorev_id: str = "
 
     Sohbetten (`sohbet.py`): `klasor` sohbetin iş klasörü, `okunur` ana çalışma klasörü, `ust_cb` sohbetin geri
     çağrısı, `izin_kaynagi` sohbet ajanı, `sohbet_id` görevi sohbete bağlar. Kayıtlı görev kendi klasöründe sürer."""
-    from ...config import Settings
     from ...connections import load_connections
     from .. import profil, yonlendirici
+    from ..ayar import Settings
     from .ajan import AjanYetenekleri
     from .model import YonlendiriciModeli
     from .yurutucu import Yurutucu

@@ -40,22 +40,26 @@ asistan/
       planlayici.py         # → şema kısıtlı JSON plan (docs/SEMALAR.md)
       yurutucu.py           # adım adım çalıştırma, checkpoint, devam
       dogrulayici.py        # adım başarı ölçütü kontrolü
-      durum.py              # görev deposu (SQLite): .cafer/gorevler.db
+      durum.py              # görev deposu (SQLite): DATA_DIR/gorevler.db (K2/K4 kararı: .cafer/ yalnızca geliştirme)
     yetenek/                # yetenek kayıt defteri
       kayit.py              # manifest tarama, listeleme, şema doğrulama
       calistirici.py        # yeteneği sandbox'ta çalıştırma
       yukleyici.py          # eksik pip/ikili kurma (guvenlik.py onayıyla)
       uretici.py            # yeni yetenek iskeleti üretme (kod ajanı ile) + test
     analiz/
-      hata.py               # hata sınıflandırma → eylem
-      olcum.py              # hız/başarı ölçümü; kademe otomatik ayarı
+      hata.py               # hata sınıflandırma → eylem (K6)
+      olcum.py              # hız/başarı ölçümü; kademe otomatik ayarı; sınav geri beslemesi (K7)
+    guvenlik.py             # politika okuyucu (permissions.decide uygular; K6)
+    bildirim.py             # ntfy / Telegram (K9)
+    uzak.py                 # uzak mod istemcisi + görev senkronu (K9)
   arayuz/
     masaustu/               # PySide6 (mevcut UI buraya taşınır)
-    web/                    # FastAPI + PWA (telefon)
+    web/                    # FastAPI + PWA (telefon) — `python -m asistan sunucu` (K8); eski bulut API'si aynı uygulamada
     komut/                  # `cafer` CLI: cafer profil | cafer gorev "…" | cafer sunucu
   yetenekler/               # yerleşik yetenekler (K5): her biri manifest.json + calistir.py + test_<ad>.py
                             # (asistan/ içinde: güncelleme paketi yalnızca asistan/ taşır; üretilenler DATA_DIR/yetenekler)
-sunucu/                     # Dockerfile, docker-compose.yml, Caddyfile, .env.ornek
+sunucu/                     # Dockerfile, docker-compose.yml, Caddyfile, .env.ornek, kur.sh, dogrula.sh (K8)
+dagitim/                    # paketle.py: Light/Full paketler (.exe/.dmg/AppImage), CI dagitim.yml (K11)
 testler/
 docs/
 NOTLAR/
@@ -68,13 +72,13 @@ NOTLAR/
 
 ## 3. Kademeler
 
-Açılışta `profil.py` ölçer: CPU çekirdek, RAM, GPU/VRAM (nvidia-smi → torch → Vulkan/Metal sırayla dener), disk, işletim sistemi, ağ var mı, Ollama çalışıyor mu. Sonuç `.cafer/profil.json`'a yazılır; kullanıcı elle kademeyi kilitleyebilir.
+Açılışta `profil.py` ölçer: CPU çekirdek, RAM, GPU/VRAM (nvidia-smi → torch → Vulkan/Metal sırayla dener), disk, işletim sistemi, ağ var mı, Ollama çalışıyor mu. Sonuç `DATA_DIR/profil.json`'a yazılır (`.cafer/` yalnızca geliştirme klasörüdür); kullanıcı elle kademeyi kilitleyebilir. Hız ölçümü (K7) kilit yokken kademeyi kaydırabilir: varsayılan yerel model < 3 tok/sn → bir alt kademe, üst kademenin varsayılanı ≥ 9 tok/sn ve karta sığıyorsa → bir üst (`kademe.otomatik`, kullanıcıya bildirilir).
 
 | Kademe | Tipik donanım | Yerel model | Varsayılan davranış |
 |---|---|---|---|
 | `dusuk` | ≤ 8 GB RAM, GPU yok | ≤ 3B parametreli, isteğe bağlı | Bulut API varsa bulut; yoksa küçük model + görevleri küçük parçalara bölme. Embedding, tarayıcı otomasyonu, uzun bağlam kapalı. |
 | `orta` | 16 GB RAM, GPU yok ya da ≤ 6 GB VRAM | 7–8B | Basit işler yerel, karmaşık işler (kod üretimi, çok adımlı plan) bulut. |
-| `yuksek` | ≥ 32 GB RAM, ≥ 8 GB VRAM | 14–32B | Yerel varsayılan; bulut isteğe bağlı ve gizlilik ayarına göre. |
+| `yuksek` | ≥ 32 GB RAM, ≥ 8 GB VRAM | 14B (kart ≥ 16 GB ise 32B; 12 GB kartta 27–32B bölünür, yönlendirici VRAM'e bakar) | Yerel varsayılan; bulut isteğe bağlı ve gizlilik ayarına göre. |
 | `sunucu` | Başsız (headless), GPU yok/var | GPU varsa Ollama | GPU yoksa tüm çıkarım bulut API; web arayüzü ve görev deposu sunucuda. |
 
 Model adları **kodda sabit değil**, `ayar/modeller.json`'da kademe başına liste halinde tutulur. "10 önerilen model" listesi yenilendikçe bu dosya güncellenir; kod dokunulmaz.
@@ -107,11 +111,11 @@ Her adım için sağlayıcı+model seçimi şu sırayla karar verilir:
 1. **Çevrimdışı mı?** → sadece yerel. Yerel yoksa: görevi "bekleyen" olarak kaydet, kullanıcıya söyle.
 2. **Gizlilik ayarı `yerel`** → bulut hiç kullanılmaz.
 3. **Görev türü:**
-   - `sohbet` / `ozet` / `siniflandirma` → rol `hizli`
+   - `sohbet` / `ozet` / `siniflandirma` → rol `hizli` = karta sığan, araç sınavını tam geçen yerellerden ölçülmüş tok/sn'si en yüksek olan (ölçüm yoksa en küçük puanlı); sınav (K7) bu kademede bu tür için hızlı rolü %50 altında gösterdiyse `yonetici`
    - `planlama` / `analiz` / `cok_adimli` → rol `yonetici`
    - `kod_uretimi` / `yetenek_uretimi` → rol `kod` (CLI ajan varsa o)
 4. **Kademe kısıtı:** `dusuk` kademede rol `yonetici` yerelde karşılanamıyorsa → bulut varsa bulut, yoksa görevi parçala ve `hizli` ile dene.
-5. **Yedekleme zinciri:** zaman aşımı ya da 2 başarısız deneme → bir üst güç seviyesine yükselt (yerel küçük → yerel büyük → bulut). Zincirin sonunda hâlâ başarısızsa `analiz/hata.py`'ye devret.
+5. **Yedekleme zinciri** (`yonlendirici.Zincir`, görev motorunda üretimde): aynı modelde 2 başarısız deneme → bir üst basamak (yerel küçük → yerel büyük → bulut); ulaşılamayan sağlayıcı (bağlantı, zaman aşımı, 401) hemen bir sonraki; `Iptal` zinciri ilerletmez; şemaya uymayan cevap zincir başarısızlığı değildir (`model_yetersiz`). Zincirin sonunda `analiz/hata.py`'ye devret.
 6. **Sağlık:** her sağlayıcının `saglik()` sonucu 5 dk önbelleklenir; sağlıksız sağlayıcı zincirden düşer.
 7. **Maliyet tavanı:** bulut için görev başına ve günlük token/₺ tavanı (`ayar.toml`); aşılınca kullanıcıya sor.
 
@@ -138,15 +142,15 @@ DOĞRULA (dogrulayici.py) → başarı ölçütü sağlandı mı?
   │   evet → sonraki adım
   │   hayır → deneme hakkı varsa tekrar; yoksa ▼
   ▼
-HATA ANALİZİ (analiz/hata.py) → sınıf + eylem (bkz. §7)
+HATA ANALİZİ (analiz/hata.py) → sınıf + eylem (bkz. §7): kur (onaylı) / üret (onaylı) → adımı tekrar; ağ → 3 deneme; mantık → en çok 2 yeniden planlama; izin → kullanıcıya soru; gerisi dürüst "yapılamadı"
   │
   ▼
 RAPORLA → kısa özet + ne yapıldı + ne yapılamadı + öneri
 ```
 
-**Devam etme:** Program kapanıp açılsa da `.cafer/gorevler.db`'den yarım görevler listelenir; kullanıcı "devam et" der, `checkpoint.son_adim + 1`'den sürer.
+**Devam etme:** Program kapanıp açılsa da `DATA_DIR/gorevler.db`'den yarım görevler listelenir; kullanıcı "devam et" der, `checkpoint.son_adim + 1`'den sürer.
 
-**Onay noktaları:** dosya silme, ödeme/hesap işlemi, paket kurma, ağ üzerinden veri gönderme → `guvenlik.py` politikasına göre ya otomatik ya da kullanıcı onayı ister. Sunucu modunda onay web arayüzünden/telefondan verilir.
+**Onay noktaları:** dosya silme, ödeme/hesap işlemi, paket kurma, ağ üzerinden veri gönderme → tek izin hattı `permissions.decide` (politika `guvenlik.py`: yasak → ret, otomatik kurulum → izin, sor → hat sorar). İzin bağlamı olmayan yollarda (komut satırı, Görevler penceresi, web) yazan/çalıştıran her adım onay bekler. Sunucu modunda onay web arayüzünden/telefondan (`/onaylar`), bildirim ntfy/Telegram (K9).
 
 ---
 
@@ -166,7 +170,7 @@ Kayıt defteri açılışta tarar; manifesti bozuk ya da gereksinimi karşılanm
 Yetenek kaynakları:
 - `yerlesik` — repoyla gelir
 - `katalog` — GitHub'daki ayrı bir `cafer-yetenekler` deposundan indirilir (imzalı/allowlist)
-- `uretildi` — kod ajanı üretti, sandbox testinden geçti, kullanıcı onayladı
+- `uretildi` — kod ajanı üretti (`yetenek/uretici.py`: manifest → kod → ayrı venv'de test → onay), `DATA_DIR/yetenekler/`; `guvenilir: false`, her çalıştırma sandbox'ta
 
 ---
 
@@ -179,9 +183,9 @@ Her başarısız adım şu sınıflardan birine sokulur ve eylem tetiklenir:
 | `model_yetersiz` | boş/anlamsız çıktı, şemaya uymayan plan, halüsinasyon | yönlendirici → bir üst model; hâlâ olmuyorsa görevi parçala |
 | `eksik_bagimlilik` | `ModuleNotFoundError`, `command not found`, `.dll/.so` yok | `yukleyici.py`: pip/winget/apt/brew ile kur (politika onayı) → adımı tekrar |
 | `eksik_yetenek` | planlayıcı "bunu yapacak yeteneğim yok" dedi | 1) katalogda ara 2) yoksa `uretici.py` ile iskelet üret → sandbox test → onay → kaydet → adımı tekrar |
-| `izin` | dosya/ağ/işletim sistemi izni reddi | kullanıcıya net soru; sunucu modunda bildirim |
+| `izin` | dosya/ağ/işletim sistemi izni reddi | görev `bekliyor_kullanici` + net soru; sunucu modunda bildirim |
 | `ag` | zaman aşımı, DNS, 5xx | 3 deneme üstel bekleme; sonra çevrimdışı moda düş |
-| `mantik` | çıktı var ama ölçüt sağlanmıyor | başarısız çıktıyı bağlama ekleyip yeniden planla (en fazla 2 kez) |
+| `mantik` | çıktı var ama ölçüt sağlanmıyor | başarısız çıktıyı bağlama ekleyip kalan işi yeniden planla (en fazla 2 kez; biten adımlar kalır) |
 | `veri` | girdi bozuk/eksik | kullanıcıya hangi verinin eksik olduğunu söyle |
 | `kaynak` | RAM/VRAM/disk yetersiz | daha küçük model; bağlamı kısalt; kademeyi düşür |
 
@@ -207,7 +211,7 @@ Her üretilen yetenek `kaynak: "uretildi"` ile işaretlenir ve `/kontrol` listes
 
 ## 9. Sunucu / Bulut Modu
 
-**Aynı paket, farklı giriş noktası:** `cafer sunucu` → FastAPI + PWA. Masaüstü kodu yüklenmez.
+**Aynı paket, farklı giriş noktası:** `python -m asistan sunucu` (`cafer sunucu`) → FastAPI + PWA (`arayuz/web`). Masaüstü kodu yüklenmez (test ayrı süreçte doğrular). Eski bulut API'si (`/api/*`: hafıza eşitleme, bilgisayara bırakılan işler, Telegram) aynı uygulamada sürer; kurulum belgesi `docs/SUNUCU_KURULUM.md`.
 
 ```
 sunucu/
@@ -227,11 +231,11 @@ sunucu/
 
 ## 10. Güvenlik İlkeleri (`guvenlik.py`)
 
-- Politika dosyası `ayar/guvenlik.toml`: `kurulum = "sor" | "otomatik" | "yasak"`, `ag = "sor" | "serbest"`, `dosya_silme = "sor"`, `sandbox_zaman_asimi_sn = 60`.
+- Politika dosyası `asistan/ayar/guvenlik.toml` (programla gelir; `ayar.toml → [guvenlik]` ve `CAFER_GUVENLIK_*` ezer): `kurulum = "sor" | "otomatik" | "yasak"`, `ag = "sor" | "serbest"`, `dosya_silme = "sor"`, `sandbox_zaman_asimi_sn = 60`.
 - Kademe `dusuk`'te ve sunucuda `kurulum` varsayılanı `sor`.
 - Üretilen yetenekler ilk 5 çalıştırmada her zaman sandbox'ta; sonra kullanıcı "güvenilir" işaretleyebilir.
 - Kurulum kaynakları allowlist: PyPI, resmi paket yöneticileri, `cafer-yetenekler` kataloğu. Rastgele URL'den script indirme yasak.
-- Tüm alt süreçler zaman aşımıyla; çıktı boyutu sınırlı; ortam değişkenlerinden API anahtarları alt sürece geçirilmez (manifest `izinler` içinde `anahtar:<ad>` yoksa).
+- Tüm alt süreçler zaman aşımıyla; çıktı boyutu sınırlı; alt sürece yalnızca beyaz listeli ortam geçer (`araclar/komut.guvenli_ortam`: PATH/HOME/LANG/TERM/PYTHON*/LC_*/XDG_*); API anahtarı yalnızca manifest `anahtar:<AD>` ile, `CAFER_*` ve `ANTHROPIC_API_KEY` hiçbir zaman.
 
 ---
 
@@ -244,3 +248,16 @@ sunucu/
 5. Kurulum, silme, ağ üzerinden gönderme → `guvenlik.py`'den geçer.
 6. Türkçe adlandırma (mevcut proje diliyle uyumlu), İngilizce sadece kütüphane API'lerinde.
 7. Ağır bağımlılık (torch, transformers, tarayıcı motoru vb.) çekirdeğe girmez; yetenek gereksinimi olarak isteğe bağlı kalır.
+
+---
+
+## 12. Dağıtım (K11)
+
+- `dagitim/paketle.py`: **Light** (~200 MB: program + Python bağımlılıkları; model yok, ilk açılış indirir) ve **Full**
+  (Light + gömülü Ollama + bütçeye sığan varsayılan model; ≤ 1,9 GB — GitHub sürüm dosyası sınırı). Ürünler: Windows
+  `.exe` (PyInstaller onefile), macOS `.dmg`, Linux `.AppImage`; her birinin yanında `.sha256`.
+- `.github/workflows/dagitim.yml`: `v*` etiketinde üç platformda Light derlenir, uygulama içi güncelleme paketi
+  (`updates.ASSET`) eklenir, taslak sürüm açılır. Full CI'da derlenmez (`paketleme/yayinla.sh --tam`).
+- Uygulama içi güncelleme (`updates.py`) yalnızca kod paketini (`asistan/` + `main.py`) ister; dağıtım paketleri ek
+  dosyalardır. Not: onefile `.exe` içinde kod paketi uygulanamaz (SORULAR K11).
+- İlk açılış sihirbazı: sistem taraması + kademe + yetenek önerisi → yerel / bulut / ikisi → gizlilik → modeller.

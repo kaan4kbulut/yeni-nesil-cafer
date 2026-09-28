@@ -85,7 +85,7 @@ eder), `hazir_mi() -> str` (boş değilse yetenek pasif, metin nedenidir). Klas�
 
 ---
 
-## 2. Görev Planı — `.cafer/gorevler.db` içinde JSON
+## 2. Görev Planı — `DATA_DIR/gorevler.db` içinde JSON (`.cafer/` yalnızca geliştirme klasörü)
 
 ```json
 {
@@ -174,7 +174,7 @@ Sınıflar (bkz. MIMARI §7): `model_yetersiz` · `eksik_bagimlilik` · `eksik_y
 
 ---
 
-## 4. Donanım Profili — `.cafer/profil.json`
+## 4. Donanım Profili — `DATA_DIR/profil.json`
 
 ```json
 {

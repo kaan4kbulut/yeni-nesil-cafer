@@ -112,6 +112,42 @@ class CekirdekAyrimiTesti(unittest.TestCase):
         self.assertNotEqual(s.returncode, 0)
         self.assertIn("YASAK", s.stderr)
 
+    # çekirdek → eski gövde (agent, manager, tools, registry, permissions, learning, work, connections, keystore,
+    # cli_agents, mcp) içe aktarmaları: bağımlılık yönü ters (BÖLÜM 7 bekçisi). Liste büyüyemez; taşındıkça küçülür.
+    ESKI_GOVDE_IZINLI = {
+        "gorev/ajan.py": {"tools", "agent", "registry", "permissions"},
+        "gorev/komut.py": {"work", "connections"},
+        "gorev/model.py": {"permissions"},
+        "gorev/sohbet.py": {"learning", "agent", "manager"},
+        "saglayici/cli_ajan.py": {"cli_agents"},
+        "saglayici/__init__.py": {"cli_agents", "connections", "keystore"},
+        "yetenek/yukleyici.py": {"mcp"},
+        "yetenek/calistirici.py": set(),
+        "istek.py": {"learning", "agent", "manager"},
+        "yonlendirici.py": {"cards", "model_updates", "cli_agents", "roster", "connections"},
+        "profil.py": set(), "bildirim.py": {"cloud_server"}, "guvenlik.py": set(), "uzak.py": set(),
+        "analiz/olcum.py": set(), "analiz/hata.py": set(), "yapisal.py": set(), "modeller.py": set(), "ayar.py": set(),
+        "araclar/web.py": set(), "araclar/komut.py": set(), "araclar/dosya.py": set(), "araclar/urunler.py": set(),
+    }
+    _ESKI = re.compile(r"^\s*from \.\.\.(?:\s+import\s+([\w, ]+)|([\w.]+)\s+import)", re.M)
+
+    def test_cekirdek_eski_govdeye_yeni_bagimlilik_eklemiyor(self):
+        """Çekirdekten eski gövdeye içe aktarmalar bilinen listeyle sınırlı; yeni bir tane eklenirse test kırılır
+        (giderilmesi: o modülü çekirdeğe taşımak ya da çekirdekten çağırmamak; SORULAR BÖLÜM 7)."""
+        fazla = []
+        for dosya in sorted(CEKIRDEK.rglob("*.py")):
+            ad = dosya.relative_to(CEKIRDEK).as_posix()
+            bulunan = set()
+            for e in self._ESKI.finditer(dosya.read_text(encoding="utf-8")):
+                if e.group(1):
+                    bulunan |= {x.strip().split(" as ")[0] for x in e.group(1).split(",") if x.strip()}
+                else:
+                    bulunan.add(e.group(2).split(".")[0])
+            izinli = self.ESKI_GOVDE_IZINLI.get(ad, set())
+            if bulunan - izinli:
+                fazla.append(f"{ad}: {sorted(bulunan - izinli)}")
+        self.assertEqual(fazla, [], "çekirdekten eski gövdeye yeni içe aktarma:\n" + "\n".join(fazla))
+
     def test_yasak_desen_ornekleri(self):
         for satir in ("from PySide6.QtCore import QObject", "import fastapi", "from ..gui import chat",
                       "    from PySide6 import QtGui", "from asistan.arayuz.masaustu import x"):
