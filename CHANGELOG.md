@@ -2,6 +2,29 @@
 
 Biçim: sürüm → başlıklar. Tarihli deneyler `NOTLAR/`, kalıcı kurallar `CLAUDE.md`.
 
+## 3.1 — 2026-09-28 (inceleme, temizlik, "yazdı ama yapmadı")
+
+- **Kod incelemesi ve 50'den fazla düzeltme:** üç bağımsız incelemede bulunan güvenlik, onay, sandbox, ayar, donma ve
+  bulut sorunları giderildi. Onay listesi artık salt okunur işlemlerle sınırlı; sırlar (anahtar dosyaları, bulut ayarı)
+  hiçbir araçtan okunamaz; bozuk ayar dosyası kenara alınıp program yine açılır; ekran kartı ve model listesi
+  denetimleri arayüzü dondurmaz; uzun bekleyen istekler "Durdur" ile hemen kesilir.
+- **Ekran kartına sığan bağlam:** bağlam boyutu ölçülen boş belleğe göre seçilir; 12 GB kartta 14B model artık işlemciye
+  taşmaz, cevaplar zaman aşımına düşmez.
+- **"Yapıyorum" deyip yapmama sona erdi:** model bir iş isteğinde araç çalıştırmadan yalnızca anlatırsa bir kez uyarılır;
+  yine yapmazsa iş görev motoruna ya da daha güçlü bir modele devredilir, o da yoksa tek satırla dürüstçe söylenir.
+  "Araç kullanmak ister misiniz?" gibi izin soruları soru sayılmaz. Türkçe olmayan cevap yeniden yazdırılır.
+  Bu uyarı metinleri sohbette değil sağ paneldeki durum satırında görünür.
+- **Soru sorma aracı:** model sonucu belirleyen bir şeyi soracaksa tek soru sorar, sohbet "cevap bekliyor" olur; sonraki
+  mesajın cevap olduğu bilinir.
+- **🐞 sorun düğmesi:** sohbet penceresinde tek tıkla sorun raporu (masaüstündeki YENİ NESİL CAFER klasörüne) ve
+  geliştiriciye verilecek cümle panoya.
+- **Sürüm sayfası sade:** platform başına tek kurulum dosyası, "Hangisini indireyim?" tablosu, Linux'ta `--install` ile
+  menü ve masaüstü kısayolu; eski ve ön sürümler kaldırıldı. Kurulum sırasında model indirmesi yarıda kalırsa kaldığı
+  yerden sürer.
+- **Testler ve depo:** 784 test, hiçbiri atlanmıyor; deney notları arşivlendi, paketleme betikleri tek klasörde.
+- **Sırada (3.2):** güç ve donanım farkındalığı — dizüstü pilde/fişte kendini uyarlar, uyuyan ekran kartını ve
+  işlemciye düşen modeli fark eder, ölçüme göre en iyi seçeneği seçer.
+
 ## 3.0 — 2026-09-28 (K serisi: kademeli + bulut mimarisi)
 
 - **Sürüm sayfası:** platform başına tek kurulum dosyası (`…-Linux.AppImage` / `…-Windows-Kurulum.exe` / `…-macOS.dmg`),
