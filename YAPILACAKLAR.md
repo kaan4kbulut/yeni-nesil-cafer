@@ -388,18 +388,18 @@ programdan bağlan, telefondan Telegram'da `/baglan <kod>`. Bir araştırma iste
 ## Aşama K10 — Kurulum, sadeleştirme ve sürüm
 **Hedef:** Düşük sistemde bile tek komutla kurulup çalışan, sade bir program.
 
-- [ ] Kurulum sihirbazı (ilk açılış): profil → kademe → "yerel model kur / bulut anahtarı gir / ikisi" → gizlilik modu → bitti
-- [ ] Tek komut kurulum: `pipx install …` ya da platform yükleyicisi (Windows için `.exe`, mevcut güncelleme mekanizmasıyla uyumlu)
-- [ ] Kademe `dusuk` profili: UI'da sadece sohbet + görevler + ayarlar; diğer sekmeler gizli ama açılabilir
-- [ ] Başlangıç süresi ölçümü: `dusuk` kademede < 3 sn hedefi; ağır import'lar lazy
-- [ ] Sürüm notu ve `CHANGELOG.md`; in-app güncelleme K serisi ile uyumlu
-- [ ] `docs/MIMARI.md` gerçekle güncellendi (yapılamayan/değişen kararlar not edildi)
-- [ ] Model seçimiyle ilgili menü ve düğmeler Yardım → Gelişmiş'e, sağlayıcı seçici ve sansürsüz/güvenlik kipleri
+- [x] Kurulum sihirbazı (ilk açılış): profil → kademe → "yerel model kur / bulut anahtarı gir / ikisi" → gizlilik modu → bitti
+- [x] Tek komut kurulum: `pipx install …` ya da platform yükleyicisi (Windows için `.exe`, mevcut güncelleme mekanizmasıyla uyumlu) (pyproject + `cafer` komutu; .exe/.dmg/.AppImage K11)
+- [x] Kademe `dusuk` profili: UI'da sadece sohbet + görevler + ayarlar; diğer sekmeler gizli ama açılabilir
+- [x] Başlangıç süresi ölçümü: `dusuk` kademede < 3 sn hedefi; ağır import'lar lazy
+- [x] Sürüm notu ve `CHANGELOG.md`; in-app güncelleme K serisi ile uyumlu
+- [ ] `docs/MIMARI.md` gerçekle güncellendi (yapılamayan/değişen kararlar not edildi) (BÖLÜM 7 belge tutarlılığında)
+- [x] Model seçimiyle ilgili menü ve düğmeler Yardım → Gelişmiş'e, sağlayıcı seçici ve sansürsüz/güvenlik kipleri (kipler Gelişmiş'te anahtar; onay kipi ve güç zaten Ayarlar'da)
       Ayarlar'a — mevcut plandan taşındı (eski Aşama 6, talimat aşağıda)
 
 **Bitti sayılır:** Temiz bir sanal makinede (ya da düşük kademe kilidiyle) kurulum sihirbazından geçip bulut anahtarıyla bir görev tamamlanıyor; `/kontrol` tamamen yeşil. Taşınan eski Aşama 6'nın bitti ölçütü de sağlanmış.
 
-### Mevcut plandan taşındı: eski Aşama 6 — Arayüzü hedefe göre sadeleştirmek ☐
+### Mevcut plandan taşındı: eski Aşama 6 — Arayüzü hedefe göre sadeleştirmek ☑ (K10, 2026-09-28)
 
 CLAUDE.md'nin hedefi "kullanıcı model seçmek istemiyor". Aşama 2–3 oturunca (artık K3–K4) model menüleri, kategoriler ve
 kipler ana menüden Yardım → Gelişmiş altına iner; ana ekranda yalnızca sohbet, iş klasörü ve durum çubuğu kalır.

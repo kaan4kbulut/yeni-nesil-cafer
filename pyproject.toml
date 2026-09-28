@@ -1,0 +1,26 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "yeni-nesil-cafer"
+version = "3.0"
+description = "Yerel ve bulut modellerle çalışan kişisel yapay zekâ asistanı (Türkçe)"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+dependencies = ["httpx>=0.27", "anthropic>=1,<2", "ddgs>=9", "beautifulsoup4>=4.12", "keyring>=25", "psutil>=5.9"]
+
+[project.optional-dependencies]
+masaustu = ["PySide6>=6.8", "playwright>=1.63"]
+sunucu = ["fastapi>=0.115", "uvicorn>=0.30"]
+
+[project.scripts]
+cafer = "asistan.arayuz.komut:ana"
+
+[tool.setuptools.packages.find]
+include = ["asistan*"]
+
+[tool.setuptools.package-data]
+asistan = ["ayar/*.json", "ayar/*.toml", "yetenekler/*/*", "yetenekler/*/ornek_dosyalar/*", "arayuz/web/statik/*",
+           "cekirdek/semalar/*.json", "gui/assets/*", "beceriler/**/*"]

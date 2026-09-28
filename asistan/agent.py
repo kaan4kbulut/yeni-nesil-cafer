@@ -16,7 +16,6 @@ from dataclasses import replace
 from datetime import date
 from typing import Protocol
 
-import anthropic
 import httpx
 
 from .cekirdek import modeller, saglayici as sg, yonlendirici
@@ -36,6 +35,18 @@ from .tools import (
 from .registry import REGISTRY
 from . import permissions
 from .permissions import is_action  # manager ve testler buradan da alır
+
+
+class _TembelAnthropic:
+    """`anthropic` SDK'sı açılışta ~1 sn: ilk Claude çağrısında yüklenir (K10 açılış süresi; düşük kademede < 3 sn)."""
+
+    def __getattr__(self, ad):
+        import anthropic as sdk
+
+        return getattr(sdk, ad)
+
+
+anthropic = _TembelAnthropic()
 
 MAX_STEPS = 40  # tek bir kullanıcı mesajında en fazla model çağrısı
 SELECTOR_STEPS = 12  # araç seçici kipinde bir turda en çok araç kararı
@@ -1377,7 +1388,7 @@ class Agent:
 
     # ---- Claude ----
 
-    def _claude_client(self) -> anthropic.Anthropic:
+    def _claude_client(self) -> "anthropic.Anthropic":
         return sg_claude.istemci(get_secret(ANTHROPIC_KEY))  # anahtar yoksa ANTHROPIC_API_KEY / `ant auth login`
 
     # ---- döngülerin ortak parçaları (Claude / Ollama / OpenAI uyumlu) ----

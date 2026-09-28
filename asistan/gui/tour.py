@@ -14,6 +14,17 @@ from .theme import C
 
 # sürüm → (başlık, açıklama, düğme yazısı, pencerede yapılacak iş: MainWindow metodu adı ya da "")
 NEWS = {
+    "3.0": [
+        ("Görev motoru", "Çok adımlı işleri anla → planla → uygula → doğrula adımlarıyla yapar; program kapansa "
+         "da «devam et» ile kaldığı yerden sürer. Değişiklik yapan her adım onay bekler; yapamadığı işi sınıflandırır, "
+         "eksik paketi (onayınla) kurar ya da yeni bir yetenek üretir.", "aç", "open_tasks"),
+        ("Yetenekler ve Modeller", "Yardım → Yetenekler: motorun kullandığı her yetenek, izinleri ve durumu. "
+         "Yardım → Gelişmiş → Modeller: kademe başına model listesi, bu bilgisayardaki hız ve başarı ölçümleri. "
+         "Kademe (düşük/orta/yüksek) hıza göre kendini ayarlar; düşük kademede arayüz sadedir.", "aç", "open_capabilities"),
+        ("Telefondan ve sunucudan", "Aynı program bir sunucuda çalışır (docs/SUNUCU_KURULUM.md): telefonda PWA ile "
+         "sohbet, görevler, onaylar; bilgisayar kapalıyken görevler sunucuda sürer, açılınca burada görünür. "
+         "Onay bekleyen görevler için ntfy/Telegram bildirimi.", "", ""),
+    ],
     "2.6": [
         ("Sonuçlar tek yerde", "Asistanın ürettiği resimler, 3D modeller, belgeler ve kodlar masaüstündeki "
          "YENİ NESİL CAFER/Sonuçlar klasöründe konu konu toplanır (Sohbet → Sonuçlar klasörü). Asıl dosyalar çalışma "

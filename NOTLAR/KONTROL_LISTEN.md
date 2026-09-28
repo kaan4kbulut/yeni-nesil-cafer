@@ -39,3 +39,10 @@
 - [ ] Ayarlar → Bulut asistan: adres + anahtar, "Bağlantıyı dene" ✓; bilgisayarı kapat, telefondan (PWA) görev başlat; bilgisayarı aç → 1 dk içinde Yardım → Görevler'de görünmeli, onayı orada ver → sunucuda sürmeli.
 - [ ] `ayar.toml`'a `[bildirim] ntfy_konu = "<rastgele-uzun-ad>"` yaz, telefonda ntfy uygulamasında aynı konuya abone ol; onay bekleyen bir görev başlat → bildirim gelmeli.
 - [ ] "Uzak mod" kutusunu aç → Görevler penceresi sunucudaki görevleri listelemeli; kapat → yerel.
+
+## K10 — Kurulum ve sadeleştirme (2026-09-28 sabah)
+- [ ] `ayar.toml`'da `[genel] kademe_kilidi = "dusuk"` yap, programı aç → sade arayüz (yalnızca Sohbet, model çubuğu ve sağ panel yok); Görünüm → "Gelişmiş arayüz" ile geri gelmeli; kilidi boşalt.
+- [ ] Yardım → Kurulum sihirbazı: 3. sayfada kademe ve "yerel / bulut / ikisi" görünüyor mu? Bulut seçip anahtar girince yerel model sayfası atlanmalı.
+- [ ] Yardım → Gelişmiş: Online/Offline menüleri, kipler, Modeller… hepsi çalışıyor mu? Ana menüde model seçimi kalmadı mı?
+- [ ] Program 3 sn içinde açılıyor mu (düşük kademe kilidiyle)?
+- [ ] `paketleme/aktar.sh` ile kurulu kopyaya aktar; Yardım → Hakkında 3.0; tanıtım penceresi 3.0 maddelerini gösteriyor mu?

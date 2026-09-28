@@ -53,6 +53,14 @@ Gerekenler: kurulum sırasında internet (kurulum ~2,5 GB, modeller bilgisayarı
 İnternetsiz kurulum için her şeyi içeren tam paket de var (~8 GB, GitHub sınırı yüzünden 2 GB'lık parçalar); isteyene
 elden verilir.
 
+**Tek komutla (geliştiriciler, pipx):**
+```sh
+pipx install "git+https://github.com/kaan4kbulut/yeni-nesil-cafer.git[sunucu]"
+cafer profil            # donanım profili ve kademe
+cafer sunucu --port 8765   # web + telefon (PWA); masaüstü için main.py (PySide6)
+```
+Masaüstü uygulaması paketli kurulumla gelir (yukarıda); sunucu/telefon kullanımı için `docs/SUNUCU_KURULUM.md`.
+
 ## Güncelleme
 
 Kurduktan sonra büyük paketi bir daha indirmen gerekmez. Yeni sürüm çıkınca program haber verir:

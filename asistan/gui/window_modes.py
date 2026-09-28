@@ -203,6 +203,35 @@ class ModesMixin:
     def _tier_notice(self, metin: str):
         QTimer.singleShot(0, lambda: self._notify("📐 " + metin, 20000))  # arka plan iş parçacığından arayüze
 
+    # ---- K10: düşük kademede sade arayüz (sohbet + görevler + ayarlar; diğer bölümler Görünüm menüsünden açılır)
+    def _sade_arayuz(self):
+        sade = profil.kademe() == "dusuk" and not self.settings.extra.get("gelismis_arayuz")
+        self.model_tabs.setVisible(not sade and bool(self.settings.extra.get("model_cubugu")))
+        for i in range(1, 5):  # Grup Çalışması, Ajanlar, API'ler, Kütüphaneler; Sohbet kalır
+            b = self.side_tabs.button(i)
+            if b is not None:
+                b.setVisible(not sade)
+        if sade and self.toggle_right.isChecked():
+            self.toggle_right.setChecked(False)
+        self.toggle_right.setVisible(not sade)
+        return sade
+
+    def _toggle_gelismis_arayuz(self, on: bool):
+        self.settings.extra = {**self.settings.extra, "gelismis_arayuz": bool(on)}
+        self.settings.save()
+        self._sade_arayuz()
+
+    def _toggle_model_cubugu(self, on: bool):
+        self.settings.extra = {**self.settings.extra, "model_cubugu": bool(on)}
+        self.settings.save()
+        self._sade_arayuz()
+
+    def _sync_advanced_menu(self):
+        for action, btn in ((self.adv_guard, self.guard_btn), (self.adv_free, self.free_btn), (self.adv_light, self.light_btn)):
+            action.blockSignals(True)
+            action.setChecked(btn.isChecked())
+            action.blockSignals(False)
+
     def _update_tier_btn(self):
         p = profil.yukle() or {}
         tier = profil.kademe()
@@ -213,6 +242,10 @@ class ModesMixin:
         tip = (f"Elle kilitli. Ölçüm: {why}" if locked else why) + (
             "\nBu kademede kapalı: " + ", ".join(off) if off else "") + "\nTıkla: profil özeti ve kademe kilidi."
         self.tier_btn.setToolTip(tip)
+        try:
+            self._sade_arayuz()
+        except AttributeError:  # menü henüz kurulmadı (açılış sırası)
+            pass
 
     def _open_profile(self):
         from .profil_dialog import ProfileDialog

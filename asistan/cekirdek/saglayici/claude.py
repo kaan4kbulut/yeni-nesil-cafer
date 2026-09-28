@@ -4,12 +4,24 @@
 Hangi modelin düşünme / sunucu tarafı yedek desteklediği çağıranın kararıdır (model adları çekirdeğe gömülmez).
 """
 
+from __future__ import annotations
+
 import os
 from collections.abc import Callable, Iterator
 
-import anthropic
-
 from .temel import DUSUNCE, METIN, NABIZ, SON, Parca, Saglayici, Saglik
+
+
+class _TembelAnthropic:
+    """SDK açılışta ~1 sn: ilk Claude çağrısında yüklenir (K10). Tür imzaları `from __future__ import annotations`."""
+
+    def __getattr__(self, ad):
+        import anthropic as sdk
+
+        return getattr(sdk, ad)
+
+
+anthropic = _TembelAnthropic()
 
 EN_COK_TOKEN = 64000
 

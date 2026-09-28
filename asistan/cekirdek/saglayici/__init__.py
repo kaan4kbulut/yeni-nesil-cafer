@@ -4,10 +4,25 @@
 `hata_metni` sağlayıcı hatalarını kullanıcıya gösterilecek Türkçe metne çevirir (eski adı `agent.describe_error`).
 """
 
-import anthropic
 import httpx
 
 from .temel import ARAC, DUSUNCE, METIN, NABIZ, SON, Iptal, Parca, Saglayici, SaglayiciHatasi, Saglik, Yanit  # noqa: F401
+
+
+class _TembelAnthropic:
+    """`anthropic` SDK'sı yalnızca gerekince (hata sınıfları için) yüklenir; açılış hızlı kalsın (K10)."""
+
+    def __getattr__(self, ad):
+        import sys
+
+        if "anthropic" not in sys.modules and ad.endswith("Error"):
+            return type(ad, (Exception,), {})  # SDK hiç yüklenmediyse hiçbir istisna onun sınıfı olamaz
+        import anthropic as sdk
+
+        return getattr(sdk, ad)
+
+
+anthropic = _TembelAnthropic()
 
 
 def bul(ad: str, ayarlar=None, baglantilar: list | None = None) -> Saglayici:
