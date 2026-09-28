@@ -54,7 +54,7 @@ def _tur(saglayici) -> str:
 
 
 def _cagir(saglayici, mesajlar: list, sistem: str, sema: dict, model: str, durum: dict,
-           ollama_ek: dict | None = None) -> tuple[str, object]:
+           ollama_ek: dict | None = None, secenekler: dict | None = None) -> tuple[str, object]:
     """Tek çağrı; sağlayıcının JSON kısıtını kullanır. `durum["openai"]`: bağlantının desteklediği en iyi kip.
     (metin, sağlayıcının yanıtı) döner: yanıttan gerçek token kullanımı okunur."""
     tur = _tur(saglayici)
@@ -90,7 +90,7 @@ def _cagir(saglayici, mesajlar: list, sistem: str, sema: dict, model: str, durum
         return yanit.metin, yanit
     ek_sistem = TALIMAT.format(sema=json.dumps(duz, ensure_ascii=False))
     sistem = f"{sistem}\n\n{ek_sistem}" if sistem else ek_sistem
-    y = saglayici.sohbet(mesajlar, sistem, **secenek)
+    y = saglayici.sohbet(mesajlar, sistem, **secenek, **(secenekler or {}))  # CLI: klasor, duzenleyebilir
     return y.metin, y
 
 
@@ -112,17 +112,19 @@ def harcama_yaz(saglayici, yanit, sistem: str, mesajlar: list, metin: str, gorev
 
 
 def uret(saglayici, mesajlar: list, sema: dict, sistem: str = "", model: str = "", deneme: int = 2,
-         ek_denetim=None, ollama_ek: dict | None = None, gorev_id: str | None = None) -> Sonuc:
+         ek_denetim=None, ollama_ek: dict | None = None, gorev_id: str | None = None,
+         secenekler: dict | None = None) -> Sonuc:
     """`sema`ya uyan tek JSON nesnesi. İlk deneme + (deneme-1) düzeltme turu; sağlayıcı hataları yukarı çıkar.
 
     `ek_denetim(veri) -> list[str]`: şemanın anlatamadığı kurallar (ör. adım bağımlılığı geriye bakmalı); hataları da
     düzeltme turunda modele gösterilir. `ollama_ek`: Ollama seçenekleri (num_ctx, num_predict). Ücretli sağlayıcıda
-    HER çağrı (düzeltme turu dahil) gerçek `usage` ile bulut defterine yazılır (`gorev_id`: görev sayacı)."""
+    HER çağrı (düzeltme turu dahil) gerçek `usage` ile bulut defterine yazılır (`gorev_id`: görev sayacı).
+    `secenekler`: talimat yoluna (CLI ajanı) geçen ek seçenekler (`klasor`, `duzenleyebilir`)."""
     mesajlar = list(mesajlar)
     durum: dict = {}
     sonuc = Sonuc(None)
     for i in range(max(1, deneme)):
-        ham, yanit = _cagir(saglayici, mesajlar, sistem, sema, model, durum, ollama_ek)
+        ham, yanit = _cagir(saglayici, mesajlar, sistem, sema, model, durum, ollama_ek, secenekler)
         harcama_yaz(saglayici, yanit, sistem, mesajlar, ham, gorev_id)
         sonuc.ham, sonuc.deneme = ham, i + 1
         veri = json_ayikla(ham)

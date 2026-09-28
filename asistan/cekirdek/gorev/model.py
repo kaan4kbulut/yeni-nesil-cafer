@@ -28,15 +28,16 @@ class YonlendiriciModeli:
     (kural `permissions.bulut_tavani`; Manager'ın `_budget_ok`'u gibi). Yoksa ya da "hayır" denirse iş yerel
     modelle sürer: para harcatan karar hep kullanıcının, sessiz harcama yok."""
 
-    def __init__(self, ayarlar, baglantilar: list | None = None, sor=None):
+    def __init__(self, ayarlar, baglantilar: list | None = None, sor=None, klasor: str = ""):
         self.ayarlar, self.baglantilar, self.sor = ayarlar, list(baglantilar or []), sor
+        self.klasor = klasor  # CLI ajanı görevin iş klasöründe, salt okunur çalışır (sürecin cwd'sinde değil)
         self._kararlar: dict[str, yonlendirici.Secim] = {}
         self._tavan_red = False  # bu motorda tavan bir kez reddedildi: yeniden sorulmaz
         self.gorev_id: str | None = None  # yürütücü görev kimliğini verir: bulut sayacı görev başına, iş parçacığından bağımsız
 
     def _karar(self, rol: str) -> yonlendirici.Secim:
-        if rol not in self._kararlar:
-            self._kararlar[rol] = yonlendirici.sec(self.ayarlar, rol)
+        if rol not in self._kararlar:  # motorda CLI ajanı yalnızca kod rolünde (planlayıcı/denetçi olamaz)
+            self._kararlar[rol] = yonlendirici.sec(self.ayarlar, rol, cli_yalnizca_kod=True)
         return self._kararlar[rol]
 
     def secim(self, rol: str) -> dict:
@@ -66,11 +67,14 @@ class YonlendiriciModeli:
                 continue
             try:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
+                # CLI ajanı: görevin iş klasöründe, dosya değiştiremez (onay adım adım yürütücüde)
+                ek = {"klasor": self.klasor or ".", "duzenleyebilir": False} if ad.startswith("cli:") else {}
                 if sema is not None:  # yapisal.uret her çağrıyı (düzeltme turu dahil) deftere kendisi yazar
-                    s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model, gorev_id=self.gorev_id)
+                    s = yapisal.uret(saglayici, mesajlar, sema, sistem, model=model, gorev_id=self.gorev_id,
+                                     secenekler=ek)
                     metin, veri, hatalar = s.ham, s.veri, s.hatalar
                 else:
-                    yanit = saglayici.sohbet(mesajlar, sistem, model=model)
+                    yanit = saglayici.sohbet(mesajlar, sistem, model=model, **ek)
                     metin, veri, hatalar = yanit.metin, None, []
                     yapisal.harcama_yaz(saglayici, yanit, sistem, mesajlar, metin, self.gorev_id)
             except sg.Iptal:

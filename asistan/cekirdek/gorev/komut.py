@@ -57,7 +57,7 @@ def motor_kur(ayarlar=None, baglantilar=None, istek: str = "", gorev_id: str = "
     yetenekler = AjanYetenekleri(ayarlar, baglantilar, klasor, [okunur], olay, iptal, ust_cb, izin_kaynagi)
     yetenekler.ajan.user_text = istek  # güvenlik ajanı kullanıcının isteğini görerek karar verir
     # bulut tavanı sohbetin onay penceresine sorulur; pencere yoksa (komut satırı) tavan aşılınca yerel modele geçilir
-    model = YonlendiriciModeli(ayarlar, baglantilar, getattr(ust_cb, "ask_approval", None))
+    model = YonlendiriciModeli(ayarlar, baglantilar, getattr(ust_cb, "ask_approval", None), klasor=yetenekler.klasor)
     return Yurutucu(depo, yetenekler, model, klasor, okunur, olay, iptal, profil.kademe(), sohbet_id)
 
 

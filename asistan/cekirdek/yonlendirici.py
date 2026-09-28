@@ -15,7 +15,7 @@ import logging
 import os
 import threading
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date
 
 from . import ayar
@@ -655,9 +655,20 @@ def adaylar(ayarlar, kullanici_istegi_: bool = True) -> list[Aday]:
 
     sonuc = [aday_cevir(c) for c in roster.candidates(ayarlar)]
     if kullanici_istegi_ and cli_agents.available("cli:claude"):
-        sonuc.append(Aday("cli:claude", cli_agents.CLAUDE.default, False, 95, 2, True, False, 0.0,
-                          {"tools", "code", "thinking"}))
+        sonuc.append(_cli_adayi("cli:claude", cli_agents.CLAUDE.default))
     return sonuc
+
+
+def _cli_adayi(ad: str, model: str) -> Aday:
+    """CLI ajanının adayı: sınav sonucu kartından (`cards.card(ad)`), kart yoksa "sınanmadı" (arac/plan None; puan
+    yalnızca sıralama için). Sabit "araç 2, plan var" beyanı uydurulmaz: CLAUDE.md "programın kendi sınavı"."""
+    from .. import cards
+
+    kart = cards.card(ad) or {}
+    arac = kart.get("tools")
+    plan = kart.get("plan")
+    return Aday(ad, model, False, float(kart.get("score", 95) or 95), None if arac is None else int(arac),
+                None if plan is None else bool(plan), False, 0.0, {"tools", "code", "thinking"})
 
 
 def cevrimici() -> bool:
@@ -684,10 +695,16 @@ def _bilinen_saglik(ad: str) -> Saglik | None:
     return SAGLIK.bilinen_sagliksiz(ad)
 
 
-def sec(ayarlar, rol: str, sohbet: tuple[str, str] | None = None, durum_: Durum | None = None) -> Secim:
+def sec(ayarlar, rol: str, sohbet: tuple[str, str] | None = None, durum_: Durum | None = None,
+        cli_yalnizca_kod: bool = False) -> Secim:
     """Programın kadrosuyla karar. Sağlık: aday listesi canlı sağlayıcılardan kurulur; önbellekte sağlıksız
-    görünen (401, bağlantı hatası) sağlayıcı ayrıca düşer."""
+    görünen (401, bağlantı hatası) sağlayıcı ayrıca düşer.
+
+    `cli_yalnizca_kod` (görev motoru): CLI ajanı yalnızca `kod` rolünde aday olur; planlayıcı, analist ve denetçi
+    olamaz (her anla/planla/doğrula ayrı bir `claude -p` oturumu açıyordu, CLAUDE.md kuralı)."""
     d = durum_ or durum(ayarlar)
+    if cli_yalnizca_kod and GOREV_ROLU.get(rol, rol) != "kod":
+        d = replace(d, kullanici_istegi=False)  # havuz CLI adaylarını düşürür
     return karar(adaylar(ayarlar, d.kullanici_istegi), rol, d, _bilinen_saglik, sohbet)
 
 
