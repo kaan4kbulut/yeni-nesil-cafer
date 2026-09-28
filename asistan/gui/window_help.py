@@ -1,5 +1,6 @@
 """Ana pencere: Yardım menüsündeki pencereler, model sınavı, gelişim ve sorun raporu, bulut iş kuyruğu."""
 
+import logging
 import threading
 import time
 from pathlib import Path
@@ -64,6 +65,13 @@ class HelpMixin:
             try:
                 cloud_sync.sync(self.settings)
                 jobs = cloud_sync.pending_jobs(self.settings)
+                try:  # K9: görevler de eşitlenir (telefondan başlatılan görev burada görünür; çevrimdışı kuyruk gider)
+                    from ..cekirdek import uzak
+
+                    if not uzak.uzak_mod(self.settings):
+                        uzak.esitle(self.settings)
+                except Exception as e:
+                    logging.getLogger(__name__).info("görev eşitleme: %s", e)
             except Exception as e:
                 error = str(e)
             QTimer.singleShot(0, self, lambda: self._cloud_done(jobs, error))

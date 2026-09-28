@@ -185,9 +185,19 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
         istek = str(govde.get("istek") or "").strip()
         if not istek:
             raise HTTPException(400, "istek boş")
-        gid = durum_mod.yeni_id()
+        gid = str(govde.get("gorev_id") or "").strip() or durum_mod.yeni_id()
         m = motor_al(gid, istek)
-        arka_planda(lambda: m.baslat(istek, gorev_id=gid))
+
+        def kos():
+            g = m.baslat(istek, gorev_id=gid)
+            try:  # K9: sunucuda başlayan görev masaüstünde "sunucu" kaynaklı görünür (onay sunucuya gider)
+                if isinstance(g, dict) and not g.get("_kaynak"):
+                    g["_kaynak"] = "sunucu"
+                    depo_al().kaydet(g)
+            except Exception:
+                pass
+
+        arka_planda(kos)
         return {"gorev_id": gid, "durum": "planlandi"}
 
     @app.get("/gorev", dependencies=[Depends(yetki)])
@@ -226,6 +236,29 @@ def uygulama(anahtar: str | None = None, motor_kur=None, sohbet_calistir=None, d
         m = motor_al(gorev_id)
         arka_planda(lambda: m.devam(gorev_id))
         return {"gorev_id": gorev_id, "durum": "calisiyor"}
+
+    @app.post("/gorev/{gorev_id}/iptal", dependencies=[Depends(yetki)])
+    def iptal(gorev_id: str):
+        return {"gorev_id": gorev_id, "iptal": bool(depo_al().iptal_et(gorev_id))}
+
+    @app.post("/gorev/esitle", dependencies=[Depends(yetki)])
+    def esitle(govde: dict):
+        """K9 senkron: istemcinin değişen görevleri (son yazan kazanır, çakışma listesi) + sunucuda `since`'ten sonra
+        değişenler. Sunucu tarafı çakışması: aynı görev iki yanda da değişmişse."""
+        since = float(govde.get("since") or 0)
+        now = time.time()
+        cakismalar = []
+        d = depo_al()
+        for kayit in govde.get("gorevler") or []:
+            g = kayit.get("gorev") or {}
+            if not g.get("gorev_id"):
+                continue
+            sonuc = d.ice_aktar(g, float(kayit.get("guncelleme") or now), since)
+            if sonuc == "cakisma":
+                cakismalar.append({"gorev_id": g["gorev_id"], "yer": "sunucu", "zaman": now})
+        degisen = [{"gorev": {k: v for k, v in g.items() if k != "_surum"}, "guncelleme": g["_surum"]}
+                   for g in d.degisenler(since)]
+        return {"gorevler": degisen, "now": now, "cakismalar": cakismalar}
 
     @app.get("/onaylar", dependencies=[Depends(yetki)])
     def onaylar():

@@ -112,7 +112,7 @@ class AjanYetenekleri:
         from ...registry import REGISTRY, Tool
         from .. import profil
 
-        ek = [REGISTRY.get("move_file").spec]
+        ek = [REGISTRY.get("move_file").spec, REGISTRY.get("send_notification").spec]  # K9: bildirim_gonder sarmalar
         if profil.tarayici_hazir():  # `asistan.browser` (Playwright) çekirdekten içe aktarılmaz (MIMARI §11.7)
             ek += REGISTRY.specs("tarayici")
         for y in self.kayit.aktifler():

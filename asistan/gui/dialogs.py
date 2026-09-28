@@ -180,6 +180,8 @@ class SettingsDialog(QDialog):
         self.cloud_token.setEchoMode(QLineEdit.Password)
         self.cloud_on = QCheckBox("Hafızayı eşitle ve buluttan gelen işleri göster")
         self.cloud_on.setChecked(cloud.get("enabled", True))
+        self.cloud_remote = QCheckBox("Uzak mod: görevler sunucuda (Görevler penceresi sunucuyu kullanır; K9)")
+        self.cloud_remote.setChecked(bool(cloud.get("uzak_mod")))
         cloud_row = QHBoxLayout()
         test_btn = QPushButton("Bağlantıyı dene", objectName="smallButton")
         self.cloud_status = QLabel(objectName="hint")
@@ -189,10 +191,12 @@ class SettingsDialog(QDialog):
         form.addRow("Adres:", self.cloud_url)
         form.addRow("Anahtar:", self.cloud_token)
         form.addRow("", self.cloud_on)
+        form.addRow("", self.cloud_remote)
         form.addRow("", cloud_row)
         cloud_hint = QLabel("Bulut asistan bilgisayarına erişemez; yerel dosya gereken işleri kuyruğa bırakır, "
-                            "burada listelenir ve sen onaylarsan yapılır. Kurulum: programın klasöründeki "
-                            "sunucu/BENIOKU.md.", objectName="hint")
+                            "burada listelenir ve sen onaylarsan yapılır. Görevler dakikada bir sunucuyla eşitlenir "
+                            "(telefondan başlatılan görev burada görünür). Kurulum: docs/SUNUCU_KURULUM.md.",
+                            objectName="hint")
         cloud_hint.setWordWrap(True)
         form.addRow("", cloud_hint)
         form.addRow(QLabel("DİKTE VE GÜNCELLEMELER", objectName="label"))
@@ -278,7 +282,8 @@ class SettingsDialog(QDialog):
             extra["gizlilik"] = self.privacy.currentData()
         extra["yonetici_politikasi"] = self.boss_policy.currentData()
         if url and token:
-            extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked()}
+            extra["cloud"] = {"url": url, "token": token, "enabled": self.cloud_on.isChecked(),
+                              "uzak_mod": self.cloud_remote.isChecked()}
         else:
             extra.pop("cloud", None)
         settings.extra = extra

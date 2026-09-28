@@ -14,7 +14,7 @@ import re
 import time
 from collections.abc import Callable
 
-from .. import yonlendirici
+from .. import bildirim, yonlendirici
 from ..analiz import hata
 from ..saglayici import Iptal
 from . import METIN_URET, Cikti, ModelYok, anlayici, dogrulayici, planlayici
@@ -186,6 +186,7 @@ class Yurutucu:
                                   "kaydedeyim mi?")
                 self._kaydet(gorev)
                 self._olay("onay", gorev, uretim=gorev["bekleyen_uretim"])
+                bildirim.onay_bekliyor(gorev)
                 return gorev
             gorev["durum"], gorev["hatalar"] = "basarisiz", [e.kayit]
             gorev["rapor"] = f"Yapılamadı: {e.kayit['belirti']}"
@@ -389,6 +390,7 @@ class Yurutucu:
         adim.pop("onay", None)  # verilen onay yalnızca bir çalıştırma içindi
         self._kaydet(gorev)
         self._olay("onay", gorev, adim=adim)
+        bildirim.onay_bekliyor(gorev)  # K9: telefona (ntfy/Telegram); ayarlı değilse hiçbir şey yapmaz
         return gorev
 
     def _basarisiz(self, gorev: dict, adim: dict, neden: str, sonuc: str, sinif) -> dict:

@@ -59,8 +59,9 @@ class Depo:
     def _baglan(self) -> sqlite3.Connection:
         return sqlite3.connect(str(self.yol), timeout=10)
 
-    def kaydet(self, gorev: dict, sohbet_id: str | None = None) -> None:
-        """Görevi yazar (varsa üstüne). `sohbet_id` verilmezse eski değer korunur.
+    def kaydet(self, gorev: dict, sohbet_id: str | None = None, zaman: float | None = None) -> None:
+        """Görevi yazar (varsa üstüne). `sohbet_id` verilmezse eski değer korunur. `zaman`: senkron içe aktarımı
+        karşı tarafın damgasını korur (geri yansımasın).
 
         Oku-değiştir-yaz tek işlemde (`BEGIN IMMEDIATE` + süreç içi kilit): Görevler penceresi ile sohbet aynı görevi
         aynı anda yazarsa satır bozulmaz; daha yeni bir kayıt eziliyorsa günlüğe uyarı düşer (`_surum` = yükleme zamanı)."""
@@ -74,7 +75,7 @@ class Depo:
                 if eski and surum and float(eski[1]) > float(surum) + 1e-6:
                     _gunluk.warning("görev %s başka yerden güncellenmiş (%.3f > %.3f); üstüne yazılıyor",
                                     gorev["gorev_id"], eski[1], surum)
-                simdi_ = time.time()
+                simdi_ = float(zaman) if zaman else time.time()
                 b.execute("INSERT OR REPLACE INTO gorevler VALUES (?, ?, ?, ?, ?, ?, ?)",
                           (gorev["gorev_id"], gorev.get("durum", "planlandi"), gorev.get("istek", ""),
                            gorev.get("olusturma", ""), simdi_, sid or "",
@@ -120,6 +121,32 @@ class Depo:
             return [json.loads(s[0]) for s in b.execute(
                 f"SELECT veri FROM gorevler WHERE sohbet_id != '' AND durum IN ({','.join('?' * len(YARIM))}) "
                 "ORDER BY guncelleme DESC", YARIM)]
+
+    # ---- senkron (K9): son-yazan-kazanır, çakışma listesi
+    def degisenler(self, since: float = 0.0, sinir: int = 500) -> list[dict]:
+        """`since`'ten sonra güncellenen görevler (`_surum` = güncelleme damgası)."""
+        with closing(self._baglan()) as b:
+            satirlar = b.execute("SELECT veri, guncelleme FROM gorevler WHERE guncelleme > ? ORDER BY guncelleme LIMIT ?",
+                                 (float(since), sinir)).fetchall()
+        sonuc = []
+        for veri, g in satirlar:
+            gorev = json.loads(veri)
+            gorev["_surum"] = float(g)
+            sonuc.append(gorev)
+        return sonuc
+
+    def ice_aktar(self, gorev: dict, guncelleme: float, since: float = 0.0) -> str:
+        """Karşı taraftan gelen görev: yerel daha yeniyse "eski" (yazılmaz); gelen daha yeniyse yazılır — yerel de
+        `since`'ten sonra değişmişse "cakisma" (son yazan kazandı, listeye düşer), yoksa "yazildi"."""
+        with self._kilit, closing(self._baglan()) as b:
+            satir = b.execute("SELECT guncelleme FROM gorevler WHERE gorev_id = ?", (gorev["gorev_id"],)).fetchone()
+        yerel = float(satir[0]) if satir else None
+        if yerel is not None and yerel >= float(guncelleme):
+            return "eski"
+        sonuc = "cakisma" if yerel is not None and yerel > float(since) else "yazildi"
+        temiz = {k: v for k, v in gorev.items() if k != "_surum"}
+        self.kaydet(temiz, gorev.get("_sohbet_id"), zaman=float(guncelleme))
+        return sonuc
 
     def iptal_et(self, gorev_id: str) -> bool:
         """Görevi silmez, `iptal` durumuna alır (listeden düşer, kayıt kalır)."""

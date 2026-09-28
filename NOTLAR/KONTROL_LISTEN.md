@@ -34,3 +34,8 @@
 - [ ] `CAFER_TOKEN=test123 python -m asistan sunucu --host 0.0.0.0 --port 8765` → telefonu aynı Wi-Fi'ye bağla, `http://<bilgisayar-ip>:8765` aç, anahtarı gir, "Ana ekrana ekle"; sohbette bir soru sor, görevler'de bir iş başlat, onaylar'da onayla.
 - [ ] `docker compose -f sunucu/docker-compose.yml up --build -d` → `./sunucu/dogrula.sh http://127.0.0.1:8765 <anahtar>` hepsi ✓; imaj boyutunu not et.
 - [ ] VPS'e SSH ile gir, `docs/SUNUCU_KURULUM.md` adımları; `sunucu/kur.sh` iki kez çalıştırınca bozmuyor mu?
+
+## K9 — Uzak mod ve senkron (2026-09-28 sabah)
+- [ ] Ayarlar → Bulut asistan: adres + anahtar, "Bağlantıyı dene" ✓; bilgisayarı kapat, telefondan (PWA) görev başlat; bilgisayarı aç → 1 dk içinde Yardım → Görevler'de görünmeli, onayı orada ver → sunucuda sürmeli.
+- [ ] `ayar.toml`'a `[bildirim] ntfy_konu = "<rastgele-uzun-ad>"` yaz, telefonda ntfy uygulamasında aynı konuya abone ol; onay bekleyen bir görev başlat → bildirim gelmeli.
+- [ ] "Uzak mod" kutusunu aç → Görevler penceresi sunucudaki görevleri listelemeli; kapat → yerel.

@@ -96,6 +96,10 @@ class GorevlerDialog(QDialog):
 
     # ---- veri
     def _depo(self):
+        from ..cekirdek import uzak
+
+        if uzak.uzak_mod(self.settings):  # K9: görev deposu sunucuda
+            return uzak.UzakDepo(uzak.ayarlardan(self.settings))
         return gorev_durum.depo()
 
     def _tasks(self) -> list[dict]:
@@ -208,10 +212,24 @@ class GorevlerDialog(QDialog):
 
     # ---- işlemler
     def _motor(self, istek: str = "", gorev_id: str = ""):
+        from ..cekirdek import uzak
         from ..cekirdek.gorev.komut import motor_kur
 
+        istemci = uzak.ayarlardan(self.settings)
+        if istemci is not None and (uzak.uzak_mod(self.settings) or self._sunucu_gorevi(gorev_id)):
+            return uzak.UzakMotor(istemci, bekle_sn=1.0)  # K9: sunucudaki görevin onayı sunucuya gider
         return motor_kur(self.settings, self.connections, istek=istek, gorev_id=gorev_id,
                          iptal=self._stop.is_set, kaynak="komut")
+
+    def _sunucu_gorevi(self, gorev_id: str) -> bool:
+        """Eşitlemeyle gelen, sunucuda başlamış görev (`_kaynak: sunucu`): onay/devam sunucuda yürür."""
+        if not gorev_id:
+            return False
+        try:
+            g = gorev_durum.depo().getir(gorev_id)
+        except Exception:
+            return False
+        return bool(g and g.get("_kaynak") == "sunucu")
 
     def _launch(self, work) -> None:
         self._stop.clear()

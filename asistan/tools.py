@@ -570,6 +570,20 @@ MOVE_FILE_SPEC = REGISTRY.add({
     },
 }, "yazar", ("taşı", "taşındı"), group="gorev")
 
+NOTIFY_SPEC = REGISTRY.add({
+    "name": "send_notification",
+    "description": ("Send a short push notification to the user's phone (ntfy / Telegram, as configured). Use only "
+                    "when the user asked to be notified or a long task finished."),
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "title": {"type": "string", "description": "Short title"},
+            "text": {"type": "string", "description": "Message body (plain text, a few lines)"},
+        },
+        "required": ["title", "text"],
+    },
+}, "calistirir", ("bildirim gönder", "gönderildi"), group="gorev")  # internete gönderir: her seferinde onay
+
 # Araç fabrikası (Aşama 5): eksik yetenek için test edilmiş yeni araç; ekleme ayrıca kullanıcıya sorulur
 # Kullanıcının beceri dosyaları (definitions.py): talimatta yalnızca adlar; tarifin tamamı bu araçla
 USE_SKILL_SPEC = REGISTRY.add({
@@ -1107,6 +1121,11 @@ class Toolbox:
 
     def _tool_move_file(self, source: str, target: str) -> str:
         return a_dosya.tasi(self.root, self.read_roots, source, target)
+
+    def _tool_send_notification(self, title: str, text: str) -> str:
+        from .cekirdek import bildirim
+
+        return bildirim.gonder(str(title)[:100], str(text)[:2000])
 
     def _run_process(self, argv: list[str], python: bool = False, env: dict | None = None) -> str:
         return a_komut.surec(argv, self.root, agent_env() if python else env, COMMAND_TIMEOUT)

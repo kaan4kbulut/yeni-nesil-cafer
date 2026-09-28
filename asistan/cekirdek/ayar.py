@@ -82,6 +82,9 @@ VARSAYILAN: dict = {
     "cli_ajan.tercih": ["claude", "codex", "gemini"],
     "sunucu.port": 8765,
     "sunucu.token_env": "CAFER_TOKEN",
+    "bildirim.ntfy_konu": "",  # K9: ntfy.sh konusu (boş: ntfy yok); telefonda ntfy uygulamasıyla aynı konuya abone ol
+    "bildirim.ntfy_sunucu": "https://ntfy.sh",
+    "bildirim.telegram": True,  # bulut.json'da eşleşmiş Telegram sohbeti varsa oraya da
 }
 
 # ayar.toml / ortamda AÇIKÇA verilirse Settings alanını ezen anahtarlar (varsayılanlar ezmez)

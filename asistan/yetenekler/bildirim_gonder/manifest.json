@@ -1,0 +1,23 @@
+{
+  "ad": "bildirim_gonder",
+  "surum": "1.0.0",
+  "aciklama": "Kullanıcının telefonuna kısa bildirim gönderir (ntfy ya da Telegram; ayarlıysa).",
+  "etiketler": ["ag", "bildirim"],
+  "girdi": {
+    "baslik": {"tip": "string", "zorunlu": true, "aciklama": "Kısa başlık"},
+    "metin": {"tip": "string", "zorunlu": true, "aciklama": "Mesaj (birkaç satır)"}
+  },
+  "cikti": {
+    "sonuc": {"tip": "string", "zorunlu": false, "aciklama": "Kanal başına sonuç (ntfy ✓, telegram ✗ …)"}
+  },
+  "gereksinimler": {"pip": [], "ikili": [], "min_kademe": "dusuk", "isletim": ["windows", "linux", "macos"], "python": ">=3.12"},
+  "izinler": ["ag"],
+  "zaman_asimi_sn": 30,
+  "sandbox": false,
+  "kaynak": "yerlesik",
+  "guvenilir": true,
+  "ornekler": [
+    {"girdi": {"baslik": "Görev bitti", "metin": "Rapor hazır."}, "beklenen": "kanal sonucu ya da 'bildirim ayarlanmadı'"},
+    {"girdi": {"baslik": "Onay bekliyor", "metin": "docx paketi kurulsun mu?"}, "beklenen": "kanal sonucu ya da 'bildirim ayarlanmadı'"}
+  ]
+}

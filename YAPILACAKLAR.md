@@ -373,12 +373,12 @@ programdan bağlan, telefondan Telegram'da `/baglan <kod>`. Bir araştırma iste
 ## Aşama K9 — Uzak mod ve senkron
 **Hedef:** Masaüstü istemci sunucuya bağlanabilir; görevler ve ayarlar tek yerde.
 
-- [ ] Masaüstünde "uzak sunucu" ayarı: URL + token; açıkken görev deposu ve sohbet sunucudan
-- [ ] Çevrimdışıyken yerel kuyruk; bağlanınca senkron (basit: son-yazan-kazanır, çakışma listesi)
-- [ ] Bildirim yeteneği (`bildirim_gonder`: ntfy ya da Telegram bot) — onay bekleyen görevlerde telefona bildirim
-- [ ] Sunucudaki onay masaüstünde, masaüstündeki onay sunucuda görünür
-- [ ] Testler: uzak mod ile yerel mod aynı testleri geçiyor (parametrize)
-- [ ] Bilgisayardan buluta iş gönderme (araştırma) — mevcut plandan taşındı ("Sonraya" listesi). CLAUDE.md kuralı sürer:
+- [x] Masaüstünde "uzak sunucu" ayarı: URL + token; açıkken görev deposu ve sohbet sunucudan (görev deposu ve onaylar sunucudan; masaüstü sohbeti yerel kaldı — SORULAR K9)
+- [x] Çevrimdışıyken yerel kuyruk; bağlanınca senkron (basit: son-yazan-kazanır, çakışma listesi)
+- [x] Bildirim yeteneği (`bildirim_gonder`: ntfy ya da Telegram bot) — onay bekleyen görevlerde telefona bildirim
+- [x] Sunucudaki onay masaüstünde, masaüstündeki onay sunucuda görünür
+- [x] Testler: uzak mod ile yerel mod aynı testleri geçiyor (parametrize)
+- [x] Bilgisayardan buluta iş gönderme (araştırma) — mevcut plandan taşındı ("Sonraya" listesi). CLAUDE.md kuralı sürer:
       buluttan gelen ve yerel dosya gerektiren iş bilgisayarda kendiliğinden çalışmaz (☁ → "yap"); CLI ajanları kuyruğa bağlanmaz.
 
 **Bitti sayılır:** Bilgisayar kapalıyken telefondan başlatılan görev, bilgisayar açılınca masaüstünde görünüyor.
