@@ -4,6 +4,8 @@ Biçim: sürüm → başlıklar. Tarihli deneyler `NOTLAR/`, kalıcı kurallar `
 
 ## 3.0 — 2026-09-28 (K serisi: kademeli + bulut mimarisi)
 
+- **`kullaniciya_sor` aracı** (sohbet yolu): model sonucu belirleyen bir şeyi soracaksa tek soru sorar, tur biter, sohbet
+  "cevap bekliyor" olur; sonraki mesaj aynı bağlamla cevap olarak gider (motorun `anlayici.soru`su ile aynı arayüz).
 - **Çekirdek / arayüz ayrımı** (`asistan/cekirdek/`): ayar (`ayar.toml` + `CAFER_*`), sağlayıcılar (Ollama, Claude,
   OpenAI uyumlu, CLI ajanları), araçlar, istek; çekirdekte Qt/FastAPI yok.
 - **Donanım profili ve kademe** (`dusuk/orta/yuksek/sunucu`): açılışta ölçülür, kilitlenebilir; hız ölçümüyle

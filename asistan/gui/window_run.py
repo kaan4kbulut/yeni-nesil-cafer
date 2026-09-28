@@ -151,6 +151,8 @@ class RunMixin:
                                  + " · ".join(f"«{x['title'][:60]}»" for x in self.used_skills), C["muted"])
         self.last_run_model = model if model != "otomatik" else self.model_box.currentText()
         self.run_failed = False
+        agent.cevaplanan_soru = getattr(self.conv, "bekleyen_soru", "") or ""  # önceki tur soru sorduysa bu cevap
+        self.conv.bekleyen_soru = ""
         self.worker = w = AgentWorker(agent, run_provider, self.conv.messages, text)
         w.text.connect(self.chat.append_text)
         w.text.connect(self.right.activity.text_started)
@@ -279,6 +281,9 @@ class RunMixin:
                     is_advice_request(request) or (is_task_request(request) and planned and w.agent.gate_actions))):
                 self.chat.offer_apply()  # ✓ ile başlatılır, sonra her adım için onay sorulur
         state = "Durduruldu" if w.is_cancelled() else "Tamamlandı"
+        if w.agent.bekleyen_soru and not w.is_cancelled():  # kullaniciya_sor: sohbet cevap bekliyor
+            self.conv.bekleyen_soru = w.agent.bekleyen_soru
+            state = "Cevap bekliyor"
         self.right.activity.end_run(state, summary)
         self.conv.save()
         # "finished" sinyali iş parçacığı tamamen kapanmadan gelebilir; son referans o an bırakılırsa Qt
@@ -287,7 +292,7 @@ class RunMixin:
         w.deleteLater()
         self.worker = None
         self._set_running(False)
-        self.run_label.setText(f"{'durduruldu' if w.is_cancelled() else 'son yanıt'} {secs:.0f} sn")
+        self.run_label.setText(f"{'durduruldu' if w.is_cancelled() else 'cevap bekliyor' if self.conv.bekleyen_soru else 'son yanıt'} {secs:.0f} sn")
         self.conversations.sort(key=lambda c: c.updated, reverse=True)
         self._refresh_sidebar()
         self._refresh_models_status()

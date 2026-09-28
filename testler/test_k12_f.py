@@ -116,7 +116,8 @@ class F8AsistanMdButcesi(unittest.TestCase):
         for d in (kok, kok / "kategori", alt):
             (d / agent_mod.INSTRUCTIONS_FILE).write_text("q" * 3000, encoding="utf-8")
         metin = agent_mod.instruction_files(str(alt), str(kok))
-        self.assertLessEqual(metin.count("q"), agent_mod.INSTRUCTIONS_LIMIT)
+        govde = "\n".join(s for s in metin.splitlines() if not s.startswith("### "))  # başlıklardaki yol adları sayılmaz
+        self.assertLessEqual(govde.count("q"), agent_mod.INSTRUCTIONS_LIMIT)
         self.assertEqual(metin.count("### "), 2)  # bütçe bitince kalan dosya alınmaz
 
 

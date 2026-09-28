@@ -427,6 +427,24 @@ MCP_KUR_SPEC = REGISTRY.add({
     },
 }, "kurar", ("MCP sunucusu ekle", "eklendi"), group="ozel")
 
+# Kullanıcıya tek soru: tur biter, sohbet "cevap bekliyor" olur; cevap sonraki mesajla aynı bağlamda gelir (agent.py).
+# Motor yolundaki `anlayici.soru` ile aynı arayüz sinyali (soru metni + seçenekler baloncuğa yazılır).
+KULLANICIYA_SOR_SPEC = REGISTRY.add({
+    "name": "kullaniciya_sor",
+    "description": (
+        "Ask the user ONE short question when something that decides the result is genuinely missing (a size, a "
+        "choice between options, which file). Calling it ENDS this turn immediately: the user's answer arrives as "
+        "their next message and you continue the same work. Give 2–6 short options when possible. Do not use it "
+        "for routine confirmations or to avoid doing the work."
+    ),
+    "input_schema": {
+        "type": "object",
+        "properties": {"soru": {"type": "string", "description": "the question, in the user's language"},
+                       "secenekler": {"type": "array", "items": {"type": "string"}, "description": "2–6 short options"}},
+        "required": ["soru"],
+    },
+}, "danisir", ("kullanıcıya soru", "soruldu"))
+
 # Hazır API kataloğunda arama: elde olmayan bir konu için API bulur (api_catalog.py)
 FIND_API_SPEC = REGISTRY.add({
     "name": "find_api",

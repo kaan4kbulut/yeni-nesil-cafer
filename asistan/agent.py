@@ -724,6 +724,8 @@ class Agent:
         # "iş bitmedi" dürtmeleri; grup yöneticisinde kapalı: plan, kontrol ve raporda işi kendisi yapmaz, dürtülünce
         # sahip olmadığı run_python'u tekrar tekrar çağırıp görevi bitirmiyordu (2026-09-27)
         self.nudges = True
+        self.bekleyen_soru = ""  # kullaniciya_sor çağrıldı: tur biter, arayüz "cevap bekliyor"
+        self.cevaplanan_soru = ""  # arayüz: bir önceki turda sorulan soru; bu turun mesajı onun cevabı
         self.focus = ""  # yönetici adımı: "iş bitti mi" denetimi tüm isteğe değil bu adıma bakar
         self.base_system = ""  # verilirse system_prompt + program_prompt yerine kullanılır (bulut kopyası)
         self.lean = False  # küçük bağlamlı yerel model: talimat ve araç tanımları kısaltılır (run() belirler)
@@ -857,6 +859,25 @@ class Agent:
         return result
 
     # ---- programın kendi araçları (ajanın durumuna ihtiyaç duyanlar) ----
+
+    def _tool_kullaniciya_sor(self, args: dict) -> str:
+        """Kullanıcıya tek soru: soru (+ seçenekler madde olarak) baloncuğa yazılır, tur biter (`_soru_ile_bitti`)."""
+        soru = " ".join(str(args.get("soru") or "").split())
+        if not soru:
+            raise ToolError("soru is empty")
+        secenekler = [" ".join(str(s).split()) for s in (args.get("secenekler") or []) if str(s).strip()][:6]
+        metin = soru + ("".join(f"\n- {s}" for s in secenekler) if secenekler else "")
+        self.bekleyen_soru = metin
+        self.cb.on_text(("\n\n" if getattr(self.cb, "text", "") else "") + metin)
+        return ("The question is shown to the user; this turn ends now. Their answer will arrive as the next "
+                "message. Do not write anything further.")
+
+    def _soru_ile_bitti(self, messages: list) -> bool:
+        """Bu turda `kullaniciya_sor` çağrıldıysa: soru son asistan mesajı olarak geçmişe girer, döngü biter."""
+        if not self.bekleyen_soru:
+            return False
+        messages.append({"role": "assistant", "content": self.bekleyen_soru})
+        return True
 
     def _tool_remember(self, args: dict) -> str:
         """Programın kendi hafızası: kullanıcının sistemine dokunmaz, sohbette görünür."""
@@ -1319,7 +1340,13 @@ class Agent:
         if step:
             messages.append({"role": "user", PROGRAM: True, "content": step})
         else:
+            if self.cevaplanan_soru:  # kullaniciya_sor'un cevabı: aynı bağlam, aynı iş sürer
+                messages.append({"role": "user", PROGRAM: True, "content": (
+                    f"The user is now answering your question «{self.cevaplanan_soru[:300]}». Treat the next message "
+                    "as the answer and continue the same work; do not repeat the question.")})
+                self.cevaplanan_soru = ""
             messages.append({"role": "user", "content": user_text})
+        self.bekleyen_soru = ""
         self.user_text = user_text
         self._provider = provider
         self._offer_decor(messages)
@@ -1422,7 +1449,7 @@ class Agent:
         Cevap bir soruyla bitiyorsa model kullanıcıya sonucu belirleyen bir şey soruyor: dürtülmez (▶ turu hariç).
         Ondan önce, yöntemin küçük modellerin atladığı iki adımı program takip eder: görsel çıktıyı gözle denetleme
         ve çok denemeden sonra bulunan yolu beceri olarak kaydetme (her biri turda bir kez)."""
-        if not self.nudges:
+        if not self.nudges or self.bekleyen_soru:  # soru soruldu: "yapmadı" sayılmaz
             return None
         names = {s["name"] for s in self.tool_specs}
         if not self.gate_actions and "inspect_output" in names and "inspect_output" not in self.tools_used \
@@ -1566,7 +1593,7 @@ class Agent:
                     result, is_error = self._execute_tool(block.id, block.name, block.input)
                 results.append({"type": "tool_result", "tool_use_id": block.id, "content": result, "is_error": is_error})
             messages.append({"role": "user", "content": results})
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             self.cb.on_text("\n\n")
         self.cb.on_text("\n\n*Adım sınırına ulaşıldı.*")
@@ -1658,7 +1685,7 @@ class Agent:
                     continue
                 return
             self._run_calls(tool_calls, messages, ollama=True)
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             if self.gate_actions and self.blocked_calls >= 2 and tools:
                 # küçük modeller engellenen işlemi inatla tekrar dener: araçları kapat, planı yazsın
@@ -1818,7 +1845,7 @@ class Agent:
             messages.append({"role": "assistant", "content": "", "tool_calls": [call]})
             self._run_calls([call], messages, ollama=True)
             ran += 1
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             if self.gate_actions and self.blocked_calls >= 2:
                 break  # onay bekleyen işlemde ısrar etmesin: planı yazsın
@@ -1986,7 +2013,7 @@ class Agent:
                     continue
                 return
             self._run_calls(tool_calls, messages, ollama=False)
-            if self._stopped_by_security():
+            if self._stopped_by_security() or self._soru_ile_bitti(messages):
                 return
             if self.gate_actions and self.blocked_calls >= 2 and tools:
                 tools = []  # engellenen işlemde ısrar: araçları kapat, planı yazsın

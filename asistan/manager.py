@@ -547,6 +547,10 @@ class Manager:
                 with self._hands():
                     self._run_step(provider, messages, text, i, step, parent)
                 failed += step.get("status") == "failed"
+                if getattr(a, "bekleyen_soru", ""):  # kullaniciya_sor: kalan adımlar cevaptan sonra
+                    for j in range(i + 1, len(self.plan)):
+                        self._set(j, "pending", "kullanıcının cevabı bekleniyor")
+                    return
             self._summary(provider, messages, text, parent)
         finally:
             a.cb = parent
