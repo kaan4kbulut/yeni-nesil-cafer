@@ -17,8 +17,8 @@ _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
 
-from asistan import agent as agent_mod, manager  # noqa: E402
-from asistan.agent import PROGRAM, Agent, meta_soru, turkce_mi  # noqa: E402
+from asistan import manager  # noqa: E402
+from asistan.agent import Agent, meta_soru, turkce_mi  # noqa: E402
 from asistan.config import Settings  # noqa: E402
 
 
