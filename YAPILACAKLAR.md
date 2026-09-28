@@ -454,6 +454,12 @@ makinede açılıp sihirbazdan geçiyor; uygulama içi güncelleme yeni sürüm�
 - [x] İnceleme raporu `NOTLAR/inceleme-k12-2026-09-28.md` (63 madde, durum tablosu)
 - [x] A güvenlik/onay (13/13) · B sandbox/sırlar (10/11, 1 kabul) · C ayar/durum (3/3)
 - [x] D donmalar (8/10; D4, D9 ertelendi) · E döngü/güncelleme/bulut (9/10; E9 ertelendi) · F düşük (9/14; 4 ertelendi, 1 kabul)
-- [ ] Sınav karşılaştırması yeniden (B7 kararı) — elle, KONTROL_LISTEN
+- [x] Sınav karşılaştırması yeniden (B7 kararı: sohbet motoru açık) — `NOTLAR/2026-09-28-SINAV.md`
 
 **Bitti sayılır:** tam takım yeşil, `arayuz_denetimi` 0 hata, `/kontrol` yeşil, rapor tablosunda her madde düzeltildi/ertelendi/kabul.
+
+## Temizlik ve v3.1 hazırlığı (2026-09-28)
+- [x] BÖLÜM 1 depo temizliği (NOTLAR arşivi, `paketleme/` → `dagitim/`), BÖLÜM 3 atlanan test 0, BÖLÜM 2 yazdı-ama-yapmadı (tek dürtü → devir, üst-soru, dil bekçisi, 🐞 tek tık), BÖLÜM 4 sürüm sayfası sadeleştirme — `NOTLAR/2026-09-28-TEMIZLIK.md`
+
+## Aşama K13 — Güç ve donanım farkındalığı (planlandı)
+**Hedef:** Dizüstü fişte/pilde farklı davranır; program güç kaynağını, hibrit grafikte uyuyan dGPU'yu ve Ollama'nın CPU'ya düşmesini fark edip kademe/bağlam/cihazı ölçüme dayalı seçer (`cekirdek/donanim.py`, anlık sonda, K7 kademe kararı, 15 sn güç yoklaması, Donanım bölümü). Tam tanım: `NOTLAR/PROMPT-K13.md`.
