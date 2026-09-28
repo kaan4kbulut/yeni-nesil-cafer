@@ -67,8 +67,15 @@ class KuralSirasi(unittest.TestCase):
         self.assertEqual(y.karar(HEPSI, "hizli", durum(gizlilik="bulut")).model, "ucuz-bulut")
 
     def test_3_gorev_turu_rolleri(self):
-        # özet → hızlı: karta sığan, araç sınavını geçen en güçlü yerel (dev:27b sığmıyor, aracsiz araç kullanamıyor)
-        self.assertEqual(y.karar(HEPSI, "ozet", durum()).model, "buyuk:12b")
+        # özet → hızlı: karta sığan, araç sınavını geçen EN KÜÇÜK yerel (BÖLÜM 2.6; modeller.json roller.hizli
+        # "en ucuz/hızlı"); ölçüm varsa tok/sn en yüksek olan (dev:27b sığmıyor, aracsiz araç kullanamıyor)
+        s = y.karar(HEPSI, "ozet", durum())
+        self.assertEqual(s.model, "kucuk:4b")
+        self.assertEqual(s.zincir[:2], [BUYUK.anahtar, DEV.anahtar])  # büyükler zincirde üst basamak
+        self.assertEqual(y.karar(HEPSI, "ozet", durum(hiz={"buyuk:12b": 60.0, "kucuk:4b": 40.0})).model, "buyuk:12b")
+        s = y.karar(HEPSI, "ozet", durum(hiz={"kucuk:4b": 40.0}))
+        self.assertEqual(s.model, "kucuk:4b")
+        self.assertIn("40 tok/sn", s.neden)
         self.assertEqual(y.karar(HEPSI, "planlama", durum()).saglayici, "cli:claude")  # yönetici
         self.assertEqual(y.karar(HEPSI, "kod_uretimi", durum()).saglayici, "cli:claude")  # CLI ajan varsa o
         self.assertEqual(y.karar([KUCUK, UCUZ, GUCLU], "kod_uretimi", durum()).model, "guclu-bulut")  # sonra bulut
@@ -98,7 +105,16 @@ class KuralSirasi(unittest.TestCase):
         s = y.karar([DEV, BUYUK], "hizli", durum(vram_gb=12))
         self.assertEqual(s.model, "buyuk:12b")
         self.assertEqual(s.zincir, [DEV.anahtar])  # sığmayan büyük model zincirde üst basamak
-        self.assertEqual(y.karar([DEV, BUYUK], "hizli", durum(vram_gb=24)).model, "dev:27b")
+        # 24 GB kartta ikisi de sığar: hızlı rol yine küçüğü seçer, ölçüm büyüğü daha hızlı gösterirse büyüğü
+        self.assertEqual(y.karar([DEV, BUYUK], "hizli", durum(vram_gb=24)).model, "buyuk:12b")
+        self.assertEqual(y.karar([DEV, BUYUK], "hizli", durum(vram_gb=24, hiz={"dev:27b": 70.0})).model, "dev:27b")
+
+    def test_durum_benchmarktan_hiz_okur(self):
+        from asistan.cekirdek import profil
+
+        kayit = {"gpu": {"vram_gb": 12}, "benchmark": {"kucuk:4b": {"tok_sn": 41.2}, "bozuk": {"atlandi": "x"}}}
+        with mock.patch.object(profil, "yukle", return_value=kayit), mock.patch.object(profil, "kademe", return_value="yuksek"):
+            self.assertEqual(y.durum(Settings()).hiz, {"kucuk:4b": 41.2})
 
     def test_yonetici_ile_sohbet_karta_sigmazsa_sohbet_modeli(self):
         orta = A("ollama", "orta:9b", True, 16, 2, True, boyut_gb=6)
@@ -118,7 +134,7 @@ class KuralSirasi(unittest.TestCase):
     def test_secim_bicimi(self):
         s = y.karar(HEPSI, "ozet", durum())
         self.assertEqual(set(s.sozluk()), {"saglayici", "model", "neden"})  # SEMALAR §2 adimlar[i].secim
-        self.assertTrue(s.etiket().startswith("ollama/buyuk:12b — neden: "))
+        self.assertTrue(s.etiket().startswith("ollama/kucuk:4b — neden: "))
 
 
 class Saglik_(unittest.TestCase):
@@ -165,14 +181,15 @@ class YedeklemeZinciri(unittest.TestCase):
     def test_iki_basarisizlikta_ust_basamak(self):
         s = y.karar([KUCUK, BUYUK, DEV, UCUZ], "hizli", durum(vram_gb=12))
         z = y.Zincir.secimden(s)
-        self.assertEqual(z.su_an, BUYUK.anahtar)
-        self.assertEqual(z.basarisiz("dosya yok"), BUYUK.anahtar)  # 1. başarısızlık: aynı model
-        self.assertEqual(z.basarisiz("yine yok"), DEV.anahtar)  # 2. → yerel büyük
-        self.assertEqual(z.basarisiz("zaman", zaman_asimi=True), UCUZ.anahtar)  # zaman aşımı → hemen bulut
+        self.assertEqual(z.su_an, KUCUK.anahtar)  # hızlı rol: en küçük; zincir yukarı doğru
+        self.assertEqual(z.basarisiz("dosya yok"), KUCUK.anahtar)  # 1. başarısızlık: aynı model
+        self.assertEqual(z.basarisiz("yine yok"), BUYUK.anahtar)  # 2. → yerel büyük
+        self.assertEqual(z.basarisiz("zaman", zaman_asimi=True), DEV.anahtar)  # zaman aşımı → hemen üst basamak
+        self.assertEqual(z.basarisiz("zaman", zaman_asimi=True), UCUZ.anahtar)  # → bulut
         z.basarisiz("x")
         self.assertIsNone(z.basarisiz("x"))
         self.assertTrue(z.bitti)
-        self.assertEqual(len(z.gecmis), 3)
+        self.assertEqual(len(z.gecmis), 4)
 
     def test_zincir_sonu_hata_analizine_devredilir(self):
         z = y.Zincir([KUCUK.anahtar], esik=1)

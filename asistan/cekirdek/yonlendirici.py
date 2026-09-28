@@ -123,6 +123,7 @@ class Durum:
     kullanici_istegi: bool = True
     vram_gb: float = 0.0
     tavan: str = ""  # boş değilse bulut tavanı aşıldı (kullanıcıya gösterilecek neden)
+    hiz: dict = field(default_factory=dict)  # model → tok/sn (profil.json → benchmark, K7); rol hızlı buna bakar
 
 
 @dataclass
@@ -442,10 +443,17 @@ def karar(adaylar: list[Aday], rol: str, durum: Durum, saglik=None, sohbet: tupl
         if durum.gizlilik == "bulut" and bulutlar:
             return _bitir(min(bulutlar, key=lambda a: a.puan), "gizlilik bulut: en ucuz bulut modeli", rol, kalan, durum)
         if yereller:
-            en_iyi = yereller[-1]
-            sig = "karta sığıyor" if en_iyi.sigar(durum.vram_gb) and durum.vram_gb else ""
-            return _bitir(en_iyi, on + "rol hızlı: araç sınavını geçen yerel model" + (f", {sig}" if sig else ""),
-                          rol, kalan, durum)
+            # MIMARI §3 / modeller.json roller.hizli "en ucuz/hızlı": karta sığan + araç sınavını geçenlerden ölçülmüş
+            # tok/sn en yüksek olan; ölçüm yoksa en küçük puanlı (en küçük model). Büyük modeller zincirde üst basamak.
+            sigan = [a for a in yereller if a.sigar(durum.vram_gb)] or yereller
+            olculen = [a for a in sigan if durum.hiz.get(a.model)]
+            if olculen:
+                en_iyi = max(olculen, key=lambda a: (float(durum.hiz[a.model]), -a.puan))
+                neden = f"rol hızlı: araç sınavını geçen, karta sığan en hızlı yerel ({float(durum.hiz[en_iyi.model]):.0f} tok/sn)"
+            else:
+                en_iyi = min(sigan, key=lambda a: (a.puan, a.boyut_gb))
+                neden = "rol hızlı: araç sınavını geçen, karta sığan en küçük yerel (hız ölçümü yok)"
+            return _bitir(en_iyi, on + neden, rol, kalan, durum)
         if bulutlar:
             return _bitir(min(bulutlar, key=lambda a: a.puan), "yerelde araç kullanan model yok → en ucuz bulut",
                           rol, kalan, durum)
@@ -687,8 +695,10 @@ def durum(ayarlar, sansursuz: bool | None = None) -> Durum:
     if sansursuz is None:
         sansursuz = bool(extra.get("uncensored_only") or extra.get("uncensored"))
     tavan = "" if tavan_onaylandi() else tavan_durumu()
+    hiz = {model: float(s["tok_sn"]) for model, s in (kayit.get("benchmark") or {}).items()
+           if isinstance(s, dict) and s.get("tok_sn")}
     return Durum(cevrimici(), gizlilik(ayarlar), profil.kademe(), politika(ayarlar), sansursuz,
-                 kullanici_istegi(ayarlar), vram, tavan)
+                 kullanici_istegi(ayarlar), vram, tavan, hiz)
 
 
 def _bilinen_saglik(ad: str) -> Saglik | None:
