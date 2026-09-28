@@ -43,12 +43,15 @@ def kur(hedef: str, arac, amac: str = "") -> str:
         # sistem paket yöneticisi ister → kullanıcıya bırakılır (MIMARI §7 izin/eksik: net soru)
         raise YetenekHatasi("izin", f"'{ad}' programı kurulu değil; bilgisayara yönetici olarak kurulması gerekiyor "
                                     "(Ayarlar → Uygulamalar'dan kurulabilirse oradan).")
-    return mcp_ekle(ad, json.loads(amac) if amac.strip().startswith("{") else {})
+    tanim = json.loads(amac) if amac.strip().startswith("{") else {}
+    mcp_dogrula(ad, tanim)  # allowlist dışıysa kullanıcıya hiç sorulmaz
+    # K12-A6: pip gibi mcp de tek araç yolundan (`mcp_kur` → izin hattı → politika); dosyaya doğrudan yazılmaz
+    return str(arac("mcp_kur", {"ad": ad, "tanim": {"command": tanim.get("command"), "args": tanim.get("args")},
+                                "purpose": f"eksik MCP sunucusu: {ad}"}))
 
 
-def mcp_ekle(ad: str, tanim: dict, dosya: Path | None = None) -> str:
-    """Hazır MCP sunucusunu `mcp.json`'a ekler (allowlist: `npx -y @modelcontextprotocol/server-*`, `uvx mcp-server-*`).
-    Sunucu bir sonraki `mcp.reload` ile başlar; araçları kayda o zaman girer."""
+def mcp_dogrula(ad: str, tanim: dict) -> tuple[str, list[str]]:
+    """Ad ve komut allowlist denetimi: (komut, args). Geçmezse YetenekHatasi."""
     if not re.fullmatch(r"[a-z0-9_\-]+", ad or ""):
         raise YetenekHatasi("veri", f"geçersiz MCP sunucu adı: {ad}")
     komut, args = str(tanim.get("command") or ""), [str(a) for a in tanim.get("args") or []]
@@ -57,6 +60,14 @@ def mcp_ekle(ad: str, tanim: dict, dosya: Path | None = None) -> str:
         raise YetenekHatasi("izin", f"MCP sunucusu allowlist dışında: {komut} {' '.join(args)}")
     if not guvenlik.kaynak_izinli("npm" if komut == "npx" else "pypi"):
         raise YetenekHatasi("izin", "MCP kaynağı kurulum kaynakları listesinde değil")
+    return komut, args
+
+
+def mcp_ekle(ad: str, tanim: dict, dosya: Path | None = None) -> str:
+    """Hazır MCP sunucusunu `mcp.json`'a ekler (allowlist: `npx -y @modelcontextprotocol/server-*`, `uvx mcp-server-*`).
+    Sunucu bir sonraki `mcp.reload` ile başlar; araçları kayda o zaman girer. Çağıran: `Toolbox._tool_mcp_kur`
+    (izin hattından sonra); doğrudan çağrılmaz."""
+    komut, args = mcp_dogrula(ad, tanim)
     if dosya is None:
         from ... import mcp
 

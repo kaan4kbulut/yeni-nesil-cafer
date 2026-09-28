@@ -71,7 +71,9 @@ async function gorevleriYukle() {
   const g = await api("/gorev"); const ul = $("#gorev-listesi"); ul.innerHTML = "";
   for (const t of g.gorevler) {
     const li = document.createElement("li"); li.className = t.durum;
-    li.innerHTML = `<span class="durum">${t.durum}</span>${t.istek.slice(0, 80)}`;
+    // K12-A11: görev metni modelden/sunucudan gelir; HTML olarak basılmaz (textContent)
+    const durum = document.createElement("span"); durum.className = "durum"; durum.textContent = t.durum;
+    li.append(durum, t.istek.slice(0, 80));
     li.addEventListener("click", async () => { const a = await api("/gorev/" + t.gorev_id); $("#gorev-ayrinti").textContent = a.rapor || a.adimlar.map((s) => `${s.durum} ${s.id}. ${s.amac} · ${s.yetenek}`).join("\n"); });
     ul.appendChild(li);
   }
@@ -89,7 +91,9 @@ async function onaylariYukle() {
   $("#onay-sayisi").textContent = o.onaylar.length ? "(" + o.onaylar.length + ")" : "";
   for (const b of o.onaylar) {
     const li = document.createElement("li"); li.className = "bekliyor_onay";
-    li.innerHTML = `<b>${b.ne}</b><br><small>${b.istek.slice(0, 100)}</small><br>`;
+    const ne = document.createElement("b"); ne.textContent = b.ne;  // K12-A11: XSS yok
+    const kucuk = document.createElement("small"); kucuk.textContent = b.istek.slice(0, 100);
+    li.append(ne, document.createElement("br"), kucuk, document.createElement("br"));
     const evet = document.createElement("button"); evet.textContent = "onayla";
     const hayir = document.createElement("button"); hayir.textContent = "reddet"; hayir.className = "ikincil";
     evet.onclick = () => api("/gorev/" + b.gorev_id + "/onayla", { method: "POST", body: JSON.stringify({ evet: true }) }).then(onaylariYukle);

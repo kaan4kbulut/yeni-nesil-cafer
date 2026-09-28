@@ -82,9 +82,10 @@ def load_config() -> dict:
     except (OSError, ValueError):
         conf = {}
     changed = False
-    for key, make in (("token", lambda: secrets.token_urlsafe(24)), ("pair_code", lambda: f"{secrets.randbelow(10**6):06d}")):
-        if not conf.get(key):
-            conf[key], changed = make(), True
+    if not conf.get("token"):
+        conf["token"], changed = secrets.token_urlsafe(24), True
+    if not conf.get("pair_code") and not conf.get("telegram_chat"):  # K12-A12: 12 karakter, eşleşince silinir
+        conf["pair_code"], changed = _yeni_eslesme_kodu(), True
     conf.setdefault("port", 8765)
     conf.setdefault("host", "127.0.0.1")  # dışarı açmak için 0.0.0.0 — önerilen: Tailscale ile yalnızca kendi cihazların
     conf.setdefault("model", modeller.deger("varsayilan.bulut_sunucu"))
@@ -93,6 +94,13 @@ def load_config() -> dict:
     if changed:
         save_config(conf)
     return conf
+
+
+PAIR_DENEME, PAIR_KILIT_SN = 5, 600  # K12-A12: 5 yanlış kodda kod yenilenir ve 10 dk kilit
+
+
+def _yeni_eslesme_kodu() -> str:
+    return secrets.token_urlsafe(9)  # 12 karakter (6 haneli sayı sınırsız denemeyle kırılıyordu)
 
 
 def save_config(conf: dict) -> None:
@@ -283,11 +291,22 @@ def handle_telegram(conf: dict, update: dict) -> str | None:
     if not chat or not text:
         return None
     if not conf.get("telegram_chat"):
-        if text.split()[:2] == ["/baglan", conf["pair_code"]]:
+        parcalar = text.split()
+        if parcalar[:1] != ["/baglan"] or conf.get("pair_lock_until", 0) > time.time():
+            return None  # eşleşmemiş biri ya da kilit: cevap verilmez (bot varlığını bile belli etmez)
+        kod = str(conf.get("pair_code") or "")
+        if len(parcalar) == 2 and kod and hmac.compare_digest(parcalar[1], kod):
             conf["telegram_chat"] = chat
+            conf.pop("pair_code", None)  # tek kullanımlık
+            conf.pop("pair_fail", None)
             save_config(conf)
             return "✅ Eşleşti. Artık bu sohbetten asistanına yazabilirsin."
-        return None  # eşleşmemiş biri: cevap verilmez (bot varlığını bile belli etmez)
+        conf["pair_fail"] = int(conf.get("pair_fail") or 0) + 1  # K12-A12: deneme sınırı
+        if conf["pair_fail"] >= PAIR_DENEME:
+            conf["pair_code"], conf["pair_fail"] = _yeni_eslesme_kodu(), 0
+            conf["pair_lock_until"] = time.time() + PAIR_KILIT_SN
+        save_config(conf)
+        return None
     if chat != conf["telegram_chat"]:
         return None
     if text == "/isler":

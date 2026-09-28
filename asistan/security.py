@@ -8,7 +8,8 @@ Her yan etkili araç çağrısı (komut, Python, dosya yazma, API isteği…) ç
    yasak  → her durumda reddedilir (ör. rm -rf ~, disk biçimlendirmek, gizli anahtarı dışarı göndermek)
 2. Güvenlik modeli (orta/yüksek): isteğe uygun mu, zararlı mı, daha güvenli bir yol var mı? Kararı:
    onay · "farklı yol dene" (asistan başka bir çözüm arar) · ret (zararlı; yapılmaz).
-Model yanıt veremezse temkinli davranılır: orta onaylanır, yüksek geri çevrilir.
+Model yanıt veremezse temkinli davranılır: orta risk KULLANICIYA sorulur ("ask"; K12-A3 — paket kurma, silme, ağ
+gönderme kural tarafından onaylanmaz), yüksek geri çevrilir.
 """
 
 import json
@@ -89,7 +90,8 @@ def _mass_delete_outside(text: str, workspace: str) -> str:
     return ""
 
 
-DECISION_NAMES = {"approve": "onaylandı", "revise": "geri çevrildi — başka yol denenecek", "reject": "reddedildi"}
+DECISION_NAMES = {"approve": "onaylandı", "revise": "geri çevrildi — başka yol denenecek", "reject": "reddedildi",
+                  "ask": "güvenlik modeli yok — kullanıcıya soruldu"}
 
 
 TIER_MEANING = {
@@ -134,7 +136,7 @@ def note(label: str, decision: str, tier: str, reason: str) -> str:
 
 @dataclass
 class Verdict:
-    decision: str  # "approve" · "revise" · "reject"
+    decision: str  # "approve" · "revise" · "reject" · "ask" (model yok: karar kullanıcının; agent._permit sorar)
     tier: str
     reason: str
     findings: list = field(default_factory=list)
@@ -162,10 +164,9 @@ def _outside_paths(text: str, workspace: str) -> list[str]:
 def forbidden(name: str, args: dict) -> str:
     """Yasak listesindeyse nedeni (her kipte reddedilir, kullanıcı onayı da açmaz); değilse boş."""
     tool = REGISTRY.get(name)
-    if tool is not None and tool.source not in ("yerlesik", "yetenek"):  # MCP araçlarının argümanları komut değil
-        return ""
     text = _text(name, args if isinstance(args, dict) else {})
-    if tool is not None and tool.source == "yetenek" and isinstance(args, dict):  # alan adları Türkçe: hepsi taranır
+    if tool is not None and tool.source != "yerlesik" and isinstance(args, dict):
+        # yetenek (alan adları Türkçe) ve MCP (K12-A7: sunucunun şeması ne olursa olsun) argümanlarının hepsi taranır
         text = " ".join(str(v) for v in args.values())
     return next((why for pattern, why in _FORBIDDEN if re.search(pattern, text, re.I)), "")
 
@@ -190,7 +191,10 @@ def classify(name: str, args: dict, workspace: str) -> tuple[str, list[str]]:
     if tool is not None and tool.source != "yerlesik":  # takılan MCP sunucusunun aracı: sunucunun işaretlerine göre
         where = tool.source.split(":", 1)[-1]
         if tool.hints.get("readOnlyHint"):
-            return LOW, [f"“{where}” MCP sunucusundan yalnızca bilgi okuyor"]
+            if tool.trusted:
+                return LOW, [f"“{where}” MCP sunucusundan yalnızca bilgi okuyor"]
+            # K12-A7: sunucunun beyanı kanıt değil; güvenilenler listesinde (mcp.json "trusted") değilse model bakar
+            return MEDIUM, [f"“{where}” MCP sunucusu aracı 'yalnızca okur' diyor ama sunucu güvenilenler listesinde değil"]
         if tool.hints.get("destructiveHint", True):  # MCP kuralı: işaret yoksa yıkıcı olabilir sayılır
             return HIGH, [f"“{where}” MCP sunucusunda geri alınamayabilecek bir değişiklik yapıyor"]
         return MEDIUM, [f"“{where}” MCP sunucusunda bir işlem çalıştırıyor"]
@@ -344,8 +348,8 @@ def review(name: str, args: dict, request: str, workspace: str, ollama_url: str,
                                        details=_details(name, args), tier=tier, findings="; ".join(findings),
                                        workspace=workspace), ollama_url, model, num_ctx) if model else None
     if answer is None:  # güvenlik modeli yok/yanıt vermedi: temkinli
-        if tier == MEDIUM:
-            return Verdict("approve", tier, "Güvenlik modeline ulaşılamadı; orta risk kurallarla onaylandı.", findings)
+        if tier == MEDIUM:  # K12-A3: kural tek başına kurulum/silme/ağ onaylamaz; kullanıcıya sorulur
+            return Verdict("ask", tier, "Güvenlik modeline ulaşılamadı; orta riskli adım kullanıcıya soruluyor.", findings)
         return Verdict("revise", tier, "Güvenlik modeline ulaşılamadı; yüksek riskli adım onaylanmadı. Daha güvenli "
                                        "bir yol dene.", findings)
     reason = " ".join(str(answer.get("reason") or "").split())[:300] or "; ".join(findings)

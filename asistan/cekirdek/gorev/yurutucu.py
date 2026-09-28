@@ -139,8 +139,23 @@ class Yurutucu:
                 self._kaydet(gorev)
                 self._olay("bitti", gorev)
                 return gorev
+            if bekleyen.get("kur") and hasattr(self.yetenekler, "kur"):  # K12-A9: paket onayı verildi → kur → üret
+                k = self.yetenekler.kur(bekleyen["kur"], f"{bekleyen['ad']} yeteneği için", onayli=True)
+                if k.hata:
+                    gorev["durum"], gorev["rapor"] = "basarisiz", f"Yapılamadı: kurulum — {k.metin[:300]}"
+                    self._kaydet(gorev)
+                    self._olay("bitti", gorev)
+                    return gorev
+                self._olay("kurulum", gorev, metin=k.metin)
             c = self._uret(bekleyen["ad"], bekleyen["aciklama"])
-            if c.hata:
+            if c.onay_bekliyor and not bekleyen.get("kur"):  # üretim bir paket istiyor: ayrı onay (K12-A9)
+                gorev["bekleyen_uretim"] = dict(bekleyen, kur=getattr(self.yetenekler, "bekleyen_kurulum", ""))
+                gorev["durum"], gorev["rapor"] = "bekliyor_onay", f"{c.metin} Kurulsun mu?"
+                self._kaydet(gorev)
+                self._olay("onay", gorev, uretim=gorev["bekleyen_uretim"])
+                bildirim.onay_bekliyor(gorev)
+                return gorev
+            if c.hata or c.onay_bekliyor:
                 kayit = hata.isle({"adim": 0, "zaman": simdi(), "sinif": "eksik_yetenek", "belirti": c.metin[:300],
                                    "kanit": "", "sonuc": "vazgecildi"})
                 gorev["durum"], gorev["hatalar"] = "basarisiz", gorev.get("hatalar", []) + [kayit]

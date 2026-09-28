@@ -103,6 +103,39 @@ def gate(action: str, element: dict, url: str, text: str = "", submit: bool = Fa
     return None
 
 
+def ozel_ag_denetle(url: str) -> None:
+    """Yerel / özel ağ adresi tarayıcıyla da açılmaz (`web._adres_denetle` ile aynı kural; K12-A10)."""
+    from .cekirdek.araclar.temel import AracHatasi
+    from .cekirdek.araclar.web import _adres_denetle
+
+    if url.startswith("about:"):
+        return
+    try:
+        _adres_denetle(url)
+    except AracHatasi as e:
+        raise ValueError(str(e).replace("web_fetch", "the browser")) from None
+
+
+_ETIKET_JS = """e => ({role: (e.getAttribute('role') || e.tagName || '').toLowerCase(),
+    name: (e.getAttribute('aria-label') || e.innerText || e.value || e.title || '').trim().slice(0, 160),
+    href: e.getAttribute('href') || ''})"""
+
+
+def _norm(metin) -> str:
+    return " ".join(str(metin or "").lower().split())
+
+
+def etiket_degisti(eski: dict, yeni: dict, url: str) -> str | None:
+    """Tıklama anında öğenin etiketi/adresi okuma anındakinden farklıysa ve yeni hali kapıya takılıyorsa nedeni."""
+    e_ad, y_ad = _norm(eski.get("name")), _norm(yeni.get("name"))
+    e_href, y_href = _norm(eski.get("href")), _norm(yeni.get("href"))
+    ayni_ad = not y_ad or not e_ad or e_ad in y_ad or y_ad in e_ad
+    ayni_href = not y_href or not e_href or e_href == y_href
+    if ayni_ad and ayni_href:
+        return None
+    return gate("click", {**eski, **yeni}, url)
+
+
 # ---------------------------------------------------------------- sayfa okuma (tarayıcıda çalışan betik)
 
 # Görünümün üstünde kalan (okunmuş) metin atlanır; ekrandaki yerden itibaren belge sırasıyla, blok başına satır.
@@ -352,12 +385,18 @@ class Browser:
             raise ValueError("Only http(s) web addresses can be opened in the browser.")
         if not re.match(r"https?://", url, re.I):
             url = "https://" + url
+        ozel_ag_denetle(url)  # K12-A10: web_fetch kuralı tarayıcıda da (localhost, 192.168.x, Ollama API, yönlendirici)
 
         def run(ctx):
             page = self._page(ctx)
             page.bring_to_front()
             page.goto(url, wait_until="domcontentloaded")
             self._settle(page)
+            try:
+                ozel_ag_denetle(page.url)  # yönlendirme ile özel ağa düşmüşse geri çekil
+            except ValueError:
+                page.goto("about:blank")
+                raise
             return self._snapshot(page)
         return self._call(run)
 
@@ -384,6 +423,15 @@ class Browser:
                 before = len(ctx.pages)
                 loc.scroll_into_view_if_needed()
                 before_url = page.url
+                # K12-A10: kapı okuma anındaki etikete bakmıştı; sayfa betiği düğmeyi "Siparişi ver"e çevirdiyse tıklama
+                try:
+                    guncel = loc.evaluate(_ETIKET_JS)
+                except Exception:
+                    guncel = None
+                neden = etiket_degisti(self.elements.get(int(ref), {}), guncel, page.url) if guncel else None
+                if neden:
+                    return (f"Tıklanmadı: öğe [{ref}] okunduğundan beri değişti ({neden}). browser_read ile sayfayı "
+                            "yeniden oku; gerekiyorsa onay istenecek.")
                 loc.click()
                 self._settle(page, before_url if self.elements.get(int(ref), {}).get("role") == "link" else "")
                 if len(ctx.pages) > before:  # yeni sekme açıldı: ona geç

@@ -991,6 +991,12 @@ class Agent:
         if decision.kind == permissions.REVIEW:
             # güvenlik ajanı kipi: kullanıcıya sorulmaz; risk katmanına göre onay, geri çevirme ya da ret
             verdict = self._security_review(name, args)
+            if verdict.decision == "ask":  # K12-A3: güvenlik modeli yok — orta riskli adımı kullanıcı onaylar
+                if not self.cb.ask_approval(name, args):
+                    msg = "The user declined to run this."
+                    self.cb.on_tool_end(call_id, msg, True)
+                    return msg, True
+                return None
             if not verdict.approved:
                 msg = self._security_message(name, args, verdict)
                 self.cb.on_tool_end(call_id, msg, True)

@@ -372,6 +372,49 @@ OPEN_APP_SPEC = REGISTRY.add({
     },
 }, "danisir", ("uygulama aç", "açıldı"))
 
+# K12-A4: open_app argümansız program başlatır; sistemi kapatan/değiştiren ya da kabuk açan programlar ve tırnak/bayrak
+# içeren adlar (PowerShell enjeksiyonu, `firefox --headless`) hiç denenmez. Onay hattı "danisir" (onaysız) olduğu için
+# sınır burada.
+_OPEN_APP_YASAK = frozenset({
+    "reboot", "poweroff", "halt", "shutdown", "systemctl", "init", "telinit", "rm", "dd", "mkfs", "fdisk", "parted",
+    "sudo", "su", "pkexec", "doas", "kill", "killall", "pkill", "chmod", "chown", "mount", "umount", "sh", "bash",
+    "zsh", "fish", "dash", "python", "python3", "perl", "ruby", "node", "nc", "ncat", "curl", "wget", "ssh", "scp",
+    "rsync", "xdg-open", "eval", "exec", "crontab", "passwd", "useradd", "userdel", "visudo", "powershell", "cmd",
+    "pwsh", "reg", "format", "diskpart", "bcdedit", "osascript", "launchctl",
+})
+
+
+def open_app_engeli(name: str) -> str:
+    """`open_app` bu adı başlatmasın mı? Nedeni döner (boş: serbest)."""
+    ad = (name or "").strip()
+    if not ad:
+        return "name is empty"
+    if not re.fullmatch(r"[\w .+\-()]+", ad) or any(p.startswith("-") for p in ad.split()):
+        return "app names may contain only letters, digits, spaces, dots, + and - (no quotes, slashes or flags)"
+    parcalar = {ad.lower(), ad.lower().split()[0], ad.lower().replace(" ", "")}
+    if parcalar & _OPEN_APP_YASAK:
+        return f"'{ad}' is a system command or shell, not a desktop application; it will not be started"
+    return ""
+
+
+def _ps_tirnak(metin: str) -> str:
+    """PowerShell tek tırnaklı dize: içteki tek tırnak ikilenir (K12-A4: `x'; Remove-Item …` enjeksiyonu kapanır)."""
+    return "'" + metin.replace("'", "''") + "'"
+
+# K12-A6: hazır MCP sunucusunu mcp.json'a ekleme — yalnızca yükleyicinin (eksik bağımlılık) tek araç yolu; modele
+# sunulmaz (group="ozel"), izin hattında "kurar" sınıfı (politika `kurulum`, kullanıcı/güvenlik ajanı onayı).
+MCP_KUR_SPEC = REGISTRY.add({
+    "name": "mcp_kur",
+    "description": "Add a known MCP server (npx @modelcontextprotocol/server-* or uvx mcp-server-*) to mcp.json.",
+    "input_schema": {
+        "type": "object",
+        "properties": {"ad": {"type": "string", "description": "server name [a-z0-9_-]"},
+                       "tanim": {"type": "object", "description": "{command, args}"},
+                       "purpose": {"type": "string"}},
+        "required": ["ad", "tanim"],
+    },
+}, "kurar", ("MCP sunucusu ekle", "eklendi"), group="ozel")
+
 # Hazır API kataloğunda arama: elde olmayan bir konu için API bulur (api_catalog.py)
 FIND_API_SPEC = REGISTRY.add({
     "name": "find_api",
@@ -1021,12 +1064,13 @@ class Toolbox:
         import time
 
         name = name.strip()
-        if not name:
-            raise ToolError("name is empty")
+        engel = open_app_engeli(name)
+        if engel:
+            raise ToolError(engel)
         detached = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL,
                     "cwd": str(Path.home())}
         if sys.platform == "win32":
-            ps = f"Start-Process -FilePath '{name}'"
+            ps = f"Start-Process -FilePath {_ps_tirnak(name)}"
             proc = subprocess.run(["powershell", "-NoProfile", "-Command", ps], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                   timeout=30, creationflags=NO_WINDOW)
             if proc.returncode:
@@ -1121,6 +1165,14 @@ class Toolbox:
 
     def _tool_move_file(self, source: str, target: str) -> str:
         return a_dosya.tasi(self.root, self.read_roots, source, target)
+
+    def _tool_mcp_kur(self, ad: str, tanim: dict, purpose: str = "") -> str:
+        from .cekirdek.yetenek import YetenekHatasi, yukleyici
+
+        try:
+            return yukleyici.mcp_ekle(str(ad), dict(tanim or {}))
+        except YetenekHatasi as e:
+            raise ToolError(f"({e.sinif}) {e.mesaj}") from None
 
     def _tool_send_notification(self, title: str, text: str) -> str:
         from .cekirdek import bildirim

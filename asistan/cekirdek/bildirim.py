@@ -44,11 +44,17 @@ def ayarli() -> bool:
     return bool(kanallar())
 
 
-def gonder(baslik: str, metin: str, oncelik: str = "default", istemci=None) -> str:
-    """Bütün kanallara gönderir; "ntfy ✓, telegram ✗ (neden)" gibi özet döner. Kanal yoksa "bildirim ayarlanmadı"."""
+KONU_EN_AZ = 12  # K12-A13: ntfy.sh'ta konuyu bilen herkes okur; kısa/sözlük konu tahmin edilir
+
+
+def gonder(baslik: str, metin: str, oncelik: str = "default", istemci=None, gizli: str = "") -> str:
+    """Bütün kanallara gönderir; "ntfy ✓, telegram ✗ (neden)" gibi özet döner. Kanal yoksa "bildirim ayarlanmadı".
+    `gizli`: yalnızca özel kanala (Telegram) giden ek metin (istek içeriği); herkese açık ntfy sunucusuna gitmez."""
     sonuc = []
     konu = str(ayar.deger("bildirim.ntfy_konu") or "").strip()
     post = (istemci or httpx).post
+    if konu and len(konu) < KONU_EN_AZ:
+        sonuc.append(f"ntfy ⚠ konu kısa (tahmin edilebilir; en az {KONU_EN_AZ} karakter, rastgele olsun)")
     if konu:
         sunucu = str(ayar.deger("bildirim.ntfy_sunucu") or "https://ntfy.sh").rstrip("/")
         try:
@@ -62,21 +68,21 @@ def gonder(baslik: str, metin: str, oncelik: str = "default", istemci=None) -> s
     if tg:
         try:
             r = post(f"https://api.telegram.org/bot{tg['token']}/sendMessage", timeout=ZAMAN,
-                     json={"chat_id": tg["chat"], "text": f"{baslik}\n{metin}"[:4000]})
+                     json={"chat_id": tg["chat"], "text": f"{baslik}\n{metin}" + (f"\n{gizli}" if gizli else "")[:4000]})
             sonuc.append("telegram ✓" if r.status_code < 300 else f"telegram ✗ ({r.status_code})")
         except Exception as e:
             sonuc.append(f"telegram ✗ ({type(e).__name__})")
     return ", ".join(sonuc) or "bildirim ayarlanmadı (ayar.toml → [bildirim] ntfy_konu ya da Telegram eşleşmesi)"
 
 
-def arka_planda(baslik: str, metin: str) -> None:
+def arka_planda(baslik: str, metin: str, gizli: str = "") -> None:
     """Programın kendi bildirimi (onay bekliyor, görev bitti): kanal yoksa hiç iş parçacığı açılmaz."""
     if not ayarli():
         return
 
     def kos():
         try:
-            _gunluk.info("bildirim: %s", gonder(baslik, metin, "high"))
+            _gunluk.info("bildirim: %s", gonder(baslik, metin, "high", gizli=gizli))
         except Exception as e:  # asla yukarı çıkmaz
             _gunluk.info("bildirim gönderilemedi: %s", e)
 
@@ -95,5 +101,6 @@ def onay_bekliyor(gorev: dict) -> None:
         b = a.get("bekleyen") or {}
         ne = (f"kurulum: {b.get('hedef')}" if b.get("tip") == "kur" else f"yetenek üretimi: {b.get('ad')}" if b
               else f"adım {a.get('id')}: {a.get('amac', '')}")
-    arka_planda("Onay bekliyor — YENİ NESİL CAFER", f"{ne}\nİş: {str(gorev.get('istek', ''))[:200]}\n"
-                                                    f"Görev: {gorev.get('gorev_id')}")
+    # K12-A13: istek metni (kişisel içerik) yalnızca özel kanala; ntfy'ye adım/görev kimliği
+    arka_planda("Onay bekliyor — YENİ NESİL CAFER", f"{ne}\nGörev: {gorev.get('gorev_id')}",
+                gizli=f"İş: {str(gorev.get('istek', ''))[:200]}")

@@ -31,8 +31,15 @@ _READONLY_CMDS = {"df", "du", "ls", "free", "uname", "whoami", "hostname", "lsbl
 _PIPE_FILTERS = {"sort", "uniq", "head", "tail", "wc", "grep", "cut", "column"}  # awk yok: system() çalıştırır
 _READONLY_SUB = {"pacman": ("-Q",), "dpkg": ("-l", "-L", "-s"), "rpm": ("-q",), "flatpak": ("list", "info"),
                  "snap": ("list", "info"), "systemctl": ("status", "is-active", "is-enabled", "list-units"),
-                 "journalctl": ("--disk-usage",), "ip": ("addr", "a", "route", "link"), "ollama": ("list", "ps", "show"),
-                 "pip": ("list", "show"), "python3": ("--version",), "git": ("status", "branch")}
+                 "journalctl": ("--disk-usage",), "ip": ("addr", "a", "route", "r", "link", "l"), "ollama": ("list", "ps", "show"),
+                 "pip": ("list", "show"), "python3": ("--version",), "git": ("status", "branch", "log", "show", "diff")}
+# K12-A1: salt okunur sayılan programların YAZAN seçenekleri (önek eşleşmesi: -fprintf, -fprint0, -okdir, -execdir…)
+_FIND_YAZAN = ("-delete", "-exec", "-ok", "-fprint", "-fls")
+_IP_OKUYAN = ("show", "list", "ls", "sh", "s", "get")  # `ip link set`, `ip addr add`, `ip route del` değiştirir
+_NVIDIA_OKUYAN = ("-q", "-L", "-l", "-i", "-d", "-x", "-u", "-h", "--query", "--format", "--list", "--loop", "--id",
+                  "--display", "--xml", "--unit", "--help")  # -r/--gpu-reset, -pl, -pm, -c, -e, -f değiştirir/yazar
+_GREP_YASAK_HARF = set("rRfd")  # özyineleme (cwd taraması), -f DOSYA (dosya okur), -d recurse
+_GREP_YASAK_UZUN = ("--recursive", "--dereference-recursive", "--include", "--exclude", "--file", "--directories")
 
 
 def is_readonly_command(command: str) -> bool:
@@ -47,22 +54,61 @@ def is_readonly_command(command: str) -> bool:
             words = piece.split()
             if not words:
                 return False
-            if n > 0 and words[0] in _PIPE_FILTERS and not any("/" in w or w.startswith(("~", ".")) for w in words[1:]):
-                continue  # boru süzgeci: dosya adı almıyor
+            if n > 0 and words[0] in _PIPE_FILTERS and _pipe_filter_ok(words):
+                continue  # boru süzgeci: dosya adı ve yazma/okuma seçeneği almıyor
             if not _readonly_program(words):
                 return False
     return True
 
 
+def _pipe_filter_ok(words: list[str]) -> bool:
+    """Boru süzgeci (sort, head, grep…) yalnızca önceki komutun çıktısını işliyor mu? Dosya adı (`head -c 100 x.json`,
+    `uniq - out.txt`), yazma seçeneği (`sort -o x`), `grep -r/-f/--include` (cwd'yi ya da dosyayı okur) → hayır."""
+    prog, rest = words[0], words[1:]
+    if any("/" in w or w.startswith(("~", ".")) for w in rest):
+        return False
+    konumsal = [w for w in rest if not w.startswith("-") and not w.isdigit()]
+    if prog == "grep":
+        for w in rest:
+            if (re.fullmatch(r"-[A-Za-z]+", w) and set(w[1:]) & _GREP_YASAK_HARF) or w.startswith(_GREP_YASAK_UZUN):
+                return False
+        return len(konumsal) <= 1  # yalnızca desen
+    if prog == "sort" and any((re.fullmatch(r"-[A-Za-z]+", w) and "o" in w[1:]) or w.startswith("--output") for w in rest):
+        return False
+    return not konumsal  # sort/uniq/head/tail/wc/cut/column: konumsal argüman = dosya adı
+
+
 def _readonly_program(words: list[str]) -> bool:
     prog = words[0]
+    if prog == "tree":
+        return not any(w.startswith("-o") or w == "--output" for w in words[1:])  # -o DOSYA: dosyaya yazar
+    if prog == "nvidia-smi":
+        return all(w.startswith(_NVIDIA_OKUYAN) or w in ("dmon", "pmon", "topo") for w in words[1:])
     if prog in _READONLY_CMDS:
         return True
-    if prog == "find" and not any(w in ("-delete", "-exec", "-execdir", "-ok", "-fprint", "-fls") for w in words):
-        return True
+    if prog == "find":
+        return not any(w.startswith(_FIND_YAZAN) for w in words)
+    if prog == "ip":  # `ip addr` / `ip route show` okur; `ip link set`, `ip addr add` değiştirir
+        return len(words) > 1 and words[1] in _READONLY_SUB["ip"] and (len(words) == 2 or words[2] in _IP_OKUYAN)
+    if prog == "git" and len(words) > 1:
+        if words[1] == "branch":  # `git branch -D x` siler, `git branch yeni` / `-m` yazar: yalnızca listeleme
+            return all(w in ("-a", "-r", "-v", "-vv", "--all", "--remotes", "--list") for w in words[2:])
+        if any(w.startswith("--output") for w in words):  # `git diff --output=DOSYA`
+            return False
     subs = _READONLY_SUB.get(prog)
     return bool(subs and len(words) > 1 and any(words[1] == x or (x.startswith("-Q") and words[1].startswith("-Q"))
                                                  for x in subs))
+
+
+def _politika_gecersiz(name: str, args: dict) -> bool:
+    """K12-A5: politikanın "izin"i yine de hattı atlayamaz — güvenilmeyen kaynaktan program kurma (`apps.trusted`
+    dışı https adresi / bilinmeyen GitHub deposu) `security.classify`'da yüksek risktir; kurulum politikası "otomatik"
+    olsa da kullanıcıya / güvenlik ajanına gider."""
+    if name == "install_app":
+        from .apps import trusted
+
+        return not trusted(str(args.get("source") or ""))
+    return False
 
 
 def is_readonly(name: str, args) -> bool:
@@ -115,7 +161,7 @@ def decide(name: str, args, ctx: Context) -> Decision:
     soz, neden = guvenlik.karar(name, args, (tool.hints or {}).get("izinler", ()) if tool else ())
     if soz == "yasak":
         return Decision(DENY, neden)
-    if soz == "izin" and not ctx.gate_actions:
+    if soz == "izin" and not ctx.gate_actions and not _politika_gecersiz(name, args):
         return Decision(ALLOW, neden)
     action = is_action(name, args)
     if ctx.gate_actions and action:

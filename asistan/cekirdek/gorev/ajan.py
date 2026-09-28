@@ -85,8 +85,11 @@ class AjanYetenekleri:
         # sohbet dışı yol (komut satırı, Görevler penceresi): izin bağlamı yok → yazan/çalıştıran HER adım izin
         # hattında sorulur ("komutları onayla" kapalı olsa da), kullanıcı onaylayana kadar adım bekler (BÖLÜM 3a)
         self.ajan.must_act = True
+        self.bekleyen_kurulum = ""  # K12-A9: üretim sırasında istenen pip paketi (ayrı onay)
         if izin_kaynagi is None:
-            self.ajan.settings = replace(self.ajan.settings, confirm_commands=True)
+            # K12-A2: güvenlik ajanı kipi sohbetin kipidir; izin bağlamı olmayan yolda kararı kullanıcı verir
+            # (`decide`: güvenlik kipinde `must_act` hiç sorulmuyordu, güvenlik modeli onaylayınca adım sessizce koşuyordu)
+            self.ajan.settings = replace(self.ajan.settings, approval_mode="kullanici", confirm_commands=True)
         if izin_kaynagi is not None:  # sohbet ajanının izin bağlamı (▶ turu, hep izin ver, otomatik onay)
             if getattr(izin_kaynagi, "confirm_commands", False):  # ✓ turu: "komutları onayla" kapalı olsa da sorulur
                 self.ajan.settings = replace(self.ajan.settings, confirm_commands=True)
@@ -112,7 +115,8 @@ class AjanYetenekleri:
         from ...registry import REGISTRY, Tool
         from .. import profil
 
-        ek = [REGISTRY.get("move_file").spec, REGISTRY.get("send_notification").spec]  # K9: bildirim_gonder sarmalar
+        # K9: bildirim_gonder sarmalar; K12-A6: yükleyicinin `mcp:` hedefi tek araç yolundan (`mcp_kur`, modele sunulmaz)
+        ek = [REGISTRY.get("move_file").spec, REGISTRY.get("send_notification").spec, REGISTRY.get("mcp_kur").spec]
         if profil.tarayici_hazir():  # `asistan.browser` (Playwright) çekirdekten içe aktarılmaz (MIMARI §11.7)
             ek += REGISTRY.specs("tarayici")
         for y in self.kayit.aktifler():
@@ -177,12 +181,26 @@ class AjanYetenekleri:
         model = model or getattr(self, "model", None)
         if model is None:
             return Cikti("Error: yetenek üretmek için model yok", True)
-        self._onayli = True  # onaylanan üretim: gereken pip paketi de aynı onayla kurulur
-        try:
-            s = uretici.uret(ad, aciklama, model, python=self._python, sor=lambda _ozet: True, arac=self._arac,
-                             kutuphane_yollari=self._kutuphaneler, kademe=self.kademe, calisma_klasoru=self.klasor)
-        finally:
-            self._onayli = False
+        from .. import guvenlik
+
+        self._onayli, self._bekleyen, self.bekleyen_kurulum = False, False, ""
+
+        def arac(ad_: str, args: dict) -> str:
+            # K12-A9: üretim onayı, adı kullanıcıya gösterilmemiş bir paketin kurulumunu kapsamaz; kurulum ayrı onayla
+            # (yürütücü `bekleyen_uretim.kur` ile sorar, onaylanınca `kur(..., onayli=True)` + üretim yeniden)
+            if ad_ in guvenlik.KURULUM_ARACLARI:
+                paket = str(args.get("packages") or args.get("ad") or "")
+                self.bekleyen_kurulum = ("mcp:" if ad_ == "mcp_kur" else "pip:") + paket
+                self._bekleyen = True
+                raise YetenekHatasi("izin", f"'{paket}' paketinin kurulumu için ayrı onay gerekiyor")
+            return self._arac(ad_, args)
+
+        s = uretici.uret(ad, aciklama, model, python=self._python, sor=lambda _ozet: True, arac=arac,
+                         kutuphane_yollari=self._kutuphaneler, kademe=self.kademe, calisma_klasoru=self.klasor)
+        if s.yetenek is None and self.bekleyen_kurulum:
+            paket = self.bekleyen_kurulum.split(":", 1)[1]
+            return Cikti(f"'{ad}' yeteneği için '{paket}' paketi kurulmalı; kurulum için onay gerekiyor",
+                         onay_bekliyor=True)
         if s.yetenek is None:
             return Cikti(f"Error: {s.rapor}", True)
         self.kayit.yenile()

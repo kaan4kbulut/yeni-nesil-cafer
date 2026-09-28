@@ -149,15 +149,15 @@ class Bildirim(unittest.TestCase):
             cagrilar.append((url, k))
             return SimpleNamespace(status_code=200)
 
-        with mock.patch.dict(os.environ, {"CAFER_BILDIRIM_NTFY_KONU": "cafer-abc"}), \
+        with mock.patch.dict(os.environ, {"CAFER_BILDIRIM_NTFY_KONU": "cafer-abc-x7k2q9"}), \
                 mock.patch.object(bildirim, "_telegram", return_value={"token": "T", "chat": 5}):
             self.assertEqual(bildirim.kanallar(), ["ntfy", "telegram"])
             self.assertEqual(bildirim.gonder("Başlık", "metin", istemci=SimpleNamespace(post=post)), "ntfy ✓, telegram ✓")
-        self.assertEqual(cagrilar[0][0], "https://ntfy.sh/cafer-abc")
+        self.assertEqual(cagrilar[0][0], "https://ntfy.sh/cafer-abc-x7k2q9")
         self.assertEqual(cagrilar[0][1]["content"], b"metin")
         self.assertEqual(cagrilar[1][1]["json"]["chat_id"], 5)
         self.assertIn("api.telegram.org/botT/", cagrilar[1][0])
-        with mock.patch.dict(os.environ, {"CAFER_BILDIRIM_NTFY_KONU": "k"}), mock.patch.object(bildirim, "_telegram", return_value={}):
+        with mock.patch.dict(os.environ, {"CAFER_BILDIRIM_NTFY_KONU": "kkkkkkkkkkkk"}), mock.patch.object(bildirim, "_telegram", return_value={}):
             def bozuk(url, **k):
                 raise ConnectionError("yok")
 
