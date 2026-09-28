@@ -1,0 +1,16 @@
+# Testlerin ve geliştirmenin ek kütüphaneleri (program paketine GİRMEZ: toplam ~370 MB, OCP 151 MB; program bunları
+# ilk kullanımda onaylı kurar — install_python_package / yükleyici). Kurulum: pip install -r requirements-test.txt
+-r requirements.txt
+pytest>=8
+pyflakes>=3
+numpy>=2
+scipy>=1.14
+pillow>=10
+matplotlib>=3.9
+contourpy>=1.3
+trimesh>=4
+manifold3d>=3
+networkx>=3
+PyMCubes>=0.1.6
+build123d>=0.9
+python-docx>=1.1

@@ -20,9 +20,9 @@ sys.path.insert(0, str(KOK))
 sys.path.insert(0, str(KOK / "testler" / "sinav"))
 # ajan kütüphaneleri gerçek kurulumdan (test_sus_modelleri ile aynı neden: XDG geçiciyken bulunamıyorlardı)
 _VERI = Path.home() / ".local/share"
-_YOLLAR = [p for p in (_VERI / "yeni-nesil-cafer-app/ajan-kutuphaneleri", _VERI / "yeni-nesil-cafer/python-kutuphaneleri")
-           if p.is_dir()]
-os.environ["PYTHONPATH"] = os.pathsep.join([*map(str, _YOLLAR), os.environ.get("PYTHONPATH", "")]).strip(os.pathsep)
+import kutuphane_yolu  # noqa: E402  (testler/: yalnızca bu Python'la uyumlu kütüphane klasörleri PYTHONPATH'e)
+
+_YOLLAR = kutuphane_yolu.pythonpath_ekle()
 _GECICI = tempfile.mkdtemp(prefix="yeni-nesil-cafer-test-")
 os.environ["XDG_CONFIG_HOME"] = str(Path(_GECICI) / "ayar")  # kullanıcının gerçek ayar ve verisine dokunulmaz
 os.environ["XDG_DATA_HOME"] = str(Path(_GECICI) / "veri")
