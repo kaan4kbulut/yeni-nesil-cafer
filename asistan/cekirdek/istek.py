@@ -3,10 +3,13 @@
 da buradan çağıracak. Arayüz yalnızca olayları gösterir (`agent.Callbacks`), karar burada verilir.
 """
 
+import logging
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from .saglayici import Iptal, hata_metni
+
+_gunluk = logging.getLogger(__name__)
 
 # bu sohbetin iş klasörü: diğer işler salt okunur (CLAUDE.md: her sohbet kendi iş klasöründe)
 IS_KLASORU_NOTU = (
@@ -45,6 +48,7 @@ class IstekBaglami:
     her_zaman_izinli: bool = False  # "bu oturumda hep izin ver"
     devam_projesi: dict | None = None  # "… devam et": kayıtlı proje (learning)
     cli_modeli: str = ""  # Claude Code / Codex modeli (opus, sonnet…)
+    sohbet_id: str = ""  # masaüstü sohbetinin kimliği: görev motoru görevi sohbete bağlar (boş: motor yok)
 
 
 def ajan_hazirla(b: IstekBaglami, geri_cagri=None):
@@ -83,6 +87,7 @@ def ajan_hazirla(b: IstekBaglami, geri_cagri=None):
     if b.ayarlar.approval_mode == "guvenlik" and is_advice_request(b.metin):
         ajan.extra_system = (ajan.extra_system or "") + ONERI_NOTU  # yalnızca öneri istendi: hiçbir şey yapılmasın
     ajan.cli_model = b.cli_modeli
+    ajan.gorev_baglami = {"sohbet_id": b.sohbet_id, "ana_klasor": ana}  # görev motoru (`gorev/sohbet.py`)
     # beceri kütüphanesi: benzer bir iş daha önce başarıyla yapıldıysa yöntemini asistana ver
     beceriler = learning.find_skills(learning.original_request(b.metin)) if not b.metin.startswith("📈") else []
     if beceriler:
@@ -91,10 +96,37 @@ def ajan_hazirla(b: IstekBaglami, geri_cagri=None):
 
 
 def calistir(ajan, saglayici: str, mesajlar: list, metin: str) -> None:
-    """İsteği yönetici döngüsüyle çalıştırır (plan → adımlar → denetim). Hatalar ve `Iptal` yukarı çıkar."""
+    """İsteği yönetici döngüsüyle çalıştırır (plan → adımlar → denetim). Hatalar ve `Iptal` yukarı çıkar.
+
+    Masaüstü sohbetinde (`sohbet_id` dolu): bu sohbetin yarım görevi "devam et" ile sürer; görev motoru bayrağı
+    açıksa (`gorev/sohbet.py`) Manager'ın plan çıkaracağı iş motora gider. İkisi de yoksa Manager yolu aynen."""
     from ..manager import Manager
 
-    Manager(ajan).run(saglayici, mesajlar, metin)
+    sohbet_id = (getattr(ajan, "gorev_baglami", None) or {}).get("sohbet_id", "")
+    if sohbet_id and ajan.profile is None:
+        from .gorev import sohbet
+
+        try:
+            yarim = sohbet.yarim_gorev(sohbet_id, mesajlar, metin)
+        except Exception as e:  # gorevler.db bozuk/kilitli: sohbet bozulmasın, Manager yolu sürer
+            _gunluk.warning("yarım görev okunamadı: %s", e)
+            yarim = None
+        if yarim is not None:
+            from . import yonlendirici
+
+            # Manager.run'daki gibi: görev başına bulut sayacı sıfırlanır; tavan aşılınca soru motorun model
+            # çağrısında (`gorev/model.py`, `permissions.bulut_tavani`)
+            yonlendirici.gorev_basla()
+            sohbet.calistir(ajan, mesajlar, metin, sohbet_id, yarim)
+            return
+    yonetici = Manager(ajan)
+    if sohbet_id and ajan.profile is None:
+        from .gorev import sohbet
+
+        if sohbet.acik_mi(ajan.settings):
+            yonetici.motor = lambda m, t: sohbet.calistir(ajan, m, t, sohbet_id)
+            yonetici.motor_karari = sohbet.gorev_mu
+    yonetici.run(saglayici, mesajlar, metin)
 
 
 @dataclass

@@ -5,6 +5,10 @@ hook'lar. Toolbox doğrudan çağrılmaz (izin hattı atlanırdı). K5'te manife
 Onay: izin hattı "kullanıcıya sor" derse soru `ask_approval` geri çağrısına gelir. Kullanıcı bu adımı onayladıysa
 (`onayli`) cevap "evet"; onaylamadıysa "hayır" ve sonuç `onay_bekliyor` olur — yürütücü adımı bekletir, kullanıcı
 Görevler penceresinden ya da `gorev --onayla` ile onaylayınca aynı çağrı hattan yeniden geçer.
+
+Sohbetten çalışırken (`sohbet.py`) araç olayları sohbetin geri çağrısına da gider (`ust_cb`: araç kartları, güvenlik
+notları) ve sohbet ajanının izin bağlamı (`izin_kaynagi`: ▶ uygula turu, "hep izin ver", otomatik onay listesi) aynen
+kopyalanır; yoksa ▶ turunda yazma onaysız geçerdi (`permissions.decide`: `must_act and action`).
 """
 
 import uuid
@@ -34,14 +38,26 @@ class _GeriCagri:
     def on_tool_start(self, call_id, name, args):
         if self.sahip.olay:
             self.sahip.olay("arac", {"ad": name, "girdi": args})
+        self._ilet("on_tool_start", call_id, name, args)
 
-    def __getattr__(self, name):  # on_tool_end, on_text, on_security…: motor kullanmıyor
+    def on_tool_end(self, call_id, result, is_error):
+        self._ilet("on_tool_end", call_id, result, is_error)
+
+    def on_security(self, *a, **k):
+        self._ilet("on_security", *a, **k)
+
+    def _ilet(self, ad: str, *a, **k):
+        fn = getattr(self.sahip.ust_cb, ad, None) if self.sahip.ust_cb is not None else None
+        if fn:
+            fn(*a, **k)
+
+    def __getattr__(self, name):  # on_text, on_thinking…: motor kullanmıyor
         return lambda *a, **k: None
 
 
 class AjanYetenekleri:
     def __init__(self, ayarlar, baglantilar: list | None = None, klasor: str = "", okunur: list[str] | None = None,
-                 olay=None, iptal=None):
+                 olay=None, iptal=None, ust_cb=None, izin_kaynagi=None):
         from ...agent import Agent
         from ...registry import REGISTRY
 
@@ -49,10 +65,16 @@ class AjanYetenekleri:
             Path(klasor).mkdir(parents=True, exist_ok=True)
             ayarlar = replace(ayarlar, workspace=klasor)
         self._onayli = self._bekleyen = False
-        self.olay, self.iptal = olay, iptal
+        self.olay, self.iptal, self.ust_cb = olay, iptal, ust_cb
         self.ajan = Agent(ayarlar, _GeriCagri(self), None, baglantilar or [])
         self.ajan.gate_actions = False  # ✓ beklemesi yok: onay adım adım (yürütücü)
         self.ajan.must_act = False
+        if izin_kaynagi is not None:  # sohbet ajanının izin bağlamı (▶ turu, hep izin ver, otomatik onay)
+            if getattr(izin_kaynagi, "confirm_commands", False):  # ✓ turu: "komutları onayla" kapalı olsa da sorulur
+                self.ajan.settings = replace(self.ajan.settings, confirm_commands=True)
+            self.ajan.must_act = bool(getattr(izin_kaynagi, "must_act", False))
+            self.ajan.always_allowed = bool(getattr(izin_kaynagi, "always_allowed", False))
+            self.ajan.auto_approve = getattr(izin_kaynagi, "auto_approve", self.ajan.auto_approve)
         for yol in okunur or []:
             self.ajan.toolbox.read_roots.append(Path(yol).expanduser().resolve())
         adlar = {n for n, t in REGISTRY.tools.items() if t.group == GRUP}

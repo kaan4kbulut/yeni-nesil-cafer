@@ -19,10 +19,19 @@ def _ulasilamadi(hata: Exception) -> bool:
         hata).__name__ in ("AuthenticationError", "APIConnectionError", "APITimeoutError") or "(401)" in str(hata)
 
 
+def _ucretli(ad: str) -> bool:
+    return not (ad == "ollama" or ad.startswith("cli:"))
+
+
 class YonlendiriciModeli:
-    def __init__(self, ayarlar, baglantilar: list | None = None):
-        self.ayarlar, self.baglantilar = ayarlar, list(baglantilar or [])
+    """`sor`: onay penceresi (`ask_approval(ad, girdi) -> bool`). Bulut tavanı aşılınca ücretli çağrı ona sorulur
+    (kural `permissions.bulut_tavani`; Manager'ın `_budget_ok`'u gibi). Yoksa ya da "hayır" denirse iş yerel
+    modelle sürer: para harcatan karar hep kullanıcının, sessiz harcama yok."""
+
+    def __init__(self, ayarlar, baglantilar: list | None = None, sor=None):
+        self.ayarlar, self.baglantilar, self.sor = ayarlar, list(baglantilar or []), sor
         self._kararlar: dict[str, yonlendirici.Secim] = {}
+        self._tavan_red = False  # bu motorda tavan bir kez reddedildi: yeniden sorulmaz
 
     def _karar(self, rol: str) -> yonlendirici.Secim:
         if rol not in self._kararlar:
@@ -40,7 +49,19 @@ class YonlendiriciModeli:
         if not sira:
             raise ModelYok(karar.neden)
         son_hata: Exception | None = None
-        for ad, model in dict.fromkeys(sira):
+        tavan_notu = ""
+        sira = list(dict.fromkeys(sira))
+        i = 0
+        while i < len(sira):
+            ad, model = sira[i]
+            i += 1
+            if _ucretli(ad) and not self._tavan_izni(ad, model):
+                if not tavan_notu:  # tavan onaylanmadı: yerel modeller sıranın sonuna
+                    tavan_notu = "bulut tavanı aşıldı, yerel model"
+                    yerel = yonlendirici.yerel_sec(self.ayarlar, rol)
+                    ekle = ([yerel.anahtar] if yerel.anahtar else []) + [tuple(k) for k in yerel.zincir]
+                    sira += [k for k in ekle if k not in sira and not _ucretli(k[0])]
+                continue
             try:
                 saglayici = sg.bul(ad, self.ayarlar, self.baglantilar)
                 if sema is not None:
@@ -54,9 +75,29 @@ class YonlendiriciModeli:
                     yonlendirici.SAGLIK.bildir(ad, False, str(e)[:200])
                 _gunluk.warning("görev modeli %s/%s hata verdi: %s", ad, model, e)
                 continue
-            if not (ad == "ollama" or ad.startswith("cli:")):  # ücretli bulut: token yaklaşık (karakter/4)
+            if _ucretli(ad):  # ücretli bulut: token yaklaşık (karakter/4)
                 yonlendirici.harcama_ekle(ad, (len(sistem) + len(str(mesajlar)) + len(metin or "")) // 4)
-            secim = {"saglayici": ad, "model": model, "neden": karar.neden if (ad, model) == karar.anahtar
-                     else f"yedek: {karar.anahtar[1] if karar.anahtar else '?'} hata verdi"}
-            return Cevap(metin or "", veri, secim, hatalar)
-        raise ModelYok(f"{karar.neden}; son hata: {son_hata}" if son_hata else karar.neden)
+            neden = (karar.neden if (ad, model) == karar.anahtar else tavan_notu
+                     or f"yedek: {karar.anahtar[1] if karar.anahtar else '?'} hata verdi")
+            return Cevap(metin or "", veri, {"saglayici": ad, "model": model, "neden": neden}, hatalar)
+        neden = "; ".join(n for n in (karar.neden, tavan_notu) if n)
+        raise ModelYok(f"{neden}; son hata: {son_hata}" if son_hata else neden)
+
+    def _tavan_izni(self, ad: str, model: str) -> bool:
+        """Ücretli bulut çağrısı yapılabilir mi? Tavan aşıldıysa kullanıcıya bir kez sorulur."""
+        from ... import permissions
+
+        karar = permissions.bulut_tavani(yonlendirici.tavan_durumu(), yonlendirici.tavan_onaylandi())
+        if karar.kind == permissions.ALLOW:
+            return True
+        if self._tavan_red:
+            return False
+        evet = self.sor is not None and bool(self.sor(permissions.BULUT_TAVANI, {
+            "purpose": f"Bulut maliyet tavanı aşıldı: {karar.reason}. {model} ile devam edilsin mi? "
+                       "(Hayır dersen bu iş yerel modelle sürer.)", "model": f"{ad}/{model}"}))
+        if evet:
+            yonlendirici.tavan_onayla()
+        else:
+            self._tavan_red = True
+            _gunluk.warning("bulut tavanı aşıldı (%s): %s/%s kullanılmıyor", karar.reason, ad, model)
+        return evet

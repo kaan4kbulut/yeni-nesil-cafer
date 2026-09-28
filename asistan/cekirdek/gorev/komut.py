@@ -31,8 +31,12 @@ def gorev_klasoru(ayarlar, istek: str, gorev_id: str) -> str:
 
 
 def motor_kur(ayarlar=None, baglantilar=None, istek: str = "", gorev_id: str = "", olay=None, iptal=None,
-              kaynak: str = KAYNAK):
-    """Gerçek yetenekler + yönlendirici modeliyle yürütücü. `istek`/`gorev_id` iş klasörünü belirler."""
+              kaynak: str = KAYNAK, klasor: str = "", okunur: str = "", ust_cb=None, izin_kaynagi=None,
+              sohbet_id: str = ""):
+    """Gerçek yetenekler + yönlendirici modeliyle yürütücü. `istek`/`gorev_id` iş klasörünü belirler.
+
+    Sohbetten (`sohbet.py`): `klasor` sohbetin iş klasörü, `okunur` ana çalışma klasörü, `ust_cb` sohbetin geri
+    çağrısı, `izin_kaynagi` sohbet ajanı, `sohbet_id` görevi sohbete bağlar. Kayıtlı görev kendi klasöründe sürer."""
     from ...config import Settings
     from ...connections import load_connections
     from .. import profil, yonlendirici
@@ -44,14 +48,17 @@ def motor_kur(ayarlar=None, baglantilar=None, istek: str = "", gorev_id: str = "
     ayarlar = replace(ayarlar, extra={**(ayarlar.extra or {}), yonlendirici.EXTRA_KAYNAK: kaynak})
     baglantilar = load_connections() if baglantilar is None else baglantilar
     depo = durum_mod.depo()
-    if gorev_id and not istek:
-        eski = depo.getir(gorev_id)
-        istek = (eski or {}).get("istek", "")
-    klasor = gorev_klasoru(ayarlar, istek or "gorev", gorev_id or durum_mod.yeni_id())
-    okunur = ayarlar.workspace
-    yetenekler = AjanYetenekleri(ayarlar, baglantilar, klasor, [okunur], olay, iptal)
-    model = YonlendiriciModeli(ayarlar, baglantilar)
-    return Yurutucu(depo, yetenekler, model, klasor, okunur, olay, iptal, profil.kademe())
+    eski = depo.getir(gorev_id) if gorev_id else None
+    if eski and not istek:
+        istek = eski.get("istek", "")
+    klasor = (eski or {}).get(durum_mod.KLASOR_ALANI) or klasor or gorev_klasoru(ayarlar, istek or "gorev",
+                                                                          gorev_id or durum_mod.yeni_id())
+    okunur = okunur or ayarlar.workspace
+    yetenekler = AjanYetenekleri(ayarlar, baglantilar, klasor, [okunur], olay, iptal, ust_cb, izin_kaynagi)
+    yetenekler.ajan.user_text = istek  # güvenlik ajanı kullanıcının isteğini görerek karar verir
+    # bulut tavanı sohbetin onay penceresine sorulur; pencere yoksa (komut satırı) tavan aşılınca yerel modele geçilir
+    model = YonlendiriciModeli(ayarlar, baglantilar, getattr(ust_cb, "ask_approval", None))
+    return Yurutucu(depo, yetenekler, model, klasor, okunur, olay, iptal, profil.kademe(), sohbet_id)
 
 
 def ozet(gorev: dict, ayrinti: bool = False) -> str:

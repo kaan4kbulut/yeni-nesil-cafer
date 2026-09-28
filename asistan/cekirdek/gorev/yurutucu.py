@@ -17,7 +17,7 @@ from collections.abc import Callable
 from .. import yonlendirici
 from ..saglayici import Iptal
 from . import METIN_URET, Cikti, ModelYok, anlayici, dogrulayici, planlayici
-from .durum import BITMIS, Depo, devam_noktasi, simdi
+from .durum import BITMIS, KLASOR_ALANI, Depo, devam_noktasi, simdi
 
 SONUC_SINIRI = 20000  # adımın saklanan sonucu (karakter); görev JSON'u şişmesin
 OZET_SINIRI = 200
@@ -82,6 +82,8 @@ class Yurutucu:
             self.olay_fn(tur, {"gorev": gorev, **ek})
 
     def _kaydet(self, gorev: dict) -> None:
+        if self.klasor:
+            gorev.setdefault(KLASOR_ALANI, self.klasor)
         self.depo.kaydet(gorev, self.sohbet_id or None)
 
     def _iptal_mi(self) -> None:

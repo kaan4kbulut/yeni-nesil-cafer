@@ -18,6 +18,7 @@
 - [ ] K4: 9 madde açık kaldı; NOTLAR/ altındaki K4 notunu oku, gerekirse `/asama K4` ile bitirt.
 
 ## K4 — Görev motoru (2026-09-28 00:09)
+- [ ] Önce Ayarlar → "Çok adımlı işleri görev motoruyla yap" kutusunu işaretle (varsayılan kapalı).
 - [ ] Programa yaz: 'Çalışma klasöründeki .txt dosyalarını say, en büyüğünü özetle.' Plan görünüyor mu?
 - [ ] Adım 1 bitince programı kapat/aç, 'devam et' de → kaldığı yerden sürüyor mu?
 - [ ] K5: 9 madde açık kaldı; NOTLAR/ altındaki K5 notunu oku, gerekirse `/asama K5` ile bitirt.

@@ -185,6 +185,11 @@ class Manager:
         self.lessons = ""  # planlamaya giren dersler (Aşama 4)
         self.started = time.time()  # bu turda değişen dosyaların içeriği denetçiye gösterilir
         self._hinted = False  # "daha güçlü model bağla" önerisi bu turda bir kez
+        # K4 görev motoru (bayrakla, `cekirdek/istek.py`): plan çıkarılacak işi motora verir; None: eski yol.
+        # `motor_karari`: motorun "çok adımlı iş" ölçütü (salt okuyan analiz de); motor ✓ beklemez, her değişikliği
+        # kendi adımında sorar
+        self.motor = None
+        self.motor_karari = None
 
     # ---- arayüz bildirimleri (callback yoksa sessiz)
     def _emit(self, name: str, *args):
@@ -201,13 +206,14 @@ class Manager:
     # ---- karar
     def should_plan(self, provider: str, text: str) -> bool:
         a = self.agent
-        if a.profile is not None or a.gate_actions or a.no_tools or not a.tool_specs:
+        gated = a.gate_actions and self.motor is None
+        if a.profile is not None or gated or a.no_tools or not a.tool_specs:
             return False  # uzman ajan sohbeti · onay bekleyen plan turu (✓) · araçsız model: planın anlamı yok
         if cli_agents.is_cli(provider):
             return False  # Claude Code / Codex / Gemini CLI kendi planını yapar
         if provider == "ollama" and self.worker is None:
             return False  # hiçbir kurulu model araç kullanamıyor
-        return needs_plan(text)
+        return (self.motor_karari or needs_plan)(text)
 
     # ---- modeller (Aşama 3: kartlarla; K3: yönlendirici)
     def _pick_models(self, provider: str) -> None:
@@ -432,6 +438,9 @@ class Manager:
         self._announce(text)
         if not self.should_plan(provider, text):
             self._direct(provider, messages, text)
+            return
+        if self.motor is not None:  # görev motoru: planı kaydeder, adım adım koşar, kapanınca kaldığı yerden sürer
+            self.motor(messages, text)
             return
         self._emit("on_plan", None)  # "plan çıkarılıyor…"
         self.plan = self.make_plan(provider, messages, text)

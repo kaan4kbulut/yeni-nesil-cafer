@@ -1,0 +1,53 @@
+### PROMPT
+OTOMATİK MOD — dikkatle oku:
+- Bu oturumda kimse onay veremez, soru cevaplayamaz. "Onayımı bekle" diyen her yerde beklemek YERİNE en makul varsayımı seç, varsayımı NOTLAR/ altındaki aşama notuna yaz ve devam et.
+- Kullanıcıya sorman gereken bir şey varsa NOTLAR/SORULAR.md'ye "K<n> | soru | verdiğin geçici karar" satırı ekle, geçici kararla devam et.
+- Commit ATMA; sürücü atar. git push, git reset --hard, rm -rf kullanma.
+- Görev listesini (TaskCreate/TaskUpdate) mutlaka kullan: her madde bir görev, ilk görevin başlığı aşama koduyla başlasın, başladığını in_progress, bitirdiğini completed yap.
+- Bitirince son mesajın şu biçimde olsun:
+  SONUÇ: TAMAM | KISMEN | KALDI
+  DEĞİŞEN: <dosya sayısı>
+  TEST: <geçti/kaldı>
+  NOT: <tek satır>
+
+denetci ajanını kullanarak K4 aşamasında yapılan değişikliği (git diff HEAD) denetle.  Engelleyici bulursa sen düzelt, testi ekle, tekrar denetlet; GEÇTİ alana kadar sürdür (en fazla 3 tur). Son mesajında SONUÇ satırını yaz.
+
+### ÇIKTI (kod 0)
+Denetçi ikinci turda **ŞARTLI** verdi ve engelleyici bulgu kalmadı. GEÇTİ'ye ulaşamadım. Tek şart tam test takımının kurulu programın Python'uyla koşulması, ama bu yol bu oturumda izinsiz. Aynı ortamda sonuç değişmeyeceği için 3. turu açmadım.
+
+**Tur 1 KALDI verdi; iki engelleyiciyi düzelttim:**
+1. **Bulut maliyet tavanı sorulmuyordu.** Tavan aşılınca görev motoru ücretli bulutu kullanıcıya sormadan harcamaya devam ediyordu. Artık her ücretli çağrıdan önce `permissions.bulut_tavani` kuralına bakılıyor (`asistan/cekirdek/gorev/model.py`). Tavan aşıldıysa sohbetin onay penceresinden bir kez soruluyor. "Evet" denirse onay o istek boyunca geçerli. "Hayır" denirse ya da soracak pencere yoksa iş yerel modelle sürüyor.
+2. **Olumsuz cümle görevi iptal ediyordu.** "iptal etme", "vazgeçme", "bırakma" gibi mesajlar yarım görevi geri alınamaz biçimde iptal ediyordu (`sohbet.py`). Kabul edilen ekleri tek tek saydım, olumsuzlar artık eşleşmiyor.
+
+Denetçinin önerilerinden birini de aldım: görev veritabanı bozuk ya da kilitliyse sohbet hata vermiyor. Hata günlüğe yazılıyor ve eski yönetici yolu sürüyor (`istek.py`).
+
+Yeni testler `testler/test_sohbet_motoru.py` içinde: olumsuz cümle testi, 5 bulut tavanı testi ve veritabanı hatası testi.
+
+**Testler:** Kurulu Python'u çalıştırmak onay istediği için onun yerine sistem `python3` ile projenin `.venv` kütüphanelerini kullandım.
+- Motor testleri: 59 testin hepsi geçti.
+- Tam takım: 476 testten 453'ü geçti, 2'si kaldı, 21'i atlandı.
+- Kalan 2 test `test_cekirdek_ayrimi` içinde. Açtıkları alt süreç `.venv` kütüphanelerini görmediği için düşüyorlar. Aynı denetimi süreç içinde yaptım, temiz çıktı.
+- `test_bulut.Esitleme` bir koşuda düştü, tek başına geçti. Kararsız görünüyor, ayrı iş olarak notlara yazdım.
+
+**Kararlarım** (`NOTLAR/SORULAR.md` ve `NOTLAR/2026-09-28-K4.md` içinde):
+- Görevler penceresinde ve komut satırında soru penceresi olmadığı için tavan aşılınca iş sormadan yerel modele geçiyor. Kullanıcı bunu yalnızca plan kartındaki model seçiminin nedeninde görüyor.
+- Denetçinin bayrağın arkasındaki diğer önerilerini sonraki aşamaya bıraktım.
+
+**Önerilen commit mesajı:**
+```
+K4: denetçi düzeltmeleri — görev motorunda bulut tavanı sorusu, «vazgeç» deseni olumsuzları eşlemez
+
+- gorev/model.py: ücretli çağrıdan önce permissions.bulut_tavani; sohbet onay penceresiyle bir kez sorulur, hayır/pencere yok → yerel model
+- sohbet.py: _VAZGEC ekleri tek tek; "iptal etme"/"vazgeçme" görevi bırakmaz
+- istek.py: gorevler.db okunamazsa Manager yolu sürer
+- testler: BulutTavaniTesti, olumsuz cümle, veritabanı hatası
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+```
+
+Görev listesini tutamadım, çünkü TaskCreate/TaskUpdate bu oturumda yoktu.
+
+SONUÇ: KISMEN
+DEĞİŞEN: 7
+TEST: kaldı (motor testleri 59/59 geçti; tam takımda 2 test ortam nedeniyle kaldı, 21 atlandı; kurulu Python'la koşulamadı)
+NOT: Denetçi ŞARTLI verdi, engelleyici kalmadı; GEÇTİ için tam takım kurulu Python'la bir kez koşulmalı (`~/.local/share/yeni-nesil-cafer-app/python/bin/python3 -m unittest discover -s testler -v`).

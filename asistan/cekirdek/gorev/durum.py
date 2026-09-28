@@ -20,6 +20,7 @@ SURUM = 1  # PRAGMA user_version: tablo biçimi değişirse artar
 
 BITMIS = ("tamamlandi", "basarisiz", "iptal")
 YARIM = ("planlandi", "calisiyor", "bekliyor_onay", "bekliyor_kullanici")
+KLASOR_ALANI = "_klasor"  # görevin iş klasörü (program alanı, SEMALAR §2 dışı): sürdürülünce aynı klasörde çalışır
 
 
 def varsayilan_yol() -> Path:
@@ -85,6 +86,13 @@ class Depo:
         with closing(self._baglan()) as b:
             return [json.loads(s[0]) for s in b.execute(
                 "SELECT veri FROM gorevler WHERE sohbet_id = ? ORDER BY guncelleme DESC", (sohbet_id,))]
+
+    def sohbet_yarim(self) -> list[dict]:
+        """Sohbetten başlatılmış yarım görevler (en yeni önce); komut satırı ve Görevler penceresinin görevleri hariç."""
+        with closing(self._baglan()) as b:
+            return [json.loads(s[0]) for s in b.execute(
+                f"SELECT veri FROM gorevler WHERE sohbet_id != '' AND durum IN ({','.join('?' * len(YARIM))}) "
+                "ORDER BY guncelleme DESC", YARIM)]
 
     def iptal_et(self, gorev_id: str) -> bool:
         """Görevi silmez, `iptal` durumuna alır (listeden düşer, kayıt kalır)."""

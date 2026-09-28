@@ -160,8 +160,11 @@ yöneticiyi gösteriyor; anahtarsız bağlantı hiçbir zaman yönetici seçilmi
 - [x] `gorev/dogrulayici.py`: `basari_olcutu` kontrolü (kural tabanlı + gerekirse `hizli` modele sor)
 - [x] `gorev/durum.py`: SQLite görev deposu (`DATA_DIR/gorevler.db`); "yarım görevler" listesi; "devam et"
 - [x] `cafer gorev "…"` CLI (`python -m asistan gorev`); masaüstünde Görevler **penceresi** (Yardım → Görevler…; sağ
-      panele sekme değil, SORULAR K4/K5/K7) — liste, adım durumu, Devam/Onayla/Reddet/İptal. **Kalan:** sohbet yolu hâlâ
-      Manager; motoru sohbete bağlamak (bayrak + `_gorev_id` + "devam et") NOTLAR/2026-09-28-K4.md
+      panele sekme değil, SORULAR K4/K5/K7) — liste, adım durumu, Devam/Onayla/Reddet/İptal
+- [x] Motor masaüstü sohbetinde (`gorev/sohbet.py`, Ayarlar → "Çok adımlı işleri görev motoruyla yap", varsayılan
+      kapalı): plan kartı + adım durumu mevcut geri çağrılarla, onay sohbetin onay penceresiyle, mesajda `_plan` +
+      `_gorev_id`, "devam et" yarım görevi sürdürür (yeni boş sohbette de), açılışta yarım görev notu. Bayrak kapalıyken
+      Manager yolu aynen (`test_sohbet_motoru.py`; NOTLAR/2026-09-28-K4.md "2. koşu")
 - [x] Testler: sahte yeteneklerle 3 adımlı görev; ortada kapatıp devam ettirme; doğrulama başarısız → tekrar deneme
       (`test_gorev_motoru.py`, `test_yapisal.py`, `test_arac_secici.py`, `test_gorevler_penceresi.py`)
 - [x] Şema-kısıtlı üretim (`agent.structured`, `cekirdek/yapisal.py`) ve araç çağıramayan modeller için araç seçici kipi

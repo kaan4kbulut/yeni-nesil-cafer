@@ -94,6 +94,10 @@ class SettingsDialog(QDialog):
         self.policy.addItem("En güçlü model (bulut dahil, ücretli olabilir)", "guclu")
         self.policy.setCurrentIndex(max(self.policy.findData(settings.model_policy), 0))
         form.addRow("Öncelik:", self.policy)
+        self.task_engine = QCheckBox("Çok adımlı işleri görev motoruyla yap (deneme: plan kaydedilir, program kapansa da "
+                                     "«devam et» ile kaldığı yerden sürer)")
+        self.task_engine.setChecked(bool(settings.extra.get("gorev_motoru")))
+        form.addRow("", self.task_engine)
         from ..cekirdek import yonlendirici
 
         self.privacy = QComboBox()  # K3: yönlendiricinin gizlilik modu
@@ -267,6 +271,7 @@ class SettingsDialog(QDialog):
         extra = dict(settings.extra)
         extra["dikte_dil"] = self.dictation_lang.currentData()
         extra["dikte_temizle"] = self.dictation_clean.isChecked()
+        extra["gorev_motoru"] = self.task_engine.isChecked()
         extra["guncelleme_otomatik"] = self.auto_update.isChecked()
         extra["sonuclari_topla"] = self.collect_results.isChecked()
         if self.privacy.isEnabled():  # ayar.toml'la sabitlenmişse arayüz yazmaz

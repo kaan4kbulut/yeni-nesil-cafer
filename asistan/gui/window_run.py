@@ -144,7 +144,8 @@ class RunMixin:
             metin=text, ayarlar=self.settings, ajan_ayarlari=agent_settings, is_klasoru=self._work_dir(),
             profil=self.profile, baglantilar=self.connections, ekip=self.profiles, sansursuz=bool(free),
             her_zaman_izinli=self.always_allowed, devam_projesi=self.continued_project,
-            cli_modeli=self.route[1] if self.route else ""))  # Claude Code: opus, sonnet…
+            cli_modeli=self.route[1] if self.route else "",  # Claude Code: opus, sonnet…
+            sohbet_id=self.conv.id))  # görev motoru: yarım görev bu sohbete bağlı
         if self.used_skills:
             self.chat.add_notice("🧩 Daha önce işe yarayan yöntem kullanılıyor: "
                                  + " · ".join(f"«{x['title'][:60]}»" for x in self.used_skills), C["muted"])
